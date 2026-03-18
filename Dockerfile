@@ -15,6 +15,7 @@ COPY --from=build /usr/src/app/package.json /usr/src/app/package.json
 COPY --from=build /usr/src/app/node_modules /usr/src/app/node_modules
 COPY --from=build /usr/src/app/public /usr/src/app/public
 COPY --from=build /usr/src/app/server/templates /usr/src/app/server/templates
+COPY --from=build /usr/src/app/scripts /usr/src/app/scripts
 
 WORKDIR /usr/src/app
 EXPOSE 3000
