@@ -1,0 +1,23 @@
+{
+  "services": [
+    {
+      "name": "ehs-saas",
+      "type": "app",
+      "source": {
+        "type": "github",
+        "repository": "nonexistent99/ehs_saas",
+        "branch": "main"
+      },
+      "env": "DATABASE_URL=
+JWT_SECRET=super_secret_fallback_key_for_testing_only
+NODE_ENV=production
+VITE_APP_ID=ehs_saas
+PORT=3000",
+      "domains": [
+        {
+          "host": "ehs.yourdomain.com"
+        }
+      ]
+    }
+  ]
+}
