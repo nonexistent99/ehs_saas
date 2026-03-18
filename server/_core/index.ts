@@ -87,6 +87,45 @@ async function startServer() {
       res.status(500).send("Error generating PDF: " + String(e));
     }
   });
+  
+  // Database Diagnostic Route
+  app.get("/api/debug/db", async (req, res) => {
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) return res.status(500).send("DATABASE_URL not set");
+    
+    const results: string[] = ["--- Database Connectivity Diagnostic ---"];
+    try {
+      const { URL } = await import("url");
+      const { hostname } = new URL(dbUrl);
+      results.push(`Target Host: ${hostname}`);
+      
+      const dns = await import("dns/promises");
+      results.push("Attempting DNS lookup...");
+      try {
+        const lookup = await dns.lookup(hostname);
+        results.push(`SUCCESS: Host resolved to ${lookup.address}`);
+      } catch (e: any) {
+        results.push(`FAILED: DNS lookup failed: ${e.message} (${e.code})`);
+      }
+      
+      const postgres = await import("postgres").then(m => m.default);
+      results.push("Attempting DB connection...");
+      const sql = postgres(dbUrl, { connect_timeout: 5 });
+      try {
+        await sql`SELECT 1`;
+        results.push("SUCCESS: Database connection established!");
+      } catch (e: any) {
+        results.push(`FAILED: Database connection failed: ${e.message}`);
+      } finally {
+        await sql.end();
+      }
+    } catch (e: any) {
+      results.push(`ERROR during diagnostic: ${e.message}`);
+    }
+    
+    res.setHeader("Content-Type", "text/plain");
+    res.send(results.join("\n"));
+  });
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
