@@ -657,10 +657,14 @@ export async function deleteTraining(id: number) {
 // =============================================
 // APR
 // =============================================
-export async function getAllAPR(companyId?: number) {
+export async function getAllAPR(filters?: { companyId?: number; search?: string; status?: string; date?: string }) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(apr.companyId, companyId)] : [];
+  const conditions = [];
+  if (filters?.companyId) conditions.push(eq(apr.companyId, filters.companyId));
+  if (filters?.search) conditions.push(like(apr.title, `%${filters.search}%`));
+  if (filters?.status && filters.status !== 'all') conditions.push(eq(apr.status, filters.status as any));
+  if (filters?.date) conditions.push(eq(apr.date, filters.date));
   return db.select().from(apr).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(apr.createdAt));
 }
 
@@ -697,11 +701,12 @@ export async function getAllEpiFicha(companyId?: number) {
     .orderBy(desc(epiFicha.createdAt));
 }
 
-export async function createEpiFicha(data: typeof epiFicha.$inferInsert) {
+export async function createEpiFicha(data: typeof epiFicha.$inferInsert | (typeof epiFicha.$inferInsert)[]) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(epiFicha).values(data).returning({ id: epiFicha.id });
-  return result[0]?.id;
+  const values = Array.isArray(data) ? data : [data];
+  const result = await db.insert(epiFicha).values(values).returning({ id: epiFicha.id });
+  return result.map(r => r.id);
 }
 
 export async function deleteEpiFicha(id: number) {
@@ -713,10 +718,16 @@ export async function deleteEpiFicha(id: number) {
 // =============================================
 // ADVERTÊNCIAS
 // =============================================
-export async function getAllAdvertencias(companyId?: number) {
+export async function getAllAdvertencias(filters?: { companyId?: number; userId?: number; type?: string; date?: string; search?: string }) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(advertencias.companyId, companyId)] : [];
+  const conditions = [];
+  if (filters?.companyId) conditions.push(eq(advertencias.companyId, filters.companyId));
+  if (filters?.userId) conditions.push(eq(advertencias.userId, filters.userId));
+  if (filters?.type && filters.type !== 'all') conditions.push(eq(advertencias.type, filters.type as any));
+  if (filters?.date) conditions.push(eq(advertencias.date, filters.date));
+  if (filters?.search) conditions.push(like(advertencias.reason, `%${filters.search}%`));
+
   return db.select({ advertencia: advertencias, user: users })
     .from(advertencias)
     .leftJoin(users, eq(advertencias.userId, users.id))

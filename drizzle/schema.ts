@@ -408,7 +408,9 @@ export type InsertAPR = typeof apr.$inferInsert;
 export const epiFicha = pgTable("epi_ficha", {
   id: serial("id").primaryKey(),
   companyId: integer("companyId").notNull(),
-  userId: integer("userId").notNull(),
+  userId: integer("userId"),
+  employeeName: varchar("employeeName", { length: 255 }),
+  obraId: integer("obraId"),
   epiName: varchar("epiName", { length: 255 }).notNull(),
   ca: varchar("ca", { length: 50 }),
   quantity: integer("quantity").default(1),

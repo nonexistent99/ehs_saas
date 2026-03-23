@@ -117,6 +117,11 @@ export default function InspectionsList() {
                             Editar
                           </Button>
                         </Link>
+                        <Link href={`/relatorios/novo?clone=${item.inspection.id}`}>
+                          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground h-7">
+                            Duplicar
+                          </Button>
+                        </Link>
                       </div>
                     </td>
                   </tr>

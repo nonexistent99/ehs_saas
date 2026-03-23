@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
 import { StatusBadge } from "@/components/StatusBadge";
-import { AlertTriangle, Download, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Download, Plus, Trash2, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -35,18 +35,38 @@ function CheckGroup({ label, options, selected, onChange }: { label: string; opt
 
 export default function APRPage() {
   const utils = trpc.useUtils();
-  const { data: items = [], isLoading } = trpc.apr.list.useQuery();
+  
+  // Filters State
+  const [filterCompany, setFilterCompany] = useState<string>("all");
+  const [filterTitle, setFilterTitle] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterDate, setFilterDate] = useState("");
+  
+  const { data: items = [], isLoading } = trpc.apr.list.useQuery({
+    companyId: filterCompany !== "all" ? Number(filterCompany) : undefined,
+    search: filterTitle || undefined,
+    status: filterStatus !== "all" ? filterStatus : undefined,
+    date: filterDate || undefined,
+  });
+  
   const { data: companies = [] } = trpc.companies.list.useQuery();
+  
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ companyId: "", title: "", activity: "", location: "", date: "", status: "aberta" as any, responsibleName: "" });
+  const [form, setForm] = useState({ companyId: "", title: "", activity: "", obraId: "", date: "", status: "aberta" as any, responsibleName: "" });
   const [materials, setMaterials] = useState<string[]>([]);
   const [epis, setEpis] = useState<string[]>([]);
   const [epcs, setEpcs] = useState<string[]>([]);
   const [conditions, setConditions] = useState<string[]>([]);
   const [risks, setRisks] = useState<any[]>([]);
 
+  const companyIdNum = Number(form.companyId);
+  const { data: obras = [] } = trpc.companies.getObras.useQuery(
+    { companyId: companyIdNum },
+    { enabled: !!companyIdNum && companyIdNum > 0 }
+  );
+
   const resetForm = () => {
-    setForm({ companyId: "", title: "", activity: "", location: "", date: "", status: "aberta", responsibleName: "" });
+    setForm({ companyId: "", title: "", activity: "", obraId: "", date: "", status: "aberta", responsibleName: "" });
     setMaterials([]); setEpis([]); setEpcs([]); setConditions([]); setRisks([]);
   };
 
@@ -69,9 +89,9 @@ export default function APRPage() {
     if (!form.companyId || !form.title) { toast.error("Empresa e título são obrigatórios"); return; }
     createMutation.mutate({
       companyId: Number(form.companyId),
+      obraId: form.obraId ? Number(form.obraId) : undefined,
       title: form.title,
       activity: form.activity || undefined,
-      location: form.location || undefined,
       date: form.date || undefined,
       status: form.status,
       content: { materials, epis, epcs, conditions, risks, responsibleName: form.responsibleName },
@@ -82,7 +102,7 @@ export default function APRPage() {
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label>Empresa *</Label>
-        <Select value={form.companyId} onValueChange={v => setForm(f => ({ ...f, companyId: v }))}>
+        <Select value={form.companyId} onValueChange={v => setForm(f => ({ ...f, companyId: v, obraId: "" }))}>
           <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
           <SelectContent className="bg-card border-border">
             {companies.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
@@ -99,8 +119,14 @@ export default function APRPage() {
           <Input value={form.activity} onChange={e => setForm(f => ({ ...f, activity: e.target.value }))} placeholder="Atividade a ser realizada" className="bg-secondary border-border" />
         </div>
         <div className="space-y-1.5">
-          <Label>Local</Label>
-          <Input value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} className="bg-secondary border-border" />
+          <Label>Obra</Label>
+          <Select value={form.obraId} onValueChange={v => setForm(f => ({ ...f, obraId: v === "none" ? "" : v }))}>
+            <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a obra" /></SelectTrigger>
+            <SelectContent className="bg-card border-border">
+              <SelectItem value="none">Nenhuma</SelectItem>
+              {obras.map((o: any) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-1.5">
           <Label>Data</Label>
@@ -169,33 +195,88 @@ export default function APRPage() {
   );
 
   return (
-    <SecurityModuleList
-      title="APR — Análise Preliminar de Riscos"
-      icon={<AlertTriangle size={36} />}
-      items={items}
-      isLoading={isLoading}
-      formContent={formContent}
-      formOpen={open}
-      setFormOpen={setOpen}
-      columns={[
-        { key: "title", label: "Título", render: (i) => <span className="text-sm font-medium text-foreground">{i.title}</span> },
-        { key: "activity", label: "Atividade", render: (i) => <span className="text-sm text-muted-foreground">{i.activity || "—"}</span> },
-        { key: "location", label: "Local", render: (i) => <span className="text-sm text-muted-foreground">{i.location || "—"}</span> },
-        { key: "status", label: "Status", render: (i) => <StatusBadge status={i.status} /> },
-        { key: "date", label: "Data", render: (i) => <span className="text-xs text-muted-foreground">{i.date ? new Date(i.date).toLocaleDateString("pt-BR") : "—"}</span> },
-      ]}
-      actions={(i) => (
-        <div className="flex justify-end gap-1">
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
-            title="Exportar PDF" onClick={() => exportPdf(i.id)}>
-            <Download size={13} />
-          </Button>
-          <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive"
-            title="Excluir" onClick={() => { if(confirm("Deseja excluir esta APR?")) deleteMutation.mutate({ id: i.id }); }}>
-            <Trash2 size={13} />
-          </Button>
+    <div className="space-y-4">
+      {/* Filters Menu */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-card rounded-md border border-border">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Pesquisar Título</Label>
+          <div className="relative">
+            <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Digite o título..." 
+              value={filterTitle} 
+              onChange={e => setFilterTitle(e.target.value)} 
+              className="pl-8 bg-secondary h-9 text-sm" 
+            />
+          </div>
         </div>
-      )}
-    />
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Filtrar por Empresa</Label>
+          <Select value={filterCompany} onValueChange={setFilterCompany}>
+            <SelectTrigger className="bg-secondary h-9 text-sm">
+              <SelectValue placeholder="Todas as empresas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              {companies.map((c: any) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Status</Label>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="bg-secondary h-9 text-sm">
+              <SelectValue placeholder="Todos os status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos</SelectItem>
+              <SelectItem value="aberta">Aberta</SelectItem>
+              <SelectItem value="em_andamento">Em Andamento</SelectItem>
+              <SelectItem value="concluida">Concluída</SelectItem>
+              <SelectItem value="cancelada">Cancelada</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Data</Label>
+          <Input 
+            type="date"
+            value={filterDate} 
+            onChange={e => setFilterDate(e.target.value)} 
+            className="bg-secondary h-9 text-sm" 
+          />
+        </div>
+      </div>
+
+      <SecurityModuleList
+        title="APR — Análise Preliminar de Riscos"
+        icon={<AlertTriangle size={36} />}
+        items={items}
+        isLoading={isLoading}
+        formContent={formContent}
+        formOpen={open}
+        setFormOpen={setOpen}
+        columns={[
+          { key: "title", label: "Título", render: (i) => <span className="text-sm font-medium text-foreground">{i.title}</span> },
+          { key: "activity", label: "Atividade", render: (i) => <span className="text-sm text-muted-foreground">{i.activity || "—"}</span> },
+          { key: "status", label: "Status", render: (i) => <StatusBadge status={i.status} /> },
+          { key: "date", label: "Data", render: (i) => <span className="text-xs text-muted-foreground">{i.date ? new Date(i.date).toLocaleDateString("pt-BR") : "—"}</span> },
+        ]}
+        actions={(i) => (
+          <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
+              title="Exportar PDF" onClick={() => exportPdf(i.id)}>
+              <Download size={13} />
+            </Button>
+            <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive"
+              title="Excluir" onClick={() => { if(confirm("Deseja excluir esta APR?")) deleteMutation.mutate({ id: i.id }); }}>
+              <Trash2 size={13} />
+            </Button>
+          </div>
+        )}
+      />
+    </div>
   );
 }

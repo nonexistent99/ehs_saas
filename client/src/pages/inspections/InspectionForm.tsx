@@ -126,6 +126,46 @@ export default function InspectionForm() {
     }
   }, [existingItems]);
 
+  // Clone logic
+  const searchParams = new URLSearchParams(window.location.search);
+  const cloneId = searchParams.get("clone");
+
+  const { data: cloneData } = trpc.inspections.getById.useQuery(
+    { id: Number(cloneId) }, { enabled: !!cloneId && !isEditing }
+  );
+  const { data: cloneItems = [] } = trpc.inspections.getItems.useQuery(
+    { inspectionId: Number(cloneId) }, { enabled: !!cloneId && !isEditing }
+  );
+
+  // Fill form on clone
+  useEffect(() => {
+    if (cloneData && !isEditing) {
+      const e = cloneData as any;
+      setForm(f => ({
+        ...f,
+        title: (e.title || "") + " (Cópia)",
+        companyId: e.companyId ? String(e.companyId) : "",
+        obraId: e.obraId ? String(e.obraId) : "",
+        data: new Date().toLocaleDateString("pt-BR"),
+        observacoes: e.description || "",
+        status: "nao_iniciada",
+      }));
+    }
+  }, [cloneData, isEditing]);
+
+  useEffect(() => {
+    if (cloneItems && (cloneItems as any[]).length > 0 && !isEditing) {
+      setOccurrences((cloneItems as any[]).map((item: any) => ({
+        title: item.title || "",
+        status: "pendente",
+        descricao: item.situacao || "",
+        planoAcao: item.planoAcao || "",
+        prazo: item.observacoes || "",
+        imagens: [], // Ignorar as fotos e zerar o array
+      })));
+    }
+  }, [cloneItems, isEditing]);
+
   const createMutation = trpc.inspections.create.useMutation({
     onSuccess: (data) => {
       toast.success("Relatório criado com sucesso!");

@@ -5,8 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
-import { StatusBadge } from "@/components/StatusBadge";
-import { FileText, Download, Trash2 } from "lucide-react";
+import { FileText, Download, Trash2, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -14,18 +13,27 @@ export default function ITSPage() {
   const utils = trpc.useUtils();
   const { data: items = [], isLoading } = trpc.its.list.useQuery();
   const { data: companies = [] } = trpc.companies.list.useQuery();
+
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    companyId: "", title: "", code: "", version: "1.0", status: "ativo" as any, content: "",
-    theme: "", date: "", duration: "", participant: "", technician: "",
-  });
+  
+  const initialForm = {
+    companyId: "", obraId: "", title: "", code: "", content: "",
+    theme: "", date: "", duration: "", technician: "",
+    participants: [""],
+  };
+  const [form, setForm] = useState(initialForm);
+  const companyIdNum = Number(form.companyId);
+  const { data: obras = [] } = trpc.companies.getObras.useQuery(
+    { companyId: companyIdNum },
+    { enabled: !!companyIdNum && companyIdNum > 0 }
+  );
 
   const createMutation = trpc.its.create.useMutation({
     onSuccess: () => {
       toast.success("ITS criada!");
       utils.its.list.invalidate();
       setOpen(false);
-      setForm({ companyId: "", title: "", code: "", version: "1.0", status: "ativo", content: "", theme: "", date: "", duration: "", participant: "", technician: "" });
+      setForm(initialForm);
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -37,35 +45,55 @@ export default function ITSPage() {
 
   const exportPdf = (id: number) => window.open(`/api/export/its/${id}`, "_blank");
 
+  // Dynamic Participants
+  const addParticipant = () => setForm(f => ({ ...f, participants: [...f.participants, ""] }));
+  const removeParticipant = (index: number) => setForm(f => ({ ...f, participants: f.participants.filter((_, i) => i !== index) }));
+  const updateParticipant = (index: number, val: string) => {
+    const newP = [...form.participants];
+    newP[index] = val;
+    setForm(f => ({ ...f, participants: newP }));
+  };
+
+
+
   const formContent = (
-    <div className="space-y-4">
+    <div className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
       <div className="space-y-1.5">
         <Label>Empresa *</Label>
-        <Select value={form.companyId} onValueChange={v => setForm(f => ({ ...f, companyId: v }))}>
+        <Select value={form.companyId} onValueChange={v => setForm(f => ({ ...f, companyId: v, obraId: "" }))}>
           <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
           <SelectContent className="bg-card border-border">
             {companies.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Código</Label>
-          <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="ITS-001" className="bg-secondary border-border" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Versão</Label>
-          <Input value={form.version} onChange={e => setForm(f => ({ ...f, version: e.target.value }))} placeholder="1.0" className="bg-secondary border-border" />
-        </div>
+
+      <div className="space-y-1.5">
+        <Label>Obra (Opcional)</Label>
+        <Select value={form.obraId} onValueChange={v => setForm(f => ({ ...f, obraId: v === "none" ? "" : v }))}>
+          <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a obra" /></SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="none">Nenhuma</SelectItem>
+            {obras.map((o: any) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
+
+      <div className="space-y-1.5">
+        <Label>Código</Label>
+        <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="ITS-001" className="bg-secondary border-border" />
+      </div>
+
       <div className="space-y-1.5">
         <Label>Título *</Label>
         <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Título da instrução" className="bg-secondary border-border" />
       </div>
+      
       <div className="space-y-1.5">
         <Label>Tema</Label>
         <Input value={form.theme} onChange={e => setForm(f => ({ ...f, theme: e.target.value }))} placeholder="Tema da instrução técnica" className="bg-secondary border-border" />
       </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Data</Label>
@@ -76,37 +104,54 @@ export default function ITSPage() {
           <Input value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="Ex: 4h" className="bg-secondary border-border" />
         </div>
       </div>
-      <div className="space-y-1.5">
+
+      <div className="space-y-2">
         <Label>Participante(s)</Label>
-        <Input value={form.participant} onChange={e => setForm(f => ({ ...f, participant: e.target.value }))} placeholder="Nome(s) do(s) participante(s)" className="bg-secondary border-border" />
+        {form.participants.map((participant, i) => (
+          <div key={i} className="flex gap-2 items-center">
+            <Input 
+              value={participant} 
+              onChange={e => updateParticipant(i, e.target.value)} 
+              placeholder={`Nome do participante ${i + 1}`} 
+              className="bg-secondary border-border flex-1" 
+            />
+            {form.participants.length > 1 && (
+              <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive shrink-0" onClick={() => removeParticipant(i)}>
+                <X size={16} />
+              </Button>
+            )}
+          </div>
+        ))}
+        <Button type="button" variant="outline" size="sm" onClick={addParticipant} className="gap-1.5 mt-1 border-dashed">
+          <Plus size={14} /> Adicionar outro
+        </Button>
       </div>
+
       <div className="space-y-1.5">
         <Label>Técnico em Segurança</Label>
         <Input value={form.technician} onChange={e => setForm(f => ({ ...f, technician: e.target.value }))} placeholder="Nome do técnico" className="bg-secondary border-border" />
       </div>
-      <div className="space-y-1.5">
-        <Label>Status</Label>
-        <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-          <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
-          <SelectContent className="bg-card border-border">
-            <SelectItem value="ativo">Ativo</SelectItem>
-            <SelectItem value="inativo">Inativo</SelectItem>
-            <SelectItem value="revisao">Em Revisão</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+
       <div className="space-y-1.5">
         <Label>Conteúdo / Observações</Label>
         <Textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} className="bg-secondary border-border resize-none" />
       </div>
+      
       <Button className="w-full bg-primary text-primary-foreground" disabled={createMutation.isPending}
         onClick={() => {
           if (!form.companyId || !form.title) { toast.error("Empresa e título são obrigatórios"); return; }
+          const validParticipants = form.participants.map(p => p.trim()).filter(Boolean);
           const structuredContent = JSON.stringify({
             theme: form.theme, date: form.date, duration: form.duration,
-            participant: form.participant, technician: form.technician, notes: form.content,
+            participants: validParticipants, technician: form.technician, notes: form.content,
           });
-          createMutation.mutate({ companyId: Number(form.companyId), title: form.title, code: form.code || undefined, status: form.status as any, content: structuredContent });
+          createMutation.mutate({ 
+            companyId: Number(form.companyId), 
+            obraId: form.obraId ? Number(form.obraId) : undefined,
+            title: form.title, 
+            code: form.code || undefined, 
+            content: structuredContent 
+          });
         }}>
         {createMutation.isPending ? "Salvando..." : "Criar ITS"}
       </Button>
@@ -125,8 +170,6 @@ export default function ITSPage() {
       columns={[
         { key: "code", label: "Código", render: (i) => <span className="text-xs font-mono text-primary">{i.code || "—"}</span> },
         { key: "title", label: "Título", render: (i) => <span className="text-sm font-medium text-foreground">{i.title}</span> },
-        { key: "version", label: "Versão", render: (i) => <span className="text-sm text-muted-foreground">v{i.version}</span> },
-        { key: "status", label: "Status", render: (i) => <StatusBadge status={i.status} /> },
         { key: "createdAt", label: "Data", render: (i) => <span className="text-xs text-muted-foreground">{new Date(i.createdAt).toLocaleDateString("pt-BR")}</span> },
       ]}
       actions={(i) => (

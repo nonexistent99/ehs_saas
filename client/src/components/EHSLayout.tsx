@@ -101,8 +101,14 @@ const navItems: NavItem[] = [
       { label: "Ficha de EPI", icon: <HardHat size={14} />, href: "/seguranca/epi" },
       { label: "ITS", icon: <BookOpen size={14} />, href: "/seguranca/its" },
       { label: "PT", icon: <FileText size={14} />, href: "/seguranca/pt" },
-      { label: "Tactdriver", icon: <Car size={14} />, href: "/seguranca/tactdriver" },
       { label: "Treinamento", icon: <BookOpen size={14} />, href: "/seguranca/treinamentos" },
+    ],
+  },
+  {
+    label: "TACT Drive",
+    icon: <Car size={16} />,
+    children: [
+      { label: "Dashboard TACT", icon: <Car size={14} />, href: "/seguranca/tactdriver" },
     ],
   },
 ];

@@ -798,6 +798,7 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
+        obraId: z.number().optional(),
         title: z.string().optional(),
         version: z.string().optional(),
         status: z.enum(["em_elaboracao", "vigente", "revisao", "cancelado"]).optional(),
@@ -830,11 +831,11 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         companyId: z.number(),
+        obraId: z.number().optional(),
         title: z.string().min(1),
         code: z.string().optional(),
         description: z.string().optional(),
         content: z.string().optional(),
-        status: z.enum(["ativo", "inativo", "revisao"]).default("ativo"),
         fileUrl: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -844,11 +845,11 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
+        obraId: z.number().optional(),
         title: z.string().optional(),
         code: z.string().optional(),
         description: z.string().optional(),
         content: z.string().optional(),
-        status: z.enum(["ativo", "inativo", "revisao"]).optional(),
         fileUrl: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -876,6 +877,7 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         companyId: z.number(),
+        obraId: z.number().optional(),
         title: z.string().min(1),
         code: z.string().optional(),
         description: z.string().optional(),
@@ -898,6 +900,7 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
+        obraId: z.number().optional(),
         title: z.string().optional(),
         code: z.string().optional(),
         description: z.string().optional(),
@@ -923,16 +926,21 @@ export const appRouter = router({
   // =============================================
   apr: router({
     list: protectedProcedure
-      .input(z.object({ companyId: z.number().optional() }).optional())
+      .input(z.object({
+        companyId: z.number().optional(),
+        search: z.string().optional(),
+        status: z.string().optional(),
+        date: z.string().optional(),
+      }).optional())
       .query(async ({ input }) => {
-        return getAllAPR(input?.companyId);
+        return getAllAPR(input);
       }),
     create: protectedProcedure
       .input(z.object({
         companyId: z.number(),
+        obraId: z.number().optional(),
         title: z.string().min(1),
         activity: z.string().optional(),
-        location: z.string().optional(),
         content: z.record(z.string(), z.unknown()).optional(),
         status: z.enum(["aberta", "em_andamento", "concluida", "cancelada"]).default("aberta"),
         date: z.string().optional(),
@@ -979,23 +987,30 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         companyId: z.number(),
-        userId: z.number(),
-        epiName: z.string().min(1),
-        ca: z.string().optional(),
-        quantity: z.number().optional(),
-        deliveredAt: z.string().optional(),
-        validUntil: z.string().optional(),
-        reason: z.string().optional(),
-        signatureUrl: z.string().optional(),
+        employeeName: z.string().min(1),
+        obraId: z.number().optional(),
+        items: z.array(z.object({
+          epiName: z.string().min(1),
+          ca: z.string().optional(),
+          quantity: z.number().optional().default(1),
+          validUntil: z.string().optional(),
+          reason: z.string().optional(),
+        })).min(1),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { deliveredAt, validUntil, ...rest } = input;
-        return createEpiFicha({
-          ...rest,
-          deliveredAt: deliveredAt ? deliveredAt : undefined,
-          validUntil: validUntil ? validUntil : undefined,
-        });
+        const payload = input.items.map(item => ({
+          companyId: input.companyId,
+          employeeName: input.employeeName,
+          obraId: input.obraId,
+          epiName: item.epiName,
+          ca: item.ca,
+          quantity: item.quantity || 1,
+          validUntil: item.validUntil ? item.validUntil : undefined,
+          reason: item.reason,
+          createdById: ctx.user!.id,
+        }));
+        return createEpiFicha(payload as any);
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -1010,9 +1025,15 @@ export const appRouter = router({
   // =============================================
   advertencias: router({
     list: protectedProcedure
-      .input(z.object({ companyId: z.number().optional() }).optional())
+      .input(z.object({ 
+         companyId: z.number().optional(),
+         userId: z.number().optional(),
+         type: z.string().optional(),
+         date: z.string().optional(),
+         search: z.string().optional()
+      }).optional())
       .query(async ({ input }) => {
-        return getAllAdvertencias(input?.companyId);
+        return getAllAdvertencias(input);
       }),
     create: protectedProcedure
       .input(z.object({

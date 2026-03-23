@@ -7,9 +7,10 @@ interface PageHeaderProps {
   subtitle?: string;
   backHref?: string;
   actions?: React.ReactNode;
+  icon?: React.ReactNode;
 }
 
-export function PageHeader({ title, subtitle, backHref, actions }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, backHref, actions, icon }: PageHeaderProps) {
   const [, navigate] = useLocation();
 
   return (
@@ -26,7 +27,10 @@ export function PageHeader({ title, subtitle, backHref, actions }: PageHeaderPro
           </Button>
         )}
         <div>
-          <h1 className="text-lg font-bold text-foreground">{title}</h1>
+          <div className="flex items-center gap-2">
+            {icon && <span className="text-muted-foreground">{icon}</span>}
+            <h1 className="text-lg font-bold text-foreground">{title}</h1>
+          </div>
           {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
       </div>

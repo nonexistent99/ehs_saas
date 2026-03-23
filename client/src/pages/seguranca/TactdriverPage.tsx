@@ -20,7 +20,7 @@ type Doc = {
   id: number; name: string; description?: string | null;
   fileUrl?: string | null; fileName?: string | null; fileType?: string | null;
   hasExpiry: boolean; expiryDate?: string | null;
-  folderId?: number | null; companyId: number; createdAt: string;
+  folderId?: number | null; companyId: number; createdAt: string | Date;
 };
 type FolderT = { id: number; name: string; color?: string | null; companyId: number };
 
@@ -118,14 +118,14 @@ export default function TactDrivePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Forms
-  const [folderForm, setFolderForm] = useState({ name: "", color: "blue" });
+  const [folderForm, setFolderForm] = useState({ companyId: "", name: "", color: "blue" });
   const [docForm, setDocForm] = useState({
     companyId: "", name: "", description: "",
     hasExpiry: false, expiryDate: "",
     fileUrl: "", fileName: "", fileType: "",
   });
 
-  const resetFolderForm = () => setFolderForm({ name: "", color: "blue" });
+  const resetFolderForm = () => setFolderForm({ companyId: selectedCompanyId ? String(selectedCompanyId) : "", name: "", color: "blue" });
   const resetDocForm = () => setDocForm({ companyId: "", name: "", description: "", hasExpiry: false, expiryDate: "", fileUrl: "", fileName: "", fileType: "" });
 
   // File upload
@@ -172,7 +172,7 @@ export default function TactDrivePage() {
                 </span>
               </Button>
             )}
-            <Button size="sm" variant="outline" className="gap-1.5 border-border" onClick={() => setShowFolderModal(true)}>
+            <Button size="sm" variant="outline" className="gap-1.5 border-border" onClick={() => { resetFolderForm(); setShowFolderModal(true); }}>
               <FolderPlus size={14} /> Nova Pasta
             </Button>
             <Button size="sm" className="gap-1.5 bg-primary text-primary-foreground" onClick={() => setShowDocModal(true)}>
@@ -344,10 +344,11 @@ export default function TactDrivePage() {
         <Modal title="Nova Pasta" onClose={() => { setShowFolderModal(false); resetFolderForm(); }}>
           <div className="space-y-1.5">
             <Label>Empresa *</Label>
-            <Select value={folderForm.name ? (selectedCompanyId ? String(selectedCompanyId) : "") : ""} onValueChange={() => {}}>
-              <SelectTrigger className="bg-secondary border-border">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
+            <Select value={folderForm.companyId} onValueChange={v => setFolderForm(f => ({ ...f, companyId: v }))}>
+              <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                {companies.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+              </SelectContent>
             </Select>
           </div>
           <div className="space-y-1.5">
@@ -367,9 +368,9 @@ export default function TactDrivePage() {
           </div>
           <Button className="w-full bg-primary text-primary-foreground" disabled={createFolderMut.isPending}
             onClick={() => {
-              if (!folderForm.name) { toast.error("Nome é obrigatório"); return; }
+              if (!folderForm.companyId || !folderForm.name) { toast.error("Empresa e nome são obrigatórios"); return; }
               createFolderMut.mutate({
-                companyId: selectedCompanyId ?? (companies[0] as any)?.id ?? 1,
+                companyId: Number(folderForm.companyId),
                 name: folderForm.name,
                 color: folderForm.color,
               });

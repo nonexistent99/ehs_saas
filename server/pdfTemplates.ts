@@ -1,4 +1,4 @@
-﻿import puppeteer from "puppeteer";
+import puppeteer from "puppeteer";
 import Handlebars from "handlebars";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -52,6 +52,7 @@ async function renderPdf(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   });
   try {
     const page = await browser.newPage();
