@@ -720,14 +720,25 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        // Mock sending - just create notification record
+        let status = "sent";
+        
+        if (input.type === "whatsapp" && input.recipientPhone) {
+          const { sendWhatsappMessage } = await import("./_core/wapi");
+          const whatsappMessage = `*${input.title}*\n\n${input.message}`;
+          const success = await sendWhatsappMessage(input.recipientPhone, whatsappMessage);
+          if (!success) {
+             status = "failed";
+          }
+        }
+
+        // Just create notification record
         return createNotification({
           type: input.type,
           title: input.title,
           message: input.message,
           recipientUserId: input.recipientUserId,
           recipientCompanyId: input.recipientCompanyId,
-          status: "sent",
+          status: status as any,
           sentAt: new Date(),
           metadata: { sentBy: ctx.user!.id, recipientEmail: input.recipientEmail, recipientPhone: input.recipientPhone },
         });

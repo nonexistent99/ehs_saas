@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { FileText, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -107,6 +108,15 @@ export default function InspectionsList() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        <ShareWhatsappDialog
+                          title={item.inspection.title}
+                          documentUrl={`${window.location.origin}/relatorios/${item.inspection.id}`}
+                          trigger={
+                            <Button variant="ghost" size="sm" className="text-xs text-green-600 hover:text-green-700 h-7">
+                              WhatsApp
+                            </Button>
+                          }
+                        />
                         <Link href={`/relatorios/${item.inspection.id}`}>
                           <Button variant="ghost" size="sm" className="text-xs text-primary hover:text-primary/80 h-7">
                             Ver

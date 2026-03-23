@@ -18,7 +18,7 @@ export default function NotificacoesPage() {
   const { data: unreadCount = 0 } = trpc.notifications.unreadCount.useQuery();
   const { data: companies = [] } = trpc.companies.list.useQuery();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ companyId: "", title: "", message: "", channel: "email" as any, type: "info" as any });
+  const [form, setForm] = useState({ companyId: "", title: "", message: "", channel: "email" as any, type: "info" as any, recipientPhone: "" });
 
   const sendMutation = trpc.notifications.send.useMutation({
     onSuccess: () => {
@@ -26,7 +26,7 @@ export default function NotificacoesPage() {
       utils.notifications.list.invalidate();
       utils.notifications.unreadCount.invalidate();
       setOpen(false);
-      setForm({ companyId: "", title: "", message: "", channel: "email", type: "info" });
+      setForm({ companyId: "", title: "", message: "", channel: "email", type: "info", recipientPhone: "" });
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -104,10 +104,17 @@ export default function NotificacoesPage() {
                     </Select>
                   </div>
                 </div>
+                {form.channel === "whatsapp" && (
+                  <div className="space-y-1.5">
+                    <Label>Telefone Destino (WhatsApp) *</Label>
+                    <Input value={form.recipientPhone} onChange={e => setForm(f => ({ ...f, recipientPhone: e.target.value }))} placeholder="Ex: 5511999999999" className="bg-secondary border-border" />
+                  </div>
+                )}
                 <Button className="w-full bg-primary text-primary-foreground" disabled={sendMutation.isPending}
                   onClick={() => {
                     if (!form.title || !form.message) { toast.error("Título e mensagem são obrigatórios"); return; }
-                    sendMutation.mutate({ recipientCompanyId: form.companyId ? Number(form.companyId) : undefined, title: form.title, message: form.message, type: form.channel as any });
+                    if (form.channel === "whatsapp" && !form.recipientPhone) { toast.error("Telefone é obrigatório para notificações do WhatsApp"); return; }
+                    sendMutation.mutate({ recipientCompanyId: form.companyId ? Number(form.companyId) : undefined, title: form.title, message: form.message, type: form.channel as any, recipientPhone: form.recipientPhone || undefined });
                   }}>
                   <Send size={14} className="mr-2" />
                   {sendMutation.isPending ? "Enviando..." : "Enviar Notificação"}
