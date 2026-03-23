@@ -111,6 +111,8 @@ export default function InspectionsList() {
                         <ShareWhatsappDialog
                           title={item.inspection.title}
                           documentUrl={`${window.location.origin}/relatorios/${item.inspection.id}`}
+                          documentType="inspection"
+                          documentId={item.inspection.id}
                           trigger={
                             <Button variant="ghost" size="sm" className="text-xs text-green-600 hover:text-green-700 h-7">
                               WhatsApp

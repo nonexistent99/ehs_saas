@@ -1200,6 +1200,88 @@ export const appRouter = router({
         return { key, url };
       }),
   }),
+  
+  // =============================================
+  // W-API ROUTER
+  // =============================================
+  wapi: router({
+    shareDocument: protectedProcedure
+      .input(z.object({
+        phone: z.string().min(10),
+        message: z.string().optional(),
+        documentType: z.enum(["inspection", "checklist", "pgr", "apr", "pt"]),
+        documentId: z.number(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+
+        let pdfBuffer: Buffer | null = null;
+        let fileName = "documento.pdf";
+        
+        try {
+          if (input.documentType === "inspection") {
+            const { inspections, inspectionItems, companies, obras } = await import("../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            
+            const inspRows = await db.select({ inspection: inspections, company: companies, obra: obras })
+              .from(inspections).leftJoin(companies, eq(inspections.companyId, companies.id))
+              .leftJoin(obras, eq(inspections.obraId, obras.id)).where(eq(inspections.id, input.documentId)).limit(1);
+            if (!inspRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Inspection not found" });
+            
+            const { inspection, company, obra } = inspRows[0];
+            const items = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, input.documentId)).orderBy(inspectionItems.order);
+            const { format } = await import("date-fns");
+            const { ptBR } = await import("date-fns/locale");
+            
+            const dataFormatada = inspection.inspectedAt ? format(new Date(inspection.inspectedAt), "dd/MM/yyyy", { locale: ptBR }) : format(new Date(inspection.createdAt), "dd/MM/yyyy", { locale: ptBR });
+            const local = obra?.address ? `${obra.address}${obra?.city ? " — " + obra.city : ""}${obra?.state ? "/" + obra.state : ""}` : (inspection as any).location || company?.address || "";
+            
+            const itens = items.map((item: any) => ({
+              titulo: item.title || "Ocorrência",
+              status: item.status || "pendente",
+              descricao: item.situacao || item.observacoes || "—",
+              plano_acao: item.planoAcao || "A definir.",
+              prazo: item.resolvedAt ? format(new Date(item.resolvedAt), "dd/MM/yyyy", { locale: ptBR }) : undefined,
+              imagens: Array.isArray(item.mediaUrls) ? item.mediaUrls.map((url: string) => ({ url })) : [],
+            }));
+            
+            const { generateTechnicalReportPdf } = await import("./pdfTemplateEngine");
+            pdfBuffer = await generateTechnicalReportPdf({
+              empresa: company?.name || "—",
+              empreendimento: inspection.title,
+              local,
+              data: dataFormatada,
+              observacoes: inspection.description || undefined,
+              logoUrl: company?.logoUrl || undefined,
+              itens,
+            });
+            fileName = `Inspecao_${input.documentId}.pdf`;
+          } else {
+             throw new TRPCError({ code: "BAD_REQUEST", message: "Document type not implemented for direct share yet." });
+          }
+        } catch (err: any) {
+          console.error("PDF Gen Error:", err);
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err.message || "Failed to generate PDF" });
+        }
+
+        if (!pdfBuffer) {
+           throw new TRPCError({ code: "BAD_REQUEST", message: "Failed to generate." });
+        }
+
+        // Must prefix with data uri so w-api can detect mime type or handle base64 correctly
+        const base64Pdf = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`;
+
+        const { sendWhatsappDocument } = await import("./_core/wapi");
+        const success = await sendWhatsappDocument(input.phone, base64Pdf, "pdf", fileName, input.message);
+        
+        if (!success) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar documento via W-API." });
+        }
+        return { success: true };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
