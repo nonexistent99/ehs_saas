@@ -6,9 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
 import { StatusBadge } from "@/components/StatusBadge";
-import { AlertTriangle, Download, Plus, Trash2, Search } from "lucide-react";
+import { AlertTriangle, Download, Plus, Trash2, Search, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 
 const MATERIALS_OPTIONS = ["Ferramentas Manuais","Furadeiras / Parafusadeira","Máquina de Solda","Esmeril","Compressor","Máquina de Corte","Betoneira","Andaime"];
 const EPI_OPTIONS = ["Capacete de Segurança","Bota de Segurança","Óculos de Proteção","Luva de PVC","Luva de Látex","Cinto de Segurança","Protetor Auricular","Máscara de Pó","Colete Refletivo"];
@@ -266,6 +267,17 @@ export default function APRPage() {
         ]}
         actions={(i) => (
           <div className="flex justify-end gap-1">
+            <ShareWhatsappDialog
+              title={i.title}
+              documentUrl={`${window.location.origin}/api/export/apr/${i.id}`}
+              documentType="apr"
+              documentId={i.id}
+              trigger={
+                <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar no WhatsApp">
+                  <MessageCircle size={13} />
+                </Button>
+              }
+            />
             <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
               title="Exportar PDF" onClick={() => exportPdf(i.id)}>
               <Download size={13} />

@@ -6,9 +6,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ClipboardCheck, Download, Plus, Trash2, MapPin } from "lucide-react";
+import { ClipboardCheck, Download, Plus, Trash2, MapPin, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 
 // ─── Predefined risks & auto-measures ────────────────────────────────────────
 const POTENTIAL_RISKS = [
@@ -367,6 +368,17 @@ export default function PTPage() {
       ]}
       actions={(i) => (
         <div className="flex justify-end gap-1">
+          <ShareWhatsappDialog
+            title={i.title}
+            documentUrl={`${window.location.origin}/api/export/pt/${i.id}`}
+            documentType="pt"
+            documentId={i.id}
+            trigger={
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar no WhatsApp">
+                <MessageCircle size={13} />
+              </Button>
+            }
+          />
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
             title="Exportar PDF" onClick={() => exportPdf(i.id)}>
             <Download size={13} />

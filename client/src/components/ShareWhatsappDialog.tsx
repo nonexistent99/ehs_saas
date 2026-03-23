@@ -13,7 +13,7 @@ interface Props {
   title: string;
   documentUrl?: string;
   trigger?: React.ReactNode;
-  documentType?: "inspection" | "checklist" | "pgr" | "apr" | "pt";
+  documentType?: "inspection" | "checklist" | "pgr" | "apr" | "pt" | "its" | "treinamento" | "advertencia" | "epi";
   documentId?: number;
 }
 

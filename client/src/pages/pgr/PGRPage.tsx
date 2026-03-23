@@ -9,9 +9,10 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
 import { useState, useRef } from "react";
-import { Edit, Plus, Shield, Download, Trash2, Eraser } from "lucide-react";
+import { Edit, Plus, Shield, Download, Trash2, Eraser, MessageCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SignatureCanvas from "react-signature-canvas";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 
 function calcLevel(p: number, c: number): string {
   const r = p * c;
@@ -481,6 +482,17 @@ export default function PGRPage() {
                       </div>
                     </div>
                     <div className="flex gap-1 shrink-0">
+                      <ShareWhatsappDialog
+                        title={pgr.title}
+                        documentUrl={`${window.location.origin}/api/export/pgr/${pgr.id}`}
+                        documentType="pgr"
+                        documentId={pgr.id}
+                        trigger={
+                          <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar no WhatsApp">
+                            <MessageCircle size={13} />
+                          </Button>
+                        }
+                      />
                       <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
                         title="Exportar PDF" onClick={() => exportPdf(pgr.id)}>
                         <Download size={13} />

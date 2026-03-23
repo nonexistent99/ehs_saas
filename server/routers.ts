@@ -1209,7 +1209,7 @@ export const appRouter = router({
       .input(z.object({
         phone: z.string().min(10),
         message: z.string().optional(),
-        documentType: z.enum(["inspection", "checklist", "pgr", "apr", "pt"]),
+        documentType: z.enum(["inspection", "checklist", "pgr", "apr", "pt", "its", "treinamento", "advertencia", "epi"]),
         documentId: z.number(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -1221,10 +1221,12 @@ export const appRouter = router({
         let fileName = "documento.pdf";
         
         try {
+          const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users } = await import("../drizzle/schema");
+          const { eq, and } = await import("drizzle-orm");
+          const { format } = await import("date-fns");
+          const { ptBR } = await import("date-fns/locale");
+
           if (input.documentType === "inspection") {
-            const { inspections, inspectionItems, companies, obras } = await import("../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
-            
             const inspRows = await db.select({ inspection: inspections, company: companies, obra: obras })
               .from(inspections).leftJoin(companies, eq(inspections.companyId, companies.id))
               .leftJoin(obras, eq(inspections.obraId, obras.id)).where(eq(inspections.id, input.documentId)).limit(1);
@@ -1232,8 +1234,6 @@ export const appRouter = router({
             
             const { inspection, company, obra } = inspRows[0];
             const items = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, input.documentId)).orderBy(inspectionItems.order);
-            const { format } = await import("date-fns");
-            const { ptBR } = await import("date-fns/locale");
             
             const dataFormatada = inspection.inspectedAt ? format(new Date(inspection.inspectedAt), "dd/MM/yyyy", { locale: ptBR }) : format(new Date(inspection.createdAt), "dd/MM/yyyy", { locale: ptBR });
             const local = obra?.address ? `${obra.address}${obra?.city ? " — " + obra.city : ""}${obra?.state ? "/" + obra.state : ""}` : (inspection as any).location || company?.address || "";
@@ -1258,6 +1258,163 @@ export const appRouter = router({
               itens,
             });
             fileName = `Inspecao_${input.documentId}.pdf`;
+          } 
+          else if (input.documentType === "checklist") {
+            const rows = await db.select({ execution: checklistExecutions, template: checklistTemplates, company: companies, obra: obras, inspector: users })
+              .from(checklistExecutions).innerJoin(checklistTemplates, eq(checklistExecutions.templateId, checklistTemplates.id))
+              .innerJoin(companies, eq(checklistExecutions.companyId, companies.id))
+              .leftJoin(obras, eq(checklistExecutions.projectId, obras.id))
+              .leftJoin(users, eq(checklistExecutions.createdById, users.id))
+              .where(eq(checklistExecutions.id, input.documentId)).limit(1);
+
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Checklist execution not found" });
+            const record = rows[0];
+
+            const items = await db.select({ execItem: checklistExecutionItems, tempItem: checklistTemplateItems })
+              .from(checklistExecutionItems).innerJoin(checklistTemplateItems, eq(checklistExecutionItems.itemId, checklistTemplateItems.id))
+              .where(eq(checklistExecutionItems.executionId, input.documentId)).orderBy(checklistTemplateItems.order);
+
+            const itemsMapped = items.map((i: any) => ({
+              name: i.tempItem.name, description: i.tempItem.description, norma: i.tempItem.norma,
+              status: i.execItem.status, observation: i.execItem.observation, mediaUrls: i.execItem.mediaUrls || []
+            }));
+
+            const { generateChecklistPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateChecklistPdf({
+              companyName: record.company.name, projectName: record.obra?.name || "N/A", date: record.execution.date,
+              templateName: record.template.name, inspectorName: record.inspector?.name || "Inspetor EHS",
+              score: record.execution.score, signatureUrl: record.execution.signatureUrl, items: itemsMapped
+            });
+            fileName = `Checklist_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "pgr") {
+            const rows = await db.select({ pgr: pgr, company: companies, obra: obras })
+              .from(pgr).leftJoin(companies, eq(pgr.companyId, companies.id)).leftJoin(obras, eq(pgr.obraId, obras.id))
+              .where(eq(pgr.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "PGR not found" });
+            const record = rows[0];
+
+            let parsedContent: any = {};
+            try { parsedContent = JSON.parse(record.pgr.content || "{}"); } catch (e) {}
+
+            const { generateGroPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateGroPdf({
+              title: record.pgr.title, companyName: record.company?.name || "N/A", obraName: record.obra?.name || "Matriz",
+              version: record.pgr.version, validFrom: record.pgr.validFrom, riskMatrix: parsedContent.risks || [],
+              actionPlan: parsedContent.actionPlan || [], responsibleName: parsedContent.responsibleName || "Engenheiro Responsável"
+            });
+            fileName = `PGR_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "apr") {
+            const rows = await db.select({ apr: apr, company: companies, obra: obras })
+              .from(apr).leftJoin(companies, eq(apr.companyId, companies.id)).leftJoin(obras, eq(apr.obraId, obras.id))
+              .where(eq(apr.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "APR not found" });
+            const record = rows[0];
+
+            const { generateAprPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateAprPdf({
+              companyName: record.company?.name || "N/A", cnpj: record.company?.cnpj || "",
+              obraName: record.obra?.name || record.apr.location || "N/A", activity: record.apr.activity,
+              date: record.apr.date || record.apr.createdAt, responsibleName: (record.apr.content as any)?.responsibleName || "Técnico de Segurança",
+              materials: (record.apr.content as any)?.materials || [], epis: (record.apr.content as any)?.epis || [],
+              epcs: (record.apr.content as any)?.epcs || [], conditions: (record.apr.content as any)?.conditions || [],
+              risks: (record.apr.content as any)?.risks || []
+            });
+            fileName = `APR_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "pt") {
+            const rows = await db.select({ pt: pt, company: companies, obra: obras })
+              .from(pt).leftJoin(companies, eq(pt.companyId, companies.id)).leftJoin(obras, eq(pt.obraId, obras.id))
+              .where(eq(pt.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "PT not found" });
+            const record = rows[0];
+            let parsedContent: any = {};
+            try { parsedContent = JSON.parse(record.pt.content || "{}"); } catch (e) {}
+
+            const { generatePtPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generatePtPdf({
+              ptNumber: record.pt.code || String(record.pt.id).padStart(4, "0"), companyName: record.company?.name || "N/A",
+              obraName: record.obra?.name || "N/A", serviceDescription: record.pt.description || record.pt.title,
+              startDate: parsedContent.startDate || record.pt.createdAt, endDate: parsedContent.endDate || record.pt.createdAt,
+              potentialRisks: parsedContent.potentialRisks || [], protectiveMeasures: parsedContent.protectiveMeasures || [],
+              team: parsedContent.team || [], revalidations: parsedContent.revalidations || [],
+              issuerName: parsedContent.issuerName || "Emitente Oficial", supervisorName: parsedContent.supervisorName || "Supervisor Oficial"
+            });
+            fileName = `PT_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "its") {
+            const rows = await db.select({ its: its, company: companies, obra: obras, author: users })
+              .from(its).leftJoin(companies, eq(its.companyId, companies.id)).leftJoin(obras, eq(its.obraId, obras.id))
+              .leftJoin(users, eq(its.createdById, users.id)).where(eq(its.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "ITS not found" });
+            const record = rows[0];
+
+            const { generateItsPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateItsPdf({
+              code: record.its.code || undefined, title: record.its.title, description: record.its.description || undefined,
+              content: record.its.content || undefined, status: record.its.status || "ativo",
+              companyName: record.company?.name || "N/A", obraName: record.obra?.name || undefined,
+              obraAddress: record.obra?.address || undefined, createdAt: record.its.createdAt, authorName: (record.author as any)?.name || undefined,
+            });
+            fileName = `ITS_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "treinamento") {
+            const rows = await db.select({ training: trainings, company: companies, nr: nrs })
+              .from(trainings).leftJoin(companies, eq(trainings.companyId, companies.id)).leftJoin(nrs, eq(trainings.nrId, nrs.id))
+              .where(eq(trainings.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Treinamento not found" });
+            const record = rows[0];
+            const fakeParticipants = Array.from({length: 10}).map((_, i) => ({ name: "", role: "", document: "", signature: "" }));
+
+            const { generateTrainingPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateTrainingPdf({
+              nrTitle: record.nr ? `${record.nr.code} - ${record.nr.name}` : "Sem NR Base", topic: record.training.title,
+              companyName: record.company?.name || "N/A", date: record.training.trainingDate || record.training.createdAt,
+              instructorName: record.training.instructor || "Instrutor Indefinido", duration: "8",
+              programmaticContent: record.training.description || "Treinamento admissional e periódico.",
+              participants: fakeParticipants, instructorRegister: "000.000-0"
+            });
+            fileName = `Treinamento_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "advertencia") {
+            const rows = await db.select({ advertencia: advertencias, company: companies, user: users })
+              .from(advertencias).leftJoin(companies, eq(advertencias.companyId, companies.id)).leftJoin(users, eq(advertencias.userId, users.id))
+              .where(eq(advertencias.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Advertencia not found" });
+            const record = rows[0];
+            let witnessName = "";
+            if (record.advertencia.witnessId) {
+              const witness = await db.select().from(users).where(eq(users.id, record.advertencia.witnessId)).limit(1);
+              if (witness.length > 0) witnessName = witness[0].name || "";
+            }
+
+            const { generateWarningPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateWarningPdf({
+              warningNumber: input.documentId, type: record.advertencia.type, employeeName: record.user?.name || "Empregado N/A",
+              role: record.user?.ehsRole || "N/A", companyName: record.company?.name || "N/A", reason: record.advertencia.reason,
+              description: record.advertencia.description || "N/A", date: record.advertencia.date, location: record.company?.city || "Sede",
+              issuerName: "Departamento de Segurança ou RH", witnessName
+            });
+            fileName = `Advertencia_${input.documentId}.pdf`;
+          }
+          else if (input.documentType === "epi") {
+            const rows = await db.select({ epi: epiFicha, company: companies, user: users })
+              .from(epiFicha).leftJoin(companies, eq(epiFicha.companyId, companies.id)).leftJoin(users, eq(epiFicha.userId, users.id))
+              .where(eq(epiFicha.id, input.documentId)).limit(1);
+            if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Ficha EPI not found" });
+            const record = rows[0];
+            const deliveries = [{
+              date: record.epi.deliveredAt || record.epi.createdAt, equipment: record.epi.epiName, ca: record.epi.ca || "-",
+              quantity: record.epi.quantity || 1, signature: record.epi.signatureUrl || ""
+            }];
+
+            const { generateEpiPdf } = await import("./pdfTemplates");
+            pdfBuffer = await generateEpiPdf({
+              companyName: record.company?.name || "N/A", cnpj: record.company?.cnpj || "", employeeName: record.user?.name || "N/A",
+              role: record.user?.ehsRole || "N/A", admissionDate: record.user?.createdAt || new Date(), deliveries
+            });
+            fileName = `EPI_${input.documentId}.pdf`;
           } else {
              throw new TRPCError({ code: "BAD_REQUEST", message: "Document type not implemented for direct share yet." });
           }

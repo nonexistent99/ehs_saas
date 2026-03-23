@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
 import { StatusBadge } from "@/components/StatusBadge";
-import { GraduationCap, Download, X, Trash2 } from "lucide-react";
+import { GraduationCap, Download, X, Trash2, MessageCircle } from "lucide-react";
 import { useState } from "react";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
 
 export default function TreinamentosPage() {
@@ -189,6 +190,17 @@ export default function TreinamentosPage() {
       ]}
       actions={(i) => (
         <div className="flex justify-end gap-1">
+          <ShareWhatsappDialog
+            title={i.title}
+            documentUrl={`${window.location.origin}/api/export/treinamento/${i.id}`}
+            documentType="treinamento"
+            documentId={i.id}
+            trigger={
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar no WhatsApp">
+                <MessageCircle size={13} />
+              </Button>
+            }
+          />
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
             title="Exportar PDF" onClick={() => exportPdf(i.id)}>
             <Download size={13} />

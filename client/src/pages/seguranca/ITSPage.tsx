@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
-import { FileText, Download, Trash2, Plus, X } from "lucide-react";
+import { FileText, Download, Trash2, Plus, X, MessageCircle } from "lucide-react";
 import { useState } from "react";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
 
 export default function ITSPage() {
@@ -174,6 +175,17 @@ export default function ITSPage() {
       ]}
       actions={(i) => (
         <div className="flex justify-end gap-1">
+          <ShareWhatsappDialog
+            title={i.title}
+            documentUrl={`${window.location.origin}/api/export/its/${i.id}`}
+            documentType="its"
+            documentId={i.id}
+            trigger={
+              <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar no WhatsApp">
+                <MessageCircle size={13} />
+              </Button>
+            }
+          />
           <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
             title="Exportar PDF" onClick={() => exportPdf(i.id)}>
             <Download size={13} />

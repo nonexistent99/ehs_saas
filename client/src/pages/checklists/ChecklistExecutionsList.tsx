@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/PageHeader";
-import { CheckSquare, Edit, Download, Search } from "lucide-react";
+import { CheckSquare, Edit, Download, Search, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 
 export default function ChecklistExecutionsList() {
   const [search, setSearch] = useState("");
@@ -131,11 +132,22 @@ export default function ChecklistExecutionsList() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => handleDownloadPdf(exec.id)} className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary">
+                          <ShareWhatsappDialog
+                            title={exec.templateName}
+                            documentUrl={`${window.location.origin}/api/export/checklist/${exec.id}`}
+                            documentType="checklist"
+                            documentId={exec.id}
+                            trigger={
+                              <Button variant="ghost" size="icon" className="w-8 h-8 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar">
+                                <MessageCircle size={14} />
+                              </Button>
+                            }
+                          />
+                          <Button variant="ghost" size="icon" onClick={() => handleDownloadPdf(exec.id)} className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary" title="Exportar PDF">
                             <Download size={14} />
                           </Button>
                           <Link href={`/checklists/realizados/${exec.id}`}>
-                            <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary">
+                            <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary" title="Editar">
                               <Edit size={14} />
                             </Button>
                           </Link>

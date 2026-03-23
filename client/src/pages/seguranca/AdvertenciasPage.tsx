@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
-import { AlertOctagon, Download, Eraser, Search } from "lucide-react";
+import { AlertOctagon, Download, Eraser, Search, MessageCircle } from "lucide-react";
 import { useState, useRef } from "react";
+import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
 import SignatureCanvas from "react-signature-canvas";
 
@@ -251,6 +252,17 @@ export default function AdvertenciasPage() {
         ]}
         actions={(i) => (
           <div className="flex justify-end gap-1">
+            <ShareWhatsappDialog
+              title={`Advertência - ${i.user?.name || i.user?.email || "Sem Nome"}`}
+              documentUrl={`${window.location.origin}/api/export/advertencia/${i.advertencia.id}`}
+              documentType="advertencia"
+              documentId={i.advertencia.id}
+              trigger={
+                <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Compartilhar no WhatsApp">
+                  <MessageCircle size={13} />
+                </Button>
+              }
+            />
             <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
               title="Exportar PDF" onClick={() => exportPdf(i.advertencia.id)}>
               <Download size={13} />
