@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { useLocation, useParams } from "wouter";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { CheckSquare, Plus, Save, Trash2, GripVertical } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -86,6 +86,42 @@ export default function ChecklistTemplateForm() {
   const updateItem = (i: number, field: keyof TemplateItem, value: any) => {
     setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   };
+
+  // Drag & Drop logic
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, position: number) => {
+    dragItem.current = position;
+    e.dataTransfer.effectAllowed = "move";
+    // Using a slight delay to allow the drag image to be captured before we append styles
+    setTimeout(() => { (e.target as HTMLElement).classList.add("opacity-50"); }, 0);
+  };
+
+  const handleDragEnter = (e: React.DragEvent, position: number) => {
+    e.preventDefault();
+    dragOverItem.current = position;
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    (e.target as HTMLElement).classList.remove("opacity-50");
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      setItems((prevItems) => {
+        const copyListItems = [...prevItems];
+        const dragItemContent = copyListItems[dragItem.current!];
+        copyListItems.splice(dragItem.current!, 1);
+        copyListItems.splice(dragOverItem.current!, 0, dragItemContent);
+        return copyListItems.map((item, index) => ({ ...item, order: index }));
+      });
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessário para permitir o drop
+  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -221,8 +257,16 @@ export default function ChecklistTemplateForm() {
               
               <div className="space-y-3">
                 {items.map((item, i) => (
-                  <div key={i} className="flex gap-3 p-4 bg-secondary/30 border border-border/50 rounded-lg group transition-colors hover:border-primary/30">
-                    <div className="flex flex-col items-center justify-start pt-2 opacity-30 cursor-grab px-1 text-muted-foreground">
+                  <div 
+                    key={i} 
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, i)}
+                    onDragEnter={(e) => handleDragEnter(e, i)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    className="flex gap-3 p-4 bg-secondary/30 border border-border/50 rounded-lg group transition-colors hover:border-primary/30 cursor-grab active:cursor-grabbing"
+                  >
+                    <div className="flex flex-col items-center justify-start pt-2 opacity-30 px-1 text-muted-foreground">
                       <GripVertical size={16} />
                       <span className="text-xs font-mono mt-1 pt-1 border-t border-border/50 w-full text-center">{i + 1}</span>
                     </div>

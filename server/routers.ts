@@ -81,6 +81,18 @@ import {
   updateUser,
   upsertUser,
   createUserWithPassword,
+  getPgrStages,
+  createPgrStage,
+  updatePgrStage,
+  deletePgrStage,
+  getRiskMatrixByStage,
+  createRiskMatrix,
+  updateRiskMatrix,
+  deleteRiskMatrix,
+  getSubcontractors,
+  createSubcontractor,
+  updateSubcontractor,
+  deleteSubcontractor,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -828,6 +840,78 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return deletePGR(input.id);
       }),
+      
+    // STAGES
+    stages: protectedProcedure
+      .input(z.object({ pgrId: z.number() }))
+      .query(async ({ input }) => getPgrStages(input.pgrId)),
+    createStage: protectedProcedure
+      .input(z.object({ pgrId: z.number(), name: z.string().min(1), description: z.string().optional(), order: z.number().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return createPgrStage(input);
+      }),
+    updateStage: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), order: z.number().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        const { id, ...rest } = input;
+        return updatePgrStage(id, rest);
+      }),
+    deleteStage: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return deletePgrStage(input.id);
+      }),
+    
+    // RISK MATRIX
+    riskMatrixList: protectedProcedure
+      .input(z.object({ stageId: z.number() }))
+      .query(async ({ input }) => getRiskMatrixByStage(input.stageId)),
+    createRiskMatrix: protectedProcedure
+      .input(z.object({ stageId: z.number(), description: z.string().min(1), severity: z.string().optional(), probability: z.string().optional(), mitigation: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return createRiskMatrix(input);
+      }),
+    updateRiskMatrix: protectedProcedure
+      .input(z.object({ id: z.number(), description: z.string().optional(), severity: z.string().optional(), probability: z.string().optional(), mitigation: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        const { id, ...rest } = input;
+        return updateRiskMatrix(id, rest);
+      }),
+    deleteRiskMatrix: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return deleteRiskMatrix(input.id);
+      }),
+
+    // SUBCONTRACTORS
+    subcontractorsList: protectedProcedure
+      .input(z.object({ pgrId: z.number().optional(), stageId: z.number().optional() }))
+      .query(async ({ input }) => getSubcontractors(input.pgrId, input.stageId)),
+    createSubcontractor: protectedProcedure
+      .input(z.object({ pgrId: z.number().optional(), stageId: z.number().optional(), name: z.string().min(1), cnpj: z.string().optional(), activity: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return createSubcontractor(input);
+      }),
+    updateSubcontractor: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), cnpj: z.string().optional(), activity: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        const { id, ...rest } = input;
+        return updateSubcontractor(id, rest);
+      }),
+    deleteSubcontractor: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return deleteSubcontractor(input.id);
+      }),
   }),
 
   // =============================================
@@ -1205,6 +1289,41 @@ export const appRouter = router({
   // W-API ROUTER
   // =============================================
   wapi: router({
+    getConsolidatedEmails: protectedProcedure
+      .input(z.object({ companyId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
+        
+        const { companies, companyUsers, users } = await import("../drizzle/schema");
+        const { eq, and } = await import("drizzle-orm");
+
+        const consolidated = new Set<string>();
+
+        // 1. E-mails diretos da empresa e matriz de emails
+        const companyRows = await db.select().from(companies).where(eq(companies.id, input.companyId)).limit(1);
+        if (companyRows.length > 0) {
+          const comp = companyRows[0];
+          if (comp.email) consolidated.add(comp.email);
+          if (comp.emails && Array.isArray(comp.emails)) {
+            comp.emails.forEach((e: string) => { if (e) consolidated.add(e) });
+          }
+        }
+
+        // 2. E-mails dos responsáveis/gestores marcados para receber notificações
+        const cUsers = await db.select({ email: users.email })
+          .from(companyUsers)
+          .innerJoin(users, eq(companyUsers.userId, users.id))
+          .where(and(eq(companyUsers.companyId, input.companyId), eq(companyUsers.isNotificationRecipient, true)));
+
+        cUsers.forEach((u: any) => {
+          if (u.email) consolidated.add(u.email);
+        });
+
+        return Array.from(consolidated).filter(Boolean);
+      }),
+
     shareDocument: protectedProcedure
       .input(z.object({
         phone: z.string().min(10),
@@ -1283,7 +1402,8 @@ export const appRouter = router({
             pdfBuffer = await generateChecklistPdf({
               companyName: record.company.name, projectName: record.obra?.name || "N/A", date: record.execution.date,
               templateName: record.template.name, inspectorName: record.inspector?.name || "Inspetor EHS",
-              score: record.execution.score, signatureUrl: record.execution.signatureUrl, items: itemsMapped
+              score: record.execution.score, signatureUrl: record.execution.signatureUrl, items: itemsMapped,
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `Checklist_${input.documentId}.pdf`;
           }
@@ -1301,7 +1421,8 @@ export const appRouter = router({
             pdfBuffer = await generateGroPdf({
               title: record.pgr.title, companyName: record.company?.name || "N/A", obraName: record.obra?.name || "Matriz",
               version: record.pgr.version, validFrom: record.pgr.validFrom, riskMatrix: parsedContent.risks || [],
-              actionPlan: parsedContent.actionPlan || [], responsibleName: parsedContent.responsibleName || "Engenheiro Responsável"
+              actionPlan: parsedContent.actionPlan || [], responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `PGR_${input.documentId}.pdf`;
           }
@@ -1319,7 +1440,8 @@ export const appRouter = router({
               date: record.apr.date || record.apr.createdAt, responsibleName: (record.apr.content as any)?.responsibleName || "Técnico de Segurança",
               materials: (record.apr.content as any)?.materials || [], epis: (record.apr.content as any)?.epis || [],
               epcs: (record.apr.content as any)?.epcs || [], conditions: (record.apr.content as any)?.conditions || [],
-              risks: (record.apr.content as any)?.risks || []
+              risks: (record.apr.content as any)?.risks || [],
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `APR_${input.documentId}.pdf`;
           }
@@ -1339,7 +1461,8 @@ export const appRouter = router({
               startDate: parsedContent.startDate || record.pt.createdAt, endDate: parsedContent.endDate || record.pt.createdAt,
               potentialRisks: parsedContent.potentialRisks || [], protectiveMeasures: parsedContent.protectiveMeasures || [],
               team: parsedContent.team || [], revalidations: parsedContent.revalidations || [],
-              issuerName: parsedContent.issuerName || "Emitente Oficial", supervisorName: parsedContent.supervisorName || "Supervisor Oficial"
+              issuerName: parsedContent.issuerName || "Emitente Oficial", supervisorName: parsedContent.supervisorName || "Supervisor Oficial",
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `PT_${input.documentId}.pdf`;
           }
@@ -1356,6 +1479,7 @@ export const appRouter = router({
               content: record.its.content || undefined, status: record.its.status || "ativo",
               companyName: record.company?.name || "N/A", obraName: record.obra?.name || undefined,
               obraAddress: record.obra?.address || undefined, createdAt: record.its.createdAt, authorName: (record.author as any)?.name || undefined,
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `ITS_${input.documentId}.pdf`;
           }
@@ -1373,7 +1497,8 @@ export const appRouter = router({
               companyName: record.company?.name || "N/A", date: record.training.trainingDate || record.training.createdAt,
               instructorName: record.training.instructor || "Instrutor Indefinido", duration: "8",
               programmaticContent: record.training.description || "Treinamento admissional e periódico.",
-              participants: fakeParticipants, instructorRegister: "000.000-0"
+              participants: fakeParticipants, instructorRegister: "000.000-0",
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `Treinamento_${input.documentId}.pdf`;
           }
@@ -1394,7 +1519,8 @@ export const appRouter = router({
               warningNumber: input.documentId, type: record.advertencia.type, employeeName: record.user?.name || "Empregado N/A",
               role: record.user?.ehsRole || "N/A", companyName: record.company?.name || "N/A", reason: record.advertencia.reason,
               description: record.advertencia.description || "N/A", date: record.advertencia.date, location: record.company?.city || "Sede",
-              issuerName: "Departamento de Segurança ou RH", witnessName
+              issuerName: "Departamento de Segurança ou RH", witnessName,
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `Advertencia_${input.documentId}.pdf`;
           }
@@ -1412,7 +1538,8 @@ export const appRouter = router({
             const { generateEpiPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateEpiPdf({
               companyName: record.company?.name || "N/A", cnpj: record.company?.cnpj || "", employeeName: record.user?.name || "N/A",
-              role: record.user?.ehsRole || "N/A", admissionDate: record.user?.createdAt || new Date(), deliveries
+              role: record.user?.ehsRole || "N/A", admissionDate: record.user?.createdAt || new Date(), deliveries,
+              clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `EPI_${input.documentId}.pdf`;
           } else {

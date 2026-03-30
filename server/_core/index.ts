@@ -271,7 +271,8 @@ async function startServer() {
         validFrom: record.pgr.validFrom,
         riskMatrix: parsedContent.risks || [],
         actionPlan: parsedContent.actionPlan || [],
-        responsibleName: parsedContent.responsibleName || "Engenheiro Responsável"
+        responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -315,7 +316,8 @@ async function startServer() {
         epis: (record.apr.content as any)?.epis || [],
         epcs: (record.apr.content as any)?.epcs || [],
         conditions: (record.apr.content as any)?.conditions || [],
-        risks: (record.apr.content as any)?.risks || []
+        risks: (record.apr.content as any)?.risks || [],
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -368,7 +370,8 @@ async function startServer() {
         team: parsedContent.team || [],
         revalidations: parsedContent.revalidations || [],
         issuerName: parsedContent.issuerName || "Emitente Oficial",
-        supervisorName: parsedContent.supervisorName || "Supervisor Oficial"
+        supervisorName: parsedContent.supervisorName || "Supervisor Oficial",
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -416,6 +419,7 @@ async function startServer() {
         obraAddress: record.obra?.address || undefined,
         createdAt: record.its.createdAt,
         authorName: (record.author as any)?.name || undefined,
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -462,7 +466,8 @@ async function startServer() {
         employeeName: record.user?.name || "N/A",
         role: record.user?.ehsRole || "N/A",
         admissionDate: record.user?.createdAt || new Date(),
-        deliveries
+        deliveries,
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -509,7 +514,8 @@ async function startServer() {
         duration: "8",
         programmaticContent: record.training.description || "Treinamento admissional e periódico de segurança do trabalho e suas medidas.",
         participants: fakeParticipants,
-        instructorRegister: "000.000-0"
+        instructorRegister: "000.000-0",
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -559,7 +565,8 @@ async function startServer() {
         date: record.advertencia.date,
         location: record.company?.city || "Sede",
         issuerName: "Departamento de Segurança ou RH",
-        witnessName
+        witnessName,
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");
@@ -625,7 +632,8 @@ async function startServer() {
         inspectorName: record.inspector?.name || "Inspetor EHS",
         score: record.execution.score,
         signatureUrl: record.execution.signatureUrl,
-        items: itemsMapped
+        items: itemsMapped,
+        clientLogoUrl: record.company?.logoUrl || undefined
       });
 
       res.setHeader("Content-Type", "application/pdf");

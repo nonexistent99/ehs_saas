@@ -49,7 +49,9 @@ export const companies = pgTable("companies", {
   city: varchar("city", { length: 255 }),
   state: varchar("state", { length: 50 }),
   phone: varchar("phone", { length: 50 }),
+  phones: json("phones").$type<string[]>().default([]),
   email: varchar("email", { length: 320 }),
+  emails: json("emails").$type<string[]>().default([]),
   logoUrl: text("logoUrl"),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -172,6 +174,7 @@ export const checklistTemplates = pgTable("checklist_templates", {
   description: text("description"),
   frequencyType: varchar("frequencyType", { length: 50 }).$type<"dias" | "semanas" | "meses">().default("dias").notNull(),
   frequencyValue: integer("frequencyValue").default(0).notNull(), // e.g. 30 (dias)
+  isFavorite: boolean("isFavorite").default(false).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   createdById: integer("createdById").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -187,6 +190,7 @@ export const checklistTemplateItems = pgTable("checklist_template_items", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   norma: varchar("norma", { length: 100 }), // e.g. "NR-18", "NR-35"
+  referenceImgUrl: text("referenceImgUrl"),
   order: integer("order").default(0).notNull(),
 });
 
@@ -304,6 +308,55 @@ export type PGR = typeof pgr.$inferSelect;
 export type InsertPGR = typeof pgr.$inferInsert;
 
 // =============================================
+// PGR STAGES (Etapas da Obra do PGR)
+// =============================================
+export const pgrStages = pgTable("pgr_stages", {
+  id: serial("id").primaryKey(),
+  pgrId: integer("pgrId").notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  order: integer("order").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
+});
+
+export type PgrStage = typeof pgrStages.$inferSelect;
+export type InsertPgrStage = typeof pgrStages.$inferInsert;
+
+// =============================================
+// RISK MATRIX (Matriz de Risco do PGR)
+// =============================================
+export const riskMatrix = pgTable("risk_matrix", {
+  id: serial("id").primaryKey(),
+  stageId: integer("stageId").notNull(),
+  description: text("description").notNull(),
+  severity: varchar("severity", { length: 50 }).default("media"),     // ex: baixa, media, alta
+  probability: varchar("probability", { length: 50 }).default("media"), // ex: raro, provavel, frequente
+  mitigation: text("mitigation"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
+});
+
+export type RiskMatrix = typeof riskMatrix.$inferSelect;
+export type InsertRiskMatrix = typeof riskMatrix.$inferInsert;
+
+// =============================================
+// SUBCONTRACTORS (Empresas Terceiras)
+// =============================================
+export const subcontractors = pgTable("subcontractors", {
+  id: serial("id").primaryKey(),
+  stageId: integer("stageId"), // Link via Stage ou PGR
+  pgrId: integer("pgrId"),
+  name: varchar("name", { length: 255 }).notNull(),
+  cnpj: varchar("cnpj", { length: 50 }),
+  activity: varchar("activity", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Subcontractor = typeof subcontractors.$inferSelect;
+export type InsertSubcontractor = typeof subcontractors.$inferInsert;
+
+// =============================================
 // ITS (Instrução Técnica de Segurança)
 // =============================================
 export const its = pgTable("its", {
@@ -394,6 +447,7 @@ export const apr = pgTable("apr", {
   status: varchar("status", { length: 50 }).$type<"aberta" | "em_andamento" | "concluida" | "cancelada">().default("aberta").notNull(),
   responsibleId: integer("responsibleId"),
   content: json("content").$type<Record<string, unknown>>().default({}),
+  signatureUrl: text("signatureUrl"),
   createdById: integer("createdById").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
@@ -431,7 +485,8 @@ export type InsertEpiFicha = typeof epiFicha.$inferInsert;
 export const advertencias = pgTable("advertencias", {
   id: serial("id").primaryKey(),
   companyId: integer("companyId").notNull(),
-  userId: integer("userId").notNull(),
+  userId: integer("userId"),
+  employeeName: varchar("employeeName", { length: 255 }),
   type: varchar("type", { length: 50 }).$type<"verbal" | "escrita" | "suspensao" | "demissao">().default("escrita").notNull(),
   reason: text("reason").notNull(),
   description: text("description"),

@@ -8,11 +8,13 @@ import { HardHat, Download, Plus, Trash2, MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
+import { useRecentUsers } from "@/hooks/useRecentUsers";
 
 export default function EPIPage() {
   const utils = trpc.useUtils();
   const { data: rawItems = [], isLoading } = trpc.epiFicha.list.useQuery();
   const { data: companies = [] } = trpc.companies.list.useQuery();
+  const { recentUsers, addRecentUser } = useRecentUsers();
 
   const [open, setOpen] = useState(false);
 
@@ -39,6 +41,7 @@ export default function EPIPage() {
   const createMutation = trpc.epiFicha.create.useMutation({
     onSuccess: () => {
       toast.success("Ficha(s) de EPI criada(s)!");
+      addRecentUser(form.employeeName);
       utils.epiFicha.list.invalidate();
       setOpen(false);
       setForm(initialForm);
@@ -88,9 +91,20 @@ export default function EPIPage() {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1.5">
+        <div className="space-y-1.5 flex flex-col">
           <Label>Colaborador *</Label>
-          <Input value={form.employeeName} onChange={e => setForm(f => ({ ...f, employeeName: e.target.value }))} placeholder="Nome do funcionário..." className="bg-secondary border-border" />
+          <Input 
+            value={form.employeeName} 
+            onChange={e => setForm(f => ({ ...f, employeeName: e.target.value }))} 
+            placeholder="Nome do funcionário..." 
+            className="bg-secondary border-border" 
+            list="recent-users-epi"
+          />
+          <datalist id="recent-users-epi">
+            {recentUsers.map((name, i) => (
+              <option key={i} value={name} />
+            ))}
+          </datalist>
         </div>
       </div>
 

@@ -135,6 +135,11 @@ export default function ChecklistExecutionForm() {
   };
 
   const handleSaveAndComplete = async () => {
+    if (sigCanvas.isEmpty()) {
+      toast.error("A assinatura do responsável é obrigatória para concluir.");
+      return;
+    }
+    
     setUploading(true);
     try {
       // Get base64 signature

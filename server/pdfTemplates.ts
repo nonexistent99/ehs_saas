@@ -78,7 +78,7 @@ export async function generateAprPdf(data: any): Promise<Buffer> {
   <!-- Cabeçalho do documento -->
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${ehsLogo}</td>
+      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
       <td class="title-cell">APR – ANÁLISE PRELIMINAR DE RISCO</td>
       <td class="rev-cell">APR_REV_00</td>
     </tr>
@@ -290,7 +290,7 @@ export async function generatePtPdf(data: any): Promise<Buffer> {
 
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${ehsLogo}</td>
+      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
       <td class="title-cell">PERMISSÃO DE TRABALHO (PT) — Nº ${data.ptNumber || "____"}</td>
       <td class="rev-cell">PT_REV_00</td>
     </tr>
@@ -424,7 +424,8 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
   <!-- Cabeçalho estilo EHS UNIVERSIDADE -->
   <table class="doc-header">
     <tr>
-      <td style="width:160px; border:1px solid #000; padding:6px 10px;">
+      <td style="width:160px; border:1px solid #000; padding:6px 10px; text-align: center;">
+        ${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:120px;" />` : `
         <div class="univ-logo">
           <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
             <polygon points="26,4 48,40 4,40" fill="none" stroke="#e8420d" stroke-width="2.5"/>
@@ -433,7 +434,7 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
             <line x1="18" y1="38" x2="34" y2="38" stroke="#1e3a5f" stroke-width="1.5"/>
           </svg>
           <div class="univ-text">EHS<span>Universidade</span></div>
-        </div>
+        </div>`}
       </td>
       <td class="title-cell" style="font-size:13px;">LISTA DE PRESENÇA DE TREINAMENTO</td>
       <td style="width:120px; border:1px solid #000; padding:6px 10px; font-size:10px;">
@@ -530,7 +531,7 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
 
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${ehsLogo}</td>
+      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
       <td class="title-cell">AVISO DE ADVERTÊNCIA ${typeStr.toUpperCase()}</td>
       <td class="rev-cell" style="font-size:9px;">
         Nº ADV-${String(data.warningNumber || "0000").padStart(4, '0')}<br>
@@ -610,7 +611,7 @@ export async function generateGroPdf(data: any): Promise<Buffer> {
 
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${ehsLogo}</td>
+      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
       <td class="title-cell">GRO — GERENCIAMENTO DE RISCO OCUPACIONAL</td>
       <td class="rev-cell">GRO_REV_00</td>
     </tr>
@@ -741,7 +742,7 @@ const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocS
 <div class="page">
   <table class="doc-header">
     <tr>
-      <td class="logo-cell" style="width: 25%;">${ehsLogo}</td>
+      <td class="logo-cell" style="width: 25%;">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
       <td class="title-cell" style="width: 50%;">
         <div style="font-size: 16px;">CHECKLIST DE INSPEÇÃO</div>
         ${scoreHtml}
@@ -847,6 +848,7 @@ export interface ItsData {
   obraAddress?: string;
   createdAt?: Date | string;
   authorName?: string;
+  clientLogoUrl?: string;
 }
 
 export async function generateItsPdf(data: ItsData): Promise<Buffer> {
@@ -901,7 +903,7 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   <table>
     <!-- HEADER -->
     <tr>
-      <td class="header-logo">${logoSvg}</td>
+      <td class="header-logo">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:44px; max-width:60px;" />` : logoSvg}</td>
       <td class="header-title">
         <div style="font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:1px;">INSTRUÇÃO TÉCNICA</div>
       </td>

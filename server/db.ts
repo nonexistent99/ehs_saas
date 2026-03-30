@@ -25,7 +25,10 @@ import {
   nrs,
   obras,
   pgr,
+  pgrStages,
   pt,
+  riskMatrix,
+  subcontractors,
   tactdriver,
   trainingParticipants,
   trainings,
@@ -565,6 +568,94 @@ export async function deletePGR(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(pgr).where(eq(pgr.id, id));
+}
+
+// =============================================
+// PGR STAGES
+// =============================================
+export async function getPgrStages(pgrId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(pgrStages).where(eq(pgrStages.pgrId, pgrId)).orderBy(pgrStages.order);
+}
+
+export async function createPgrStage(data: typeof pgrStages.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(pgrStages).values(data).returning({ id: pgrStages.id });
+  return result[0]?.id;
+}
+
+export async function updatePgrStage(id: number, data: Partial<typeof pgrStages.$inferInsert>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(pgrStages).set({ ...data, updatedAt: new Date() }).where(eq(pgrStages.id, id));
+}
+
+export async function deletePgrStage(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(pgrStages).where(eq(pgrStages.id, id));
+}
+
+// =============================================
+// RISK MATRIX
+// =============================================
+export async function getRiskMatrixByStage(stageId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(riskMatrix).where(eq(riskMatrix.stageId, stageId));
+}
+
+export async function createRiskMatrix(data: typeof riskMatrix.$inferInsert | (typeof riskMatrix.$inferInsert)[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const values = Array.isArray(data) ? data : [data];
+  await db.insert(riskMatrix).values(values);
+}
+
+export async function updateRiskMatrix(id: number, data: Partial<typeof riskMatrix.$inferInsert>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(riskMatrix).set({ ...data, updatedAt: new Date() }).where(eq(riskMatrix.id, id));
+}
+
+export async function deleteRiskMatrix(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(riskMatrix).where(eq(riskMatrix.id, id));
+}
+
+// =============================================
+// SUBCONTRACTORS
+// =============================================
+export async function getSubcontractors(pgrId?: number, stageId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [];
+  if (pgrId) conditions.push(eq(subcontractors.pgrId, pgrId));
+  if (stageId) conditions.push(eq(subcontractors.stageId, stageId));
+  if (conditions.length === 0) return [];
+  return db.select().from(subcontractors).where(or(...conditions));
+}
+
+export async function createSubcontractor(data: typeof subcontractors.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(subcontractors).values(data).returning({ id: subcontractors.id });
+  return result[0]?.id;
+}
+
+export async function updateSubcontractor(id: number, data: Partial<typeof subcontractors.$inferInsert>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(subcontractors).set(data).where(eq(subcontractors.id, id));
+}
+
+export async function deleteSubcontractor(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(subcontractors).where(eq(subcontractors.id, id));
 }
 
 // =============================================

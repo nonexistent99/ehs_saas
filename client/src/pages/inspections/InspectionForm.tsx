@@ -161,7 +161,7 @@ export default function InspectionForm() {
         descricao: item.situacao || "",
         planoAcao: item.planoAcao || "",
         prazo: item.observacoes || "",
-        imagens: [], // Ignorar as fotos e zerar o array
+        imagens: (item.mediaUrls || []).map((url: string) => ({ url, caption: "" })),
       })));
     }
   }, [cloneItems, isEditing]);
@@ -515,15 +515,35 @@ export default function InspectionForm() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <Label className="text-xs">Fotos da Ocorrência</Label>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs border-dashed border-primary/40 text-primary"
-                              onClick={() => fileInputRefs.current[i]?.click()}
-                            >
-                              <Camera size={12} className="mr-1" /> Adicionar Fotos
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs border-dashed border-primary/40 text-primary"
+                                onClick={() => document.getElementById(`camera-input-${i}`)?.click()}
+                              >
+                                <Camera size={12} className="mr-1" /> Câmera
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs border-dashed border-primary/40 text-primary"
+                                onClick={() => fileInputRefs.current[i]?.click()}
+                              >
+                                <Image size={12} className="mr-1" /> Galeria
+                              </Button>
+                            </div>
+                            <input
+                              id={`camera-input-${i}`}
+                              type="file"
+                              accept="image/*"
+                              capture="environment"
+                              multiple
+                              className="hidden"
+                              onChange={e => handleImageSelect(i, e.target.files)}
+                            />
                             <input
                               ref={el => { fileInputRefs.current[i] = el; }}
                               type="file"
