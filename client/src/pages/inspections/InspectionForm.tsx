@@ -166,6 +166,45 @@ export default function InspectionForm() {
     }
   }, [cloneItems, isEditing]);
 
+  // Checklist Import Logic
+  const checklistId = searchParams.get("checklistId");
+  const { data: checklistData } = trpc.checklistsV2.executions.get.useQuery(
+    { id: Number(checklistId) }, { enabled: !!checklistId && !isEditing }
+  );
+
+  useEffect(() => {
+    if (checklistData && !isEditing) {
+      const c = checklistData.execution;
+      const t = checklistData.template;
+      setForm(f => ({
+        ...f,
+        title: `Relatório de Inspeção - ${t?.name || "Checklist"}`,
+        companyId: c?.companyId ? String(c.companyId) : "",
+        obraId: c?.projectId ? String(c.projectId) : "",
+        data: c?.date ? new Date(c.date).toLocaleDateString("pt-BR") : new Date().toLocaleDateString("pt-BR"),
+        observacoes: "Relatório gerado automaticamente a partir do checklist concluído.",
+        status: "nao_iniciada",
+      }));
+
+      if (checklistData.items && checklistData.items.length > 0) {
+        const failedItems = checklistData.items.filter((i: any) => i.executionItem.status === "NÃO OK");
+        if (failedItems.length > 0) {
+          setOccurrences(failedItems.map((item: any) => ({
+            title: item.templateItem.name || "Item Não Conforme",
+            status: "pendente",
+            descricao: item.executionItem.observation || item.templateItem.description || "Não conformidade encontrada.",
+            planoAcao: "A definir",
+            prazo: "Imediato",
+            imagens: (item.executionItem.mediaUrls || []).map((url: string) => ({ url, caption: "Evidência do checklist" })),
+          })));
+        } else {
+           setOccurrences([emptyOccurrence()]);
+        }
+      }
+    }
+  }, [checklistData, isEditing]);
+
+
   const createMutation = trpc.inspections.create.useMutation({
     onSuccess: (data) => {
       toast.success("Relatório criado com sucesso!");

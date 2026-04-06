@@ -18,6 +18,8 @@ export default function CompanyForm() {
   const [form, setForm] = useState({
     name: "", cnpj: "", cep: "", address: "", neighborhood: "",
     city: "", state: "", phone: "", email: "", logoUrl: "",
+    contractSignedAt: "", contractValue: 0,
+    phonesStr: "", emailsStr: "",
   });
 
   const { data: existing } = trpc.companies.getById.useQuery(
@@ -37,6 +39,10 @@ export default function CompanyForm() {
         phone: existing.phone || "",
         email: existing.email || "",
         logoUrl: existing.logoUrl || "",
+        contractSignedAt: existing.contractSignedAt ? existing.contractSignedAt.substring(0, 10) : "",
+        contractValue: existing.contractValue ? Number(existing.contractValue) : 0,
+        phonesStr: Array.isArray(existing.phones) && existing.phones.length > 0 ? existing.phones.join(", ") : "",
+        emailsStr: Array.isArray(existing.emails) && existing.emails.length > 0 ? existing.emails.join(", ") : "",
       });
     }
   }, [existing]);
@@ -62,10 +68,22 @@ export default function CompanyForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name) { toast.error("Nome é obrigatório"); return; }
+    
+    // Parse strings to arrays
+    const phones = form.phonesStr.split(",").map(s => s.trim()).filter(Boolean);
+    const emails = form.emailsStr.split(",").map(s => s.trim()).filter(Boolean);
+
+    const payload = {
+      ...form,
+      phones,
+      emails,
+      contractSignedAt: form.contractSignedAt || undefined,
+    };
+
     if (isEditing) {
-      updateMutation.mutate({ id: Number(params.id), ...form });
+      updateMutation.mutate({ id: Number(params.id), ...payload });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate(payload);
     }
   };
 
@@ -119,14 +137,34 @@ export default function CompanyForm() {
                     placeholder="00.000.000/0000-00" className="bg-secondary border-border" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Telefone</Label>
+                  <Label>Telefone Principal</Label>
                   <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                     placeholder="(11) 3333-3333" className="bg-secondary border-border" />
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>Email</Label>
+                <div className="space-y-1.5">
+                  <Label>Email Principal</Label>
                   <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                     placeholder="contato@empresa.com" className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Múltiplos Telefones (separados por vírgula)</Label>
+                  <Input value={form.phonesStr} onChange={e => setForm(f => ({ ...f, phonesStr: e.target.value }))}
+                    placeholder="Ex: (11) 9999-9999, (11) 8888-8888" className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Múltiplos E-mails (separados por vírgula)</Label>
+                  <Input value={form.emailsStr} onChange={e => setForm(f => ({ ...f, emailsStr: e.target.value }))}
+                    placeholder="Ex: admin@empresa.com, rh@empresa.com" className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Data de Assinatura do Contrato</Label>
+                  <Input type="date" value={form.contractSignedAt} onChange={e => setForm(f => ({ ...f, contractSignedAt: e.target.value }))}
+                    className="bg-secondary border-border" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Valor do Contrato (R$)</Label>
+                  <Input type="number" step="0.01" value={form.contractValue || ""} onChange={e => setForm(f => ({ ...f, contractValue: parseFloat(e.target.value) || 0 }))}
+                    placeholder="0.00" className="bg-secondary border-border" />
                 </div>
                 <div className="space-y-1.5">
                   <Label>CEP</Label>

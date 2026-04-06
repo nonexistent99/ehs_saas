@@ -23,7 +23,12 @@ export default function UserForm() {
     phone: "",
     whatsapp: "",
     ehsRole: "tecnico" as "adm_ehs" | "cliente" | "tecnico" | "apoio",
+    companyIds: [] as number[],
+    obraIds: [] as number[],
   });
+
+  const { data: allCompanies = [] } = trpc.companies.list.useQuery();
+  const { data: allObras = [] } = trpc.obras.list.useQuery();
 
   const { data: existingUser } = trpc.users.getById.useQuery(
     { id: Number(params.id) },
@@ -39,6 +44,8 @@ export default function UserForm() {
         phone: (existingUser as any).phone || "",
         whatsapp: (existingUser as any).whatsapp || "",
         ehsRole: (existingUser as any).ehsRole || "tecnico",
+        companyIds: (existingUser as any).companyIds || [],
+        obraIds: (existingUser as any).obraIds || [],
       });
     }
   }, [existingUser]);
@@ -176,6 +183,51 @@ export default function UserForm() {
                   </Select>
                 </div>
               </div>
+
+              {form.ehsRole !== "adm_ehs" && (
+                <div className="pt-4 border-t border-border/50 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <Label className="text-sm font-semibold mb-3 block">Empresas Vinculadas</Label>
+                    <div className="space-y-2 max-h-48 overflow-auto pr-2">
+                      {allCompanies.map((c: any) => (
+                        <label key={`comp-${c.id}`} className="flex items-center gap-2 text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={form.companyIds.includes(c.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setForm(f => ({ ...f, companyIds: [...f.companyIds, c.id] }));
+                              else setForm(f => ({ ...f, companyIds: f.companyIds.filter(id => id !== c.id) }));
+                            }}
+                            className="rounded border-border bg-secondary"
+                          />
+                          {c.name}
+                        </label>
+                      ))}
+                      {allCompanies.length === 0 && <span className="text-xs text-muted-foreground">Nenhuma empresa encontrada</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-sm font-semibold mb-3 block">Obras Vinculadas</Label>
+                    <div className="space-y-2 max-h-48 overflow-auto pr-2">
+                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).map((o: any) => (
+                        <label key={`obra-${o.id}`} className="flex items-center gap-2 text-sm">
+                          <input 
+                            type="checkbox" 
+                            checked={form.obraIds.includes(o.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setForm(f => ({ ...f, obraIds: [...f.obraIds, o.id] }));
+                              else setForm(f => ({ ...f, obraIds: f.obraIds.filter(id => id !== o.id) }));
+                            }}
+                            className="rounded border-border bg-secondary"
+                          />
+                          {o.name}
+                        </label>
+                      ))}
+                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).length === 0 && <span className="text-xs text-muted-foreground">Nenhuma obra encontrada para as empresas selecionadas</span>}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <Button

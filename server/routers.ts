@@ -93,6 +93,10 @@ import {
   createSubcontractor,
   updateSubcontractor,
   deleteSubcontractor,
+  getUserLinkedCompanies,
+  setUserLinkedCompanies,
+  getUserLinkedObras,
+  setUserLinkedObras,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -260,7 +264,11 @@ export const appRouter = router({
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
-        return getUserById(input.id);
+        const user = await getUserById(input.id);
+        if (!user) return undefined;
+        const companyIds = await getUserLinkedCompanies(input.id);
+        const obraIds = await getUserLinkedObras(input.id);
+        return { ...user, companyIds, obraIds };
       }),
     create: protectedProcedure
       .input(z.object({
@@ -270,6 +278,8 @@ export const appRouter = router({
         ehsRole: z.enum(["adm_ehs", "cliente", "tecnico", "apoio"]).default("tecnico"),
         phone: z.string().optional(),
         whatsapp: z.string().optional(),
+        companyIds: z.array(z.number()).optional(),
+        obraIds: z.array(z.number()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdm(ctx.user?.ehsRole);
@@ -280,7 +290,7 @@ export const appRouter = router({
         }
         const passwordHash = await bcrypt.hash(input.password, 10);
         const openId = `ehs_${nanoid(16)}`;
-        return createUserWithPassword({
+        const userOrId = await createUserWithPassword({
           openId,
           name: input.name,
           email: input.email,
@@ -292,6 +302,19 @@ export const appRouter = router({
           loginMethod: "email",
           role: input.ehsRole === "adm_ehs" ? "admin" : "user",
         });
+        
+        let newUserId: number | undefined;
+        if (typeof userOrId === 'number') newUserId = userOrId;
+        else if ((userOrId as any)?.id) newUserId = (userOrId as any).id;
+        else {
+           const newlyCreated = await getUserByEmail(input.email);
+           newUserId = newlyCreated?.id;
+        }
+
+        if (newUserId && input.companyIds) await setUserLinkedCompanies(newUserId, input.companyIds);
+        if (newUserId && input.obraIds) await setUserLinkedObras(newUserId, input.obraIds);
+        
+        return userOrId;
       }),
     update: protectedProcedure
       .input(z.object({
@@ -303,15 +326,20 @@ export const appRouter = router({
         whatsapp: z.string().optional(),
         isActive: z.boolean().optional(),
         password: z.string().min(6).optional(),
+        companyIds: z.array(z.number()).optional(),
+        obraIds: z.array(z.number()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdm(ctx.user?.ehsRole);
-        const { id, password, ...rest } = input;
+        const { id, password, companyIds, obraIds, ...rest } = input;
         const updateData: Record<string, unknown> = { ...rest };
         if (password) {
           updateData.passwordHash = await bcrypt.hash(password, 10);
         }
-        return updateUser(id, updateData);
+        await updateUser(id, updateData);
+        if (companyIds !== undefined) await setUserLinkedCompanies(id, companyIds);
+        if (obraIds !== undefined) await setUserLinkedObras(id, obraIds);
+        return { success: true };
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -356,11 +384,19 @@ export const appRouter = router({
         state: z.string().optional(),
         phone: z.string().optional(),
         email: z.string().email().optional().or(z.literal("")),
+        emails: z.array(z.string()).optional(),
+        phones: z.array(z.string()).optional(),
+        contractValue: z.number().optional(),
+        contractSignedAt: z.string().optional(),
         logoUrl: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return createCompany(input);
+        const { contractValue, ...rest } = input;
+        return createCompany({
+          ...rest,
+          contractValue: contractValue !== undefined ? contractValue.toString() : undefined,
+        });
       }),
     update: protectedProcedure
       .input(z.object({
@@ -374,13 +410,20 @@ export const appRouter = router({
         state: z.string().optional(),
         phone: z.string().optional(),
         email: z.string().optional(),
+        emails: z.array(z.string()).optional(),
+        phones: z.array(z.string()).optional(),
+        contractValue: z.number().optional(),
+        contractSignedAt: z.string().optional(),
         logoUrl: z.string().optional(),
         isActive: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...rest } = input;
-        return updateCompany(id, rest);
+        const { id, contractValue, ...rest } = input;
+        return updateCompany(id, {
+          ...rest,
+          contractValue: contractValue !== undefined ? contractValue.toString() : undefined,
+        });
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -412,8 +455,8 @@ export const appRouter = router({
       }),
     getObras: protectedProcedure
       .input(z.object({ companyId: z.number() }))
-      .query(async ({ input }) => {
-        return getCompanyObras(input.companyId);
+      .query(async ({ input, ctx }) => {
+        return getCompanyObras(input.companyId, ctx.user?.id, ctx.user?.ehsRole || undefined);
       }),
     createObra: protectedProcedure
       .input(z.object({
@@ -423,6 +466,8 @@ export const appRouter = router({
         cep: z.string().optional(),
         city: z.string().optional(),
         state: z.string().optional(),
+        emails: z.array(z.string()).optional(),
+        phones: z.array(z.string()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
@@ -446,6 +491,17 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return createContract(input);
+      }),
+  }),
+
+  // =============================================
+  // OBRAS ROUTER
+  // =============================================
+  obras: router({
+    list: protectedProcedure
+      .query(async () => {
+         const { getAllObras } = await import("./db");
+         return getAllObras();
       }),
   }),
 
@@ -1326,7 +1382,9 @@ export const appRouter = router({
 
     shareDocument: protectedProcedure
       .input(z.object({
-        phone: z.string().min(10),
+        phones: z.array(z.string()).optional(),
+        emails: z.array(z.string()).optional(),
+        phone: z.string().optional(), // kept for backward compatibility
         message: z.string().optional(),
         documentType: z.enum(["inspection", "checklist", "pgr", "apr", "pt", "its", "treinamento", "advertencia", "epi"]),
         documentId: z.number(),
@@ -1558,12 +1616,47 @@ export const appRouter = router({
         const base64Pdf = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`;
 
         const { sendWhatsappDocument } = await import("./_core/wapi");
-        const success = await sendWhatsappDocument(input.phone, base64Pdf, "pdf", fileName, input.message);
+        const { default: nodemailer } = await import("nodemailer");
+
+        // Send to all phones via whatsapp
+        const allPhones = [...(input.phones || [])];
+        if (input.phone) allPhones.push(input.phone);
         
-        if (!success) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar documento via W-API." });
+        let successCount = 0;
+        for (const p of allPhones) {
+           const success = await sendWhatsappDocument(p, base64Pdf, "pdf", fileName, input.message);
+           if (success) successCount++;
         }
-        return { success: true };
+
+        // Send to emails
+        if (input.emails && input.emails.length > 0) {
+           const transporter = nodemailer.createTransport({
+             host: process.env.SMTP_HOST || "smtp.gmail.com",
+             port: Number(process.env.SMTP_PORT) || 587,
+             secure: false,
+             auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+           });
+           
+           for (const e of input.emails) {
+              try {
+                await transporter.sendMail({
+                  from: `"EHS Platform" <${process.env.SMTP_USER}>`,
+                  to: e,
+                  subject: `Documento Compartilhado: ${fileName}`,
+                  text: input.message || "Segue o documento anexo.",
+                  attachments: [{ filename: fileName, content: pdfBuffer }]
+                });
+                successCount++;
+              } catch (err) {
+                console.error("Email API failed:", err);
+              }
+           }
+        }
+
+        if (successCount === 0 && (allPhones.length > 0 || (input.emails && input.emails.length > 0))) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar documento." });
+        }
+        return { success: true, count: successCount };
       }),
   }),
 });

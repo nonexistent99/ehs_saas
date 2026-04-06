@@ -17,6 +17,7 @@ interface TemplateItem {
   name: string;
   description: string;
   norma: string;
+  referenceImgUrl: string;
   order: number;
 }
 
@@ -31,11 +32,12 @@ export default function ChecklistTemplateForm() {
     name: "", 
     description: "", 
     frequencyValue: 1, 
-    frequencyType: "meses" as "dias" | "semanas" | "meses"
+    frequencyType: "meses" as "dias" | "semanas" | "meses",
+    type: "estatico" as "estatico" | "dinamico"
   });
   
   const [items, setItems] = useState<TemplateItem[]>([
-    { name: "", description: "", norma: "", order: 0 }
+    { name: "", description: "", norma: "", referenceImgUrl: "", order: 0 }
   ]);
 
   const { data: existing, isLoading: isLoadingExisting } = trpc.checklistsV2.templates.get.useQuery(
@@ -49,6 +51,7 @@ export default function ChecklistTemplateForm() {
         description: existing.template.description || "",
         frequencyValue: existing.template.frequencyValue,
         frequencyType: existing.template.frequencyType as any,
+        type: (existing.template as any).type || "estatico",
       });
       if (existing.items && existing.items.length > 0) {
         setItems(existing.items.map((item: any) => ({
@@ -56,6 +59,7 @@ export default function ChecklistTemplateForm() {
           name: item.name,
           description: item.description || "",
           norma: item.norma || "",
+          referenceImgUrl: item.referenceImgUrl || "",
           order: item.order,
         })));
       }
@@ -81,10 +85,28 @@ export default function ChecklistTemplateForm() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const addItem = () => setItems(prev => [...prev, { name: "", description: "", norma: "", order: prev.length }]);
+  const addItem = () => setItems(prev => [...prev, { name: "", description: "", norma: "", referenceImgUrl: "", order: prev.length }]);
   const removeItem = (i: number) => setItems(prev => prev.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: keyof TemplateItem, value: any) => {
     setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
+  };
+
+  const moveItemUp = (i: number) => {
+    if (i === 0) return;
+    setItems(prev => {
+      const copy = [...prev];
+      [copy[i], copy[i - 1]] = [copy[i - 1], copy[i]];
+      return copy.map((x, idx) => ({ ...x, order: idx }));
+    });
+  };
+
+  const moveItemDown = (i: number) => {
+    if (i === items.length - 1) return;
+    setItems(prev => {
+      const copy = [...prev];
+      [copy[i], copy[i + 1]] = [copy[i + 1], copy[i]];
+      return copy.map((x, idx) => ({ ...x, order: idx }));
+    });
   };
 
   // Drag & Drop logic
@@ -132,6 +154,7 @@ export default function ChecklistTemplateForm() {
       name: item.name,
       description: item.description || undefined,
       norma: item.norma || undefined,
+      referenceImgUrl: item.referenceImgUrl || undefined,
       order: index
     }));
     
@@ -143,6 +166,7 @@ export default function ChecklistTemplateForm() {
     const payload = {
       name: form.name,
       description: form.description || undefined,
+      type: form.type,
       frequencyType: form.frequencyType,
       frequencyValue: form.frequencyValue,
       items: validItems,
@@ -207,6 +231,22 @@ export default function ChecklistTemplateForm() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Tipo do Modelo</Label>
+                  <Select 
+                    value={form.type} 
+                    onValueChange={(v: "estatico" | "dinamico") => setForm(f => ({ ...f, type: v }))}
+                  >
+                    <SelectTrigger className="bg-secondary/50 border-input">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="estatico">Estático</SelectItem>
+                      <SelectItem value="dinamico">Dinâmico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label>Tipo de Recorrência</Label>
                   <Select 
                     value={form.frequencyType} 
@@ -266,9 +306,11 @@ export default function ChecklistTemplateForm() {
                     onDragOver={handleDragOver}
                     className="flex gap-3 p-4 bg-secondary/30 border border-border/50 rounded-lg group transition-colors hover:border-primary/30 cursor-grab active:cursor-grabbing"
                   >
-                    <div className="flex flex-col items-center justify-start pt-2 opacity-30 px-1 text-muted-foreground">
-                      <GripVertical size={16} />
-                      <span className="text-xs font-mono mt-1 pt-1 border-t border-border/50 w-full text-center">{i + 1}</span>
+                    <div className="flex flex-col items-center justify-start pt-2 px-1 gap-1 text-muted-foreground w-8">
+                      {i > 0 && <button type="button" onClick={() => moveItemUp(i)} className="hover:text-primary"><GripVertical size={14} className="rotate-90" /></button>}
+                      <GripVertical size={16} className="opacity-30 my-1 cursor-grab" />
+                      {i < items.length - 1 && <button type="button" onClick={() => moveItemDown(i)} className="hover:text-primary"><GripVertical size={14} className="rotate-90" /></button>}
+                      <span className="text-[10px] font-mono font-bold mt-1 pt-1 opacity-50 border-t border-border/50 w-full text-center">{i + 1}</span>
                     </div>
                     
                     <div className="flex-1 space-y-3">
@@ -294,14 +336,25 @@ export default function ChecklistTemplateForm() {
                         </div>
                       </div>
                       
-                      <div className="space-y-1.5">
-                        <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Descrição Adicional (Opcional)</Label>
-                        <Input
-                          value={item.description}
-                          onChange={e => updateItem(i, "description", e.target.value)}
-                          placeholder="Detalhes adicionais sobre como verificar..."
-                          className="bg-card border-input h-9"
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Descrição Adicional (Opcional)</Label>
+                          <Input
+                            value={item.description}
+                            onChange={e => updateItem(i, "description", e.target.value)}
+                            placeholder="Detalhes sobre a verificação..."
+                            className="bg-card border-input h-9"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Imagem de Referência (Opcional URL)</Label>
+                          <Input
+                            value={item.referenceImgUrl}
+                            onChange={e => updateItem(i, "referenceImgUrl", e.target.value)}
+                            placeholder="https://exemplo.com/imagem.png"
+                            className="bg-card border-input h-9"
+                          />
+                        </div>
                       </div>
                     </div>
                     

@@ -54,6 +54,8 @@ export const companies = pgTable("companies", {
   emails: json("emails").$type<string[]>().default([]),
   logoUrl: text("logoUrl"),
   isActive: boolean("isActive").default(true).notNull(),
+  contractSignedAt: date("contractSignedAt"),
+  contractValue: decimal("contractValue", { precision: 15, scale: 2 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
 });
@@ -72,6 +74,8 @@ export const obras = pgTable("obras", {
   cep: varchar("cep", { length: 9 }),
   city: varchar("city", { length: 100 }),
   state: varchar("state", { length: 2 }),
+  phones: json("phones").$type<string[]>().default([]),
+  emails: json("emails").$type<string[]>().default([]),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
@@ -79,6 +83,19 @@ export const obras = pgTable("obras", {
 
 export type Obra = typeof obras.$inferSelect;
 export type InsertObra = typeof obras.$inferInsert;
+
+// =============================================
+// OBRA USERS (Vinculação obra-usuário)
+// =============================================
+export const obraUsers = pgTable("obra_users", {
+  id: serial("id").primaryKey(),
+  obraId: integer("obraId").notNull(),
+  userId: integer("userId").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ObraUser = typeof obraUsers.$inferSelect;
+export type InsertObraUser = typeof obraUsers.$inferInsert;
 
 // =============================================
 // COMPANY USERS (Vinculação empresa-usuário com cargo)
@@ -172,6 +189,7 @@ export const checklistTemplates = pgTable("checklist_templates", {
   companyId: integer("companyId").notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
+  type: varchar("type", { length: 50 }).$type<"estatico" | "dinamico">().default("estatico").notNull(),
   frequencyType: varchar("frequencyType", { length: 50 }).$type<"dias" | "semanas" | "meses">().default("dias").notNull(),
   frequencyValue: integer("frequencyValue").default(0).notNull(), // e.g. 30 (dias)
   isFavorite: boolean("isFavorite").default(false).notNull(),

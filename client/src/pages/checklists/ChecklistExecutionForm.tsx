@@ -259,9 +259,9 @@ export default function ChecklistExecutionForm() {
                         ))}
                       </SelectContent>
                     </Select>
-                    {selectedObra?.address && (
+                    {!!selectedObra?.address && (
                       <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <span>📍</span> {selectedObra.address}{selectedObra.city ? `, ${selectedObra.city}` : ""}{selectedObra.state ? `/${selectedObra.state}` : ""}
+                        <span>📍</span> {String(selectedObra.address)}{selectedObra.city ? `, ${String(selectedObra.city)}` : ""}{selectedObra.state ? `/${String(selectedObra.state)}` : ""}
                       </p>
                     )}
                   </div>
@@ -397,7 +397,10 @@ export default function ChecklistExecutionForm() {
                             multiple
                             capture="environment" // Hint for mobile devices to open camera
                             className="hidden"
-                            onChange={e => handleImageSelect(item.id, e.target.files)}
+                            onChange={e => {
+                              handleImageSelect(item.id, e.target.files);
+                              e.target.value = "";
+                            }}
                           />
                         </div>
 

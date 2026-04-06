@@ -477,7 +477,7 @@ export default function PGRPage() {
                       <div className="min-w-0 flex-1">
                         <p className="font-semibold text-foreground text-sm truncate">{pgr.title}</p>
                         {pgr.obraId && (
-                           <p className="text-xs text-muted-foreground truncate">{obras.find((o:any) => o.id === pgr.obraId)?.name}</p>
+                           <p className="text-xs text-muted-foreground truncate">{String(obras.find((o:any) => o.id === pgr.obraId)?.name || "")}</p>
                         )}
                       </div>
                     </div>

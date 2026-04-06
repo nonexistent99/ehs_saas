@@ -145,9 +145,9 @@ export async function getAllCompanies(search?: string) {
   if (search) {
     return db.select().from(companies).where(
       and(eq(companies.isActive, true), or(like(companies.name, `%${search}%`), like(companies.cnpj, `%${search}%`)))
-    ).orderBy(desc(companies.createdAt));
+    ).orderBy(companies.name);
   }
-  return query.orderBy(desc(companies.createdAt));
+  return query.orderBy(companies.name);
 }
 
 export async function getCompanyById(id: number) {
@@ -176,16 +176,78 @@ export async function deleteCompany(id: number) {
   await db.update(companies).set({ isActive: false }).where(eq(companies.id, id));
 }
 
-export async function getCompanyObras(companyId: number) {
+export async function getCompanyObras(companyId: number, userId?: number, role?: string) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true)));
+  if (role === 'adm_ehs' || !userId) {
+     return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true)));
+  }
+  const { obraUsers } = await import("../drizzle/schema");
+  const rows = await db
+    .select()
+    .from(obras)
+    .innerJoin(obraUsers, eq(obras.id, obraUsers.obraId))
+    .where(and(eq(obras.companyId, companyId), eq(obras.isActive, true), eq(obraUsers.userId, userId)));
+  return rows.map(r => r.obras);
 }
 
 export async function createObra(data: typeof obras.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.insert(obras).values(data);
+}
+
+export async function getObraById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(obras).where(eq(obras.id, id)).limit(1);
+  return result[0];
+}
+
+export async function updateObra(id: number, data: Partial<typeof obras.$inferInsert>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(obras).set({ ...data, updatedAt: new Date() }).where(eq(obras.id, id));
+}
+
+export async function getAllObras() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(obras).where(eq(obras.isActive, true));
+}
+
+export async function getUserLinkedCompanies(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select().from(companyUsers).where(eq(companyUsers.userId, userId));
+  return rows.map(r => r.companyId);
+}
+
+export async function setUserLinkedCompanies(userId: number, companyIds: number[]) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(companyUsers).where(eq(companyUsers.userId, userId));
+  if (companyIds.length > 0) {
+    await db.insert(companyUsers).values(companyIds.map(cId => ({ companyId: cId, userId })));
+  }
+}
+
+export async function getUserLinkedObras(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const { obraUsers } = await import("../drizzle/schema");
+  const rows = await db.select().from(obraUsers).where(eq(obraUsers.userId, userId));
+  return rows.map(r => r.obraId);
+}
+
+export async function setUserLinkedObras(userId: number, obraIds: number[]) {
+  const db = await getDb();
+  if (!db) return;
+  const { obraUsers } = await import("../drizzle/schema");
+  await db.delete(obraUsers).where(eq(obraUsers.userId, userId));
+  if (obraIds.length > 0) {
+    await db.insert(obraUsers).values(obraIds.map(oId => ({ obraId: oId, userId })));
+  }
 }
 
 export async function getCompanyUsers(companyId: number) {
@@ -314,7 +376,8 @@ export async function getAllInspections(filters?: { companyId?: number; status?:
       .leftJoin(nrs, eq(inspectionNrs.nrId, nrs.id))
       .where(eq(inspectionNrs.inspectionId, row.inspection.id))
       .limit(1);
-    return {
+      console.log('--> getDashboardStats finished');
+  return {
       inspection: row.inspection,
       company: row.company,
       nr: nrRow[0]?.nr ?? null,
@@ -373,6 +436,8 @@ export async function deleteInspectionItem(id: number) {
 // DASHBOARD STATS
 // =============================================
 export async function getDashboardStats(companyId?: number) {
+  console.log('--> getDashboardStats started');
+
   const db = await getDb();
   if (!db) return null;
 

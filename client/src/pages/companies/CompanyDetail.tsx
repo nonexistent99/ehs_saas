@@ -22,7 +22,7 @@ export default function CompanyDetail() {
   const { data: companyUsers = [] } = trpc.companies.getUsers.useQuery({ companyId });
   const { data: allUsers = [] } = trpc.users.list.useQuery();
 
-  const [obraForm, setObraForm] = useState({ name: "", address: "", city: "", state: "" });
+  const [obraForm, setObraForm] = useState({ name: "", address: "", city: "", state: "", phonesStr: "", emailsStr: "" });
   const [userForm, setUserForm] = useState({ userId: "", cargo: "equipe_tecnica" as any });
   const [obraOpen, setObraOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -32,7 +32,7 @@ export default function CompanyDetail() {
       toast.success("Obra cadastrada!");
       utils.companies.getObras.invalidate({ companyId });
       setObraOpen(false);
-      setObraForm({ name: "", address: "", city: "", state: "" });
+      setObraForm({ name: "", address: "", city: "", state: "", phonesStr: "", emailsStr: "" });
     },
     onError: (err) => toast.error(err.message),
   });
@@ -151,9 +151,24 @@ export default function CompanyDetail() {
                             maxLength={2} className="bg-secondary border-border" />
                         </div>
                       </div>
+                      <div className="space-y-1.5">
+                        <Label>Múltiplos Telefones (separados por vírgula)</Label>
+                        <Input value={obraForm.phonesStr} onChange={e => setObraForm(f => ({ ...f, phonesStr: e.target.value }))}
+                          placeholder="Ex: (11) 9999-9999" className="bg-secondary border-border" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label>Múltiplos E-mails (separados por vírgula)</Label>
+                        <Input value={obraForm.emailsStr} onChange={e => setObraForm(f => ({ ...f, emailsStr: e.target.value }))}
+                          placeholder="Ex: rh@obra.com" className="bg-secondary border-border" />
+                      </div>
                       <Button
                         className="w-full bg-primary text-primary-foreground"
-                        onClick={() => createObraMutation.mutate({ companyId, ...obraForm })}
+                        onClick={() => {
+                          const phones = obraForm.phonesStr.split(",").map(s => s.trim()).filter(Boolean);
+                          const emails = obraForm.emailsStr.split(",").map(s => s.trim()).filter(Boolean);
+                          const { phonesStr, emailsStr, ...rest } = obraForm;
+                          createObraMutation.mutate({ companyId, ...rest, phones, emails });
+                        }}
                         disabled={!obraForm.name || createObraMutation.isPending}
                       >
                         {createObraMutation.isPending ? "Salvando..." : "Cadastrar Obra"}

@@ -6,18 +6,16 @@ export function useSignatureCanvas() {
 
   const getPos = (e: MouseEvent | TouchEvent, canvas: HTMLCanvasElement) => {
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
     if (e instanceof TouchEvent) {
       const t = e.touches[0];
       return {
-        x: (t.clientX - rect.left) * scaleX,
-        y: (t.clientY - rect.top) * scaleY,
+        x: t.clientX - rect.left,
+        y: t.clientY - rect.top,
       };
     }
     return {
-      x: ((e as MouseEvent).clientX - rect.left) * scaleX,
-      y: ((e as MouseEvent).clientY - rect.top) * scaleY,
+      x: (e as MouseEvent).clientX - rect.left,
+      y: (e as MouseEvent).clientY - rect.top,
     };
   };
 

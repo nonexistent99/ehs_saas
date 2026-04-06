@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/PageHeader";
-import { CheckSquare, Edit, Download, Search, MessageCircle } from "lucide-react";
+import { CheckSquare, Edit, Download, Search, MessageCircle, FileText } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
@@ -146,6 +146,11 @@ export default function ChecklistExecutionsList() {
                           <Button variant="ghost" size="icon" onClick={() => handleDownloadPdf(exec.id)} className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary" title="Exportar PDF">
                             <Download size={14} />
                           </Button>
+                          <Link href={`/relatorios/novo?checklistId=${exec.id}`}>
+                            <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10" title="Gerar Relatório Gerencial">
+                              <FileText size={14} />
+                            </Button>
+                          </Link>
                           <Link href={`/checklists/realizados/${exec.id}`}>
                             <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary" title="Editar">
                               <Edit size={14} />

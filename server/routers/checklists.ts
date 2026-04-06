@@ -44,12 +44,15 @@ export const checklistRouter = router({
         companyId: z.number(),
         name: z.string().min(1),
         description: z.string().optional(),
+        type: z.enum(["estatico", "dinamico"]).default("estatico"),
+        isFavorite: z.boolean().default(false),
         frequencyType: z.enum(["dias", "semanas", "meses"]).default("dias"),
         frequencyValue: z.number().default(0),
         items: z.array(z.object({
           name: z.string().min(1),
           description: z.string().optional(),
           norma: z.string().optional(),
+          referenceImgUrl: z.string().optional(),
           order: z.number().default(0),
         })),
       }))
@@ -78,6 +81,8 @@ export const checklistRouter = router({
         id: z.number(),
         name: z.string().optional(),
         description: z.string().optional(),
+        type: z.enum(["estatico", "dinamico"]).optional(),
+        isFavorite: z.boolean().optional(),
         frequencyType: z.enum(["dias", "semanas", "meses"]).optional(),
         frequencyValue: z.number().optional(),
       }))
