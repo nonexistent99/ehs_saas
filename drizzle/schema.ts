@@ -239,7 +239,7 @@ export const checklistExecutionItems = pgTable("checklist_execution_items", {
   id: serial("id").primaryKey(),
   executionId: integer("executionId").notNull(),
   itemId: integer("itemId").notNull(), // Refers to checklist_template_items.id
-  status: varchar("status", { length: 20 }).$type<"OK" | "NÃO OK" | "N/A">(), // Initially null, populated on execution
+  status: varchar("status", { length: 20 }).$type<"Conforme" | "Não Conforme" | "N/A">(), // Initially null, populated on execution
   observation: text("observation"),
   mediaUrls: json("mediaUrls").$type<string[]>().default([]),
 });
@@ -665,6 +665,22 @@ export const tactDriveDocuments = pgTable("tact_drive_documents", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
 });
+
+// =============================================
+// RISKS (Riscos Padronizados para PGR)
+// =============================================
+export const risks = pgTable("risks", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 100 }), // ex: "Ergonômico", "Químico", "NR24"
+  nr: varchar("nr", { length: 50 }), // ex: "NR-24"
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Risk = typeof risks.$inferSelect;
+export type InsertRisk = typeof risks.$inferInsert;
 
 export type TactDriveDocument = typeof tactDriveDocuments.$inferSelect;
 export type InsertTactDriveDocument = typeof tactDriveDocuments.$inferInsert;

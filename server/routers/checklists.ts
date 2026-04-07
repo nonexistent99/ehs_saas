@@ -156,12 +156,13 @@ export const checklistRouter = router({
         signatureUrl: z.string().optional(),
         items: z.array(z.object({
           id: z.number(), // execution item id
-          status: z.enum(["OK", "NÃO OK", "N/A"]),
+          status: z.enum(["Conforme", "Não Conforme", "N/A"]),
           observation: z.string().optional(),
           mediaUrls: z.array(z.string()).optional(),
         }))
       }))
       .mutation(async ({ input, ctx }) => {
+        console.log("[v2] Concluir input:", JSON.stringify({ id: input.id, items: input.items.map(i => i.status) }));
         requireAdmOrTecnico(ctx.user?.ehsRole);
         
         let okCount = 0;
@@ -169,8 +170,8 @@ export const checklistRouter = router({
 
         // 1. Atualizar todos os itens preenchidos
         for (const item of input.items) {
-          if (item.status === "OK") okCount++;
-          if (item.status === "NÃO OK") notOkCount++;
+          if (item.status === "Conforme") okCount++;
+          if (item.status === "Não Conforme") notOkCount++;
 
           await updateChecklistExecutionItem(item.id, {
             status: item.status,

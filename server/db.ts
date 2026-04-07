@@ -27,6 +27,7 @@ import {
   pgr,
   pgrStages,
   pt,
+  risks,
   riskMatrix,
   subcontractors,
   tactdriver,
@@ -950,4 +951,33 @@ export async function createUserWithPassword(data: typeof users.$inferInsert) {
   const insertId = result[0]?.id;
   const created = await db.select().from(users).where(eq(users.id, insertId)).limit(1);
   return created[0];
+}
+
+// =============================================
+// RISKS
+// =============================================
+export async function getAllRisks(category?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = category ? [eq(risks.category, category)] : [];
+  return db.select().from(risks).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(risks.name);
+}
+
+export async function createRisk(data: typeof risks.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const result = await db.insert(risks).values(data).returning({ id: risks.id });
+  return result[0]?.id;
+}
+
+export async function updateRisk(id: number, data: Partial<typeof risks.$inferInsert>) {
+  const db = await getDb();
+  if (!db) return;
+  await db.update(risks).set(data).where(eq(risks.id, id));
+}
+
+export async function deleteRisk(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(risks).where(eq(risks.id, id));
 }

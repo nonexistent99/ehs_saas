@@ -94,9 +94,11 @@ import {
   updateSubcontractor,
   deleteSubcontractor,
   getUserLinkedCompanies,
-  setUserLinkedCompanies,
-  getUserLinkedObras,
   setUserLinkedObras,
+  getAllRisks,
+  createRisk,
+  updateRisk,
+  deleteRisk,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -131,6 +133,30 @@ export const appRouter = router({
   reports: reportRouter,
   nrs: nrRouter,
   checklistsV2: checklistRouter,
+  risks: router({
+    list: protectedProcedure
+      .input(z.object({ category: z.string().optional() }).optional())
+      .query(async ({ input }) => getAllRisks(input?.category)),
+    create: protectedProcedure
+      .input(z.object({ name: z.string().min(1), description: z.string().optional(), category: z.string().optional(), nr: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdm(ctx.user?.ehsRole);
+        return createRisk(input);
+      }),
+    update: protectedProcedure
+      .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), category: z.string().optional(), nr: z.string().optional() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdm(ctx.user?.ehsRole);
+        const { id, ...rest } = input;
+        return updateRisk(id, rest);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdm(ctx.user?.ehsRole);
+        return deleteRisk(input.id);
+      }),
+  }),
 
   // =============================================
   // TACT DRIVE ROUTER

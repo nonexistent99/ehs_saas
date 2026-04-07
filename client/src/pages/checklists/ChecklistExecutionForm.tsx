@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { ClipboardCheck, Check, Save, Camera, X, Eraser, Image as ImageIcon, Building2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import SignatureCanvas from "react-signature-canvas";
-import { useSignatureCanvas } from "@/hooks/useSignatureCanvas";
 
 interface ItemImage {
   url: string;
@@ -37,7 +36,7 @@ export default function ChecklistExecutionForm() {
   
   const utils = trpc.useUtils();
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
-  const sigCanvas = useSignatureCanvas();
+  const sigCanvasRef = useRef<SignatureCanvas>(null);
 
   const [startForm, setStartForm] = useState({
     templateId: "",
@@ -135,7 +134,7 @@ export default function ChecklistExecutionForm() {
   };
 
   const handleSaveAndComplete = async () => {
-    if (sigCanvas.isEmpty()) {
+    if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) {
       toast.error("A assinatura do responsável é obrigatória para concluir.");
       return;
     }
@@ -143,10 +142,7 @@ export default function ChecklistExecutionForm() {
     setUploading(true);
     try {
       // Get base64 signature
-      let signatureBase64 = undefined;
-      if (!sigCanvas.isEmpty()) {
-        signatureBase64 = sigCanvas.toDataURL();
-      }
+      const signatureBase64 = sigCanvasRef.current.toDataURL('image/png');
 
       // Upload Images
       const uploadedItems = await Promise.all(localItems.map(async (item) => {
@@ -337,12 +333,12 @@ export default function ChecklistExecutionForm() {
                     <div className="p-4 space-y-4">
                       {/* Big Touch Buttons for Status */}
                       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                        {["OK", "NÃO OK", "N/A"].map(opt => {
+                        {["Conforme", "Não Conforme", "N/A"].map(opt => {
                           const isSelected = item.status === opt;
                           let activeClasses = "bg-primary/10 border-primary/40 text-primary";
                           if (isSelected) {
-                            if (opt === "OK") activeClasses = "bg-green-500/20 border-green-500/60 text-green-600 shadow-sm scale-[0.98]";
-                            else if (opt === "NÃO OK") activeClasses = "bg-red-500/20 border-red-500/60 text-red-600 shadow-sm scale-[0.98]";
+                            if (opt === "Conforme") activeClasses = "bg-green-500/20 border-green-500/60 text-green-600 shadow-sm scale-[0.98]";
+                            else if (opt === "Não Conforme") activeClasses = "bg-red-500/20 border-red-500/60 text-red-600 shadow-sm scale-[0.98]";
                           }
                           
                           return (
@@ -355,8 +351,8 @@ export default function ChecklistExecutionForm() {
                               }`}
                               onClick={() => handleItemChange(item.id, "status", opt)}
                             >
-                              {opt === "OK" ? <Check size={18} className={isSelected ? "text-green-600" : "opacity-50"} /> : 
-                               opt === "NÃO OK" ? <X size={18} className={isSelected ? "text-red-600" : "opacity-50"} /> :
+                              {opt === "Conforme" ? <Check size={18} className={isSelected ? "text-green-600" : "opacity-50"} /> : 
+                               opt === "Não Conforme" ? <X size={18} className={isSelected ? "text-red-600" : "opacity-50"} /> :
                                <div className="h-[18px] opacity-50">-</div>}
                               {opt}
                             </button>
@@ -464,10 +460,13 @@ export default function ChecklistExecutionForm() {
                 <Card className="bg-card border-border shadow-sm overflow-hidden">
                   <CardContent className="p-0">
                     <div className="bg-white relative">
-                      <canvas
-                        ref={sigCanvas.canvasRef}
-                        className="w-full h-[200px] border-b border-border/50 touch-none block bg-white cursor-crosshair"
-                        style={{ touchAction: "none" }}
+                      <SignatureCanvas
+                        ref={sigCanvasRef}
+                        penColor="black"
+                        canvasProps={{ 
+                          className: "w-full h-[200px] border-b border-border/50 touch-none block bg-white cursor-crosshair",
+                          style: { touchAction: "none" }
+                        }}
                       />
                       <div className="absolute top-0 right-0 p-2">
                         <Button 
@@ -475,7 +474,7 @@ export default function ChecklistExecutionForm() {
                           variant="secondary" 
                           size="sm" 
                           className="h-8 shadow-sm bg-white/80 backdrop-blur"
-                          onClick={() => sigCanvas.clear()}
+                          onClick={() => sigCanvasRef.current?.clear()}
                         >
                           <Eraser size={14} className="mr-1.5" /> Limpar
                         </Button>

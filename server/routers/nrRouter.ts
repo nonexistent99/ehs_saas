@@ -9,7 +9,12 @@ export const nrRouter = router({
   // List all NRs: global (companyId is null) + company-specific
   list: protectedProcedure
     .input(z.object({ companyId: z.number().optional() }).optional())
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      // Bloquear totalmente o acesso para usuários comuns
+      if (ctx.user?.ehsRole !== "adm_ehs") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito a administradores EHS" });
+      }
+
       const db = await getDb();
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
@@ -30,7 +35,10 @@ export const nrRouter = router({
     }),
 
   // List only global NRs (system-level)
-  listGlobal: protectedProcedure.query(async () => {
+  listGlobal: protectedProcedure.query(async ({ ctx }) => {
+    if (ctx.user?.ehsRole !== "adm_ehs") {
+      throw new TRPCError({ code: "FORBIDDEN", message: "Acesso restrito a administradores EHS" });
+    }
     const db = await getDb();
     if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
     return await db.select().from(nrs).where(isNull(nrs.companyId)).orderBy(nrs.code);

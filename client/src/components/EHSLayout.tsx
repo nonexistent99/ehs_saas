@@ -49,6 +49,7 @@ const navItems: NavItem[] = [
   {
     label: "Usuários",
     icon: <Users size={16} />,
+    roles: ["adm_ehs"],
     children: [
       { label: "Cadastrar Usuário", icon: <Users size={14} />, href: "/usuarios/novo" },
       { label: "Lista de Usuários", icon: <Users size={14} />, href: "/usuarios" },
@@ -91,6 +92,7 @@ const navItems: NavItem[] = [
     label: "NRs",
     icon: <BookOpen size={16} />,
     href: "/nrs",
+    roles: ["adm_ehs"],
   },
   {
     label: "Gestão de Segurança",
@@ -239,11 +241,12 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         )}
       </div>
 
-      {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-3 space-y-0.5">
-        {navItems.map((item) => (
-          <NavItemComponent key={item.label} item={item} collapsed={sidebarCollapsed} />
-        ))}
+        {navItems
+          .filter(item => !item.roles || (user && item.roles.includes((user as any).ehsRole)))
+          .map((item) => (
+            <NavItemComponent key={item.label} item={item} collapsed={sidebarCollapsed} />
+          ))}
       </div>
 
       {/* User Profile */}

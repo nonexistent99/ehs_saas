@@ -13,6 +13,69 @@ import { Edit, Plus, Shield, Download, Trash2, Eraser, MessageCircle } from "luc
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SignatureCanvas from "react-signature-canvas";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
+import { Search } from "lucide-react";
+
+function RiskSelectorDialog({ onSelect }: { onSelect: (risk: any) => void }) {
+  const { data: risks = [], isLoading } = trpc.risks.list.useQuery();
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filtered = risks.filter(r => 
+    r.name.toLowerCase().includes(search.toLowerCase()) || 
+    r.category?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button type="button" size="sm" variant="outline" className="border-primary/40 text-primary hover:bg-primary/10 h-7 text-xs">
+          <Search size={11} className="mr-1" /> Selecionar Repositório
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl bg-card border-border">
+        <DialogHeader>
+          <DialogTitle>Repositório de Riscos</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <Input 
+            placeholder="Pesquisar risco ou categoria..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)}
+            className="bg-secondary border-border"
+          />
+          <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">
+            {isLoading ? (
+              <p className="text-center py-4 text-muted-foreground animate-pulse">Carregando...</p>
+            ) : filtered.length === 0 ? (
+              <p className="text-center py-4 text-muted-foreground italic">Nenhum risco encontrado</p>
+            ) : (
+              filtered.map(risk => (
+                <div 
+                  key={risk.id} 
+                  className="p-3 border border-border rounded-lg hover:bg-secondary/50 cursor-pointer transition-colors"
+                  onClick={() => {
+                    onSelect(risk);
+                    setOpen(false);
+                  }}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-bold text-sm text-foreground">{risk.name}</h4>
+                    {risk.category && (
+                      <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-medium uppercase">
+                        {risk.category}
+                      </span>
+                    )}
+                  </div>
+                  {risk.description && <p className="text-xs text-muted-foreground line-clamp-2">{risk.description}</p>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function calcLevel(p: number, c: number): string {
   const r = p * c;
@@ -119,7 +182,7 @@ export default function PGRPage() {
     // Obter assinatura atual, se foi desenhado e não está vazio
     let signatureBase64 = savedSignature;
     if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
-      signatureBase64 = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
+      signatureBase64 = sigCanvasRef.current.toDataURL('image/png');
     }
 
     const payload = {
@@ -307,10 +370,23 @@ export default function PGRPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-semibold">1. Matriz de Riscos</Label>
-                    <Button type="button" size="sm" variant="outline" className="border-border text-xs h-7"
-                      onClick={() => setRiskMatrix(r => [...r, { agent: "", type: "", source: "", healthEffect: "", probability: "", severity: "", riskLevel: "" }])}>
-                      <Plus size={11} className="mr-1" /> Adicionar Risco
-                    </Button>
+                    <div className="flex gap-2">
+                      <RiskSelectorDialog onSelect={(risk) => {
+                        setRiskMatrix(r => [...r, { 
+                          agent: risk.name, 
+                          type: risk.category || "", 
+                          source: "", 
+                          healthEffect: risk.description || "", 
+                          probability: "", 
+                          severity: "", 
+                          riskLevel: "" 
+                        }]);
+                      }} />
+                      <Button type="button" size="sm" variant="outline" className="border-border text-xs h-7"
+                        onClick={() => setRiskMatrix(r => [...r, { agent: "", type: "", source: "", healthEffect: "", probability: "", severity: "", riskLevel: "" }])}>
+                        <Plus size={11} className="mr-1" /> Adicionar Risco Manual
+                      </Button>
+                    </div>
                   </div>
                   <p className="text-xs text-muted-foreground">P = Probabilidade (1–5) | C = Consequência (1–5) | Nível = P × C</p>
                   {riskMatrix.map((r, i) => (
