@@ -27,11 +27,30 @@ const requireUser = t.middleware(async opts => {
 
 export const protectedProcedure = t.procedure.use(requireUser);
 
+export const companyProcedure = t.procedure.use(requireUser).use(
+  t.middleware(async (opts) => {
+    const { ctx, next, input } = opts;
+    // adm_ehs bypasses company checks
+    if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
+    if (ctx.user.ehsRole === "adm_ehs") return next();
+    
+    // Check if input has companyId and if it's authorized
+    const companyId = (input as any)?.companyId;
+    if (companyId && !ctx.authorizedCompanyIds.includes(companyId)) {
+      throw new TRPCError({ 
+        code: "FORBIDDEN", 
+        message: "Acesso a esta empresa não autorizado para seu perfil" 
+      });
+    }
+    return next();
+  })
+);
+
 export const adminProcedure = t.procedure.use(
   t.middleware(async opts => {
     const { ctx, next } = opts;
 
-    if (!ctx.user || ctx.user.role !== 'admin') {
+    if (!ctx.user || (ctx.user as any).role !== 'admin') {
       throw new TRPCError({ code: "FORBIDDEN", message: NOT_ADMIN_ERR_MSG });
     }
 

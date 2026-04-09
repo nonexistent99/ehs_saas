@@ -635,6 +635,27 @@ export async function generateGroPdf(data: any): Promise<Buffer> {
     </tr>
   </table>
 
+  <!-- Atividades e Equipes (NOVO) -->
+  <table style="margin-top:-1px;">
+    <tr><th colspan="3" class="section-header">ATIVIDADES E EQUIPES TERCEIRIZADAS</th></tr>
+    <tr>
+      <th style="width:40%;">ETAPA / ATIVIDADE</th>
+      <th style="width:20%;">TERCEIRIZADA?</th>
+      <th style="width:40%;">EMPRESAS E CNPJ</th>
+    </tr>
+    ${(data.stages || []).map((s: any) => `
+    <tr>
+      <td style="font-weight:700;">${s.name || "—"}</td>
+      <td style="text-align:center;">${s.subcontractorInfo?.isSubcontracted ? "SIM" : "NÃO"}</td>
+      <td>
+        ${s.subcontractorInfo?.isSubcontracted ? (s.subcontractorInfo.teams || []).map((t: any) => `
+          <div style="font-size:9px;">• <strong>${t.companyName}</strong> (${t.cnpj || "S/ CNPJ"})</div>
+        `).join("") : "Execução Própria"}
+      </td>
+    </tr>`).join("")}
+    ${(!data.stages || data.stages.length === 0) ? `<tr><td colspan="3" style="text-align:center; height:30px; color:#555; vertical-align:middle;">Nenhuma etapa detalhada com equipes identificada.</td></tr>` : ""}
+  </table>
+
   <!-- Matriz de Riscos -->
   <table style="margin-top:-1px;">
     <tr><th colspan="7" class="section-header">1. MATRIZ DE RISCOS AVALIADOS</th></tr>

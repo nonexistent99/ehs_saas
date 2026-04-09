@@ -3,7 +3,7 @@ import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { companyProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { sdk } from "./_core/sdk";
 import { ONE_YEAR_MS } from "@shared/const";
 import * as bcrypt from "bcryptjs";
@@ -94,11 +94,15 @@ import {
   updateSubcontractor,
   deleteSubcontractor,
   getUserLinkedCompanies,
+  setUserLinkedCompanies,
+  getUserLinkedObras,
   setUserLinkedObras,
   getAllRisks,
   createRisk,
   updateRisk,
   deleteRisk,
+  findOrCreateEmployee,
+  getEmployeesByCompany,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -928,13 +932,25 @@ export const appRouter = router({
       .input(z.object({ pgrId: z.number() }))
       .query(async ({ input }) => getPgrStages(input.pgrId)),
     createStage: protectedProcedure
-      .input(z.object({ pgrId: z.number(), name: z.string().min(1), description: z.string().optional(), order: z.number().optional() }))
+      .input(z.object({ 
+        pgrId: z.number(), 
+        name: z.string().min(1), 
+        description: z.string().optional(), 
+        order: z.number().optional(),
+        subcontractorInfo: z.any().optional() 
+      }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return createPgrStage(input);
       }),
     updateStage: protectedProcedure
-      .input(z.object({ id: z.number(), name: z.string().optional(), description: z.string().optional(), order: z.number().optional() }))
+      .input(z.object({ 
+        id: z.number(), 
+        name: z.string().optional(), 
+        description: z.string().optional(), 
+        order: z.number().optional(),
+        subcontractorInfo: z.any().optional() 
+      }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         const { id, ...rest } = input;
@@ -1156,10 +1172,82 @@ export const appRouter = router({
   // EPI FICHA ROUTER
   // =============================================
   epiFicha: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ input }) => {
         return getAllEpiFicha(input?.companyId);
+      }),
+    obras: companyProcedure
+      .input(z.object({ companyId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { obras, epiFicha } = await import("../drizzle/schema");
+        const { eq, exists } = await import("drizzle-orm");
+        
+        // Return Obras that have at least one EPI delivery or are linked to the company
+        return db.select().from(obras)
+          .where(eq(obras.companyId, input.companyId))
+          .orderBy(obras.name);
+      }),
+    employees: companyProcedure
+      .input(z.object({ 
+        companyId: z.number(), 
+        obraId: z.number().optional(),
+        search: z.string().optional() 
+      }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { employees, epiFicha } = await import("../drizzle/schema");
+        const { eq, and, or, sql, like } = await import("drizzle-orm");
+        
+        const conditions = [eq(employees.companyId, input.companyId)];
+        if (input.search) {
+          conditions.push(like(employees.name, `%${input.search}%`));
+        }
+        
+        // If obraId is provided, we filter employees who have deliveries in that obra OR are assigned to it
+        if (input.obraId) {
+          return db.selectDistinct({ id: employees.id, name: employees.name })
+            .from(employees)
+            .leftJoin(epiFicha, eq(employees.id, epiFicha.employeeId))
+            .where(and(
+              ...conditions,
+              or(
+                eq(epiFicha.obraId, input.obraId),
+                eq(employees.obraId, input.obraId)
+              )
+            ))
+            .orderBy(employees.name);
+        }
+
+        return db.select().from(employees)
+          .where(and(...conditions))
+          .orderBy(employees.name);
+      }),
+    history: companyProcedure
+      .input(z.object({ companyId: z.number(), employeeId: z.number() }))
+      .query(async ({ input }) => {
+        const { getDb } = await import("./db");
+        const db = await getDb();
+        if (!db) return [];
+        const { epiFicha, users } = await import("../drizzle/schema");
+        const { eq, and, desc } = await import("drizzle-orm");
+        
+        return db.select({ 
+          ficha: epiFicha, 
+          responsible: { name: users.name } 
+        })
+        .from(epiFicha)
+        .leftJoin(users, eq(epiFicha.responsibleId, users.id))
+        .where(and(
+          eq(epiFicha.companyId, input.companyId),
+          eq(epiFicha.employeeId, input.employeeId)
+        ))
+        .orderBy(desc(epiFicha.createdAt));
       }),
     create: protectedProcedure
       .input(z.object({
@@ -1176,9 +1264,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
+        
+        // 1. Encontrar ou criar o colaborador persistente
+        const employee = await findOrCreateEmployee(input.companyId, input.employeeName, input.obraId);
+        
         const payload = input.items.map(item => ({
           companyId: input.companyId,
-          employeeName: input.employeeName,
+          employeeId: employee.id,
+          employeeName: employee.name, // Keep for backward compatibility/quick view
           obraId: input.obraId,
           epiName: item.epiName,
           ca: item.ca,
@@ -1186,6 +1279,7 @@ export const appRouter = router({
           validUntil: item.validUntil ? item.validUntil : undefined,
           reason: item.reason,
           createdById: ctx.user!.id,
+          responsibleId: ctx.user!.id, // Default to creator
         }));
         return createEpiFicha(payload as any);
       }),
@@ -1424,7 +1518,7 @@ export const appRouter = router({
         let fileName = "documento.pdf";
         
         try {
-          const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users } = await import("../drizzle/schema");
+          const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users } = await import("../drizzle/schema");
           const { eq, and } = await import("drizzle-orm");
           const { format } = await import("date-fns");
           const { ptBR } = await import("date-fns/locale");
@@ -1501,12 +1595,20 @@ export const appRouter = router({
             let parsedContent: any = {};
             try { parsedContent = JSON.parse(record.pgr.content || "{}"); } catch (e) {}
 
+            const stages = await db.select().from(pgrStages).where(eq(pgrStages.pgrId, input.documentId)).orderBy(pgrStages.order);
+
             const { generateGroPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateGroPdf({
               title: record.pgr.title, companyName: record.company?.name || "N/A", obraName: record.obra?.name || "Matriz",
-              version: record.pgr.version, validFrom: record.pgr.validFrom, riskMatrix: parsedContent.risks || [],
-              actionPlan: parsedContent.actionPlan || [], responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
-              clientLogoUrl: record.company?.logoUrl || undefined
+              version: record.pgr.version, validFrom: record.pgr.validFrom, 
+              riskMatrix: parsedContent.risks || [],
+              actionPlan: parsedContent.actionPlan || [], 
+              responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
+              clientLogoUrl: record.company?.logoUrl || undefined,
+              stages: stages.map(s => ({
+                name: s.name,
+                subcontractorInfo: s.subcontractorInfo
+              }))
             });
             fileName = `PGR_${input.documentId}.pdf`;
           }

@@ -9,7 +9,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { toast } from "sonner";
 import { useState, useRef } from "react";
-import { Edit, Plus, Shield, Download, Trash2, Eraser, MessageCircle } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Edit, Plus, Shield, Download, Trash2, Eraser, MessageCircle, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SignatureCanvas from "react-signature-canvas";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
@@ -140,6 +142,33 @@ export default function PGRPage() {
   // Auto-saved or Loaded signature base64
   const [savedSignature, setSavedSignature] = useState<string>("");
   const sigCanvasRef = useRef<any>(null);
+
+  // --- STAGES STATE ---
+  const [stages, setStages] = useState<any[]>([]);
+  const { data: dbStages = [], refetch: refetchStages } = trpc.pgr.stages.useQuery(
+    { pgrId: editItem?.id },
+    { enabled: !!editItem?.id }
+  );
+
+  const createStageMutation = trpc.pgr.createStage.useMutation({ onSuccess: () => { refetchStages(); toast.success("Etapa criada!"); } });
+  const updateStageMutation = trpc.pgr.updateStage.useMutation({ onSuccess: () => { refetchStages(); toast.success("Etapa atualizada!"); } });
+  const deleteStageMutation = trpc.pgr.deleteStage.useMutation({ onSuccess: () => { refetchStages(); toast.success("Etapa excluída!"); } });
+
+  const handleAddStage = () => {
+    if (!editItem?.id) {
+      setStages(prev => [...prev, { name: "Nova Etapa", description: "", subcontractorInfo: { isSubcontracted: false, teams: [] } }]);
+    } else {
+      createStageMutation.mutate({ pgrId: editItem.id, name: "Nova Etapa", subcontractorInfo: { isSubcontracted: false, teams: [] } });
+    }
+  };
+
+  const handleUpdateStage = (idx: number, id: number | undefined, data: any) => {
+    if (!id) {
+      setStages(prev => prev.map((s, i) => i === idx ? { ...s, ...data } : s));
+    } else {
+      updateStageMutation.mutate({ id, ...data });
+    }
+  };
 
   const createMutation = trpc.pgr.create.useMutation({
     onSuccess: () => {
@@ -340,6 +369,173 @@ export default function PGRPage() {
                   <Label>Observações gerais</Label>
                   <Textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                     placeholder="Observações do PGR..." className="bg-secondary border-border resize-none" rows={2} />
+                </div>
+
+                {/* ─── ETAPAS / ATIVIDADES (NOVO) ─── */}
+                <div className="space-y-3 p-4 bg-primary/5 rounded-xl border border-primary/20">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-base font-bold text-primary flex items-center gap-2">
+                        <Users size={18} /> Etapas e Equipes
+                      </Label>
+                      <p className="text-[11px] text-muted-foreground">Gerencie as atividades e identifique equipes terceirizadas</p>
+                    </div>
+                    <Button type="button" size="sm" onClick={handleAddStage} className="h-8 gap-1.5 shadow-sm">
+                      <Plus size={14} /> Adicionar Etapa
+                    </Button>
+                  </div>
+
+                  <Accordion type="multiple" className="space-y-2">
+                    {(editItem ? dbStages : stages).map((stage, idx) => (
+                      <AccordionItem key={stage.id || idx} value={String(stage.id || idx)} className="border border-border rounded-lg bg-card overflow-hidden">
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-secondary/30">
+                          <div className="flex items-center gap-3 text-left">
+                            <div className={`w-2 h-2 rounded-full ${stage.subcontractorInfo?.isSubcontracted ? 'bg-orange-500' : 'bg-green-500'}`} />
+                            <span className="font-semibold text-sm">{stage.name || "Etapa sem nome"}</span>
+                            {stage.subcontractorInfo?.isSubcontracted && (
+                              <span className="text-[10px] bg-orange-500/10 text-orange-600 px-1.5 py-0.5 rounded border border-orange-200 uppercase font-bold">
+                                Terceirizada
+                              </span>
+                            )}
+                          </div>
+                        </AccordionTrigger>
+                        <AccordionContent className="px-4 pb-4 space-y-4 pt-2 border-t border-border/50">
+                          <div className="grid grid-cols-1 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Nome da Atividade/Etapa</Label>
+                              <Input 
+                                value={stage.name} 
+                                onChange={e => handleUpdateStage(idx, stage.id, { name: e.target.value })}
+                                className="h-8 bg-secondary/50 border-border" 
+                              />
+                            </div>
+                            
+                            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg border border-border">
+                              <div className="space-y-0.5">
+                                <Label className="text-sm font-semibold">Equipe Terceirizada?</Label>
+                                <p className="text-[11px] text-muted-foreground">Ative se esta etapa for realizada por subcontratados</p>
+                              </div>
+                              <Switch 
+                                checked={!!stage.subcontractorInfo?.isSubcontracted}
+                                onCheckedChange={val => handleUpdateStage(idx, stage.id, { 
+                                  subcontractorInfo: { ...stage.subcontractorInfo, isSubcontracted: val } 
+                                })}
+                              />
+                            </div>
+
+                            {stage.subcontractorInfo?.isSubcontracted && (
+                              <div className="space-y-3 pl-4 border-l-2 border-orange-200 py-1">
+                                <div className="flex items-center justify-between">
+                                  <Label className="text-xs font-bold text-orange-700">Relação de Empresas Terceiras</Label>
+                                  <Button 
+                                    type="button" 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="h-6 text-[10px] border-orange-200 text-orange-700 hover:bg-orange-50"
+                                    onClick={() => {
+                                      const currentTeams = stage.subcontractorInfo.teams || [];
+                                      handleUpdateStage(idx, stage.id, {
+                                        subcontractorInfo: { 
+                                          ...stage.subcontractorInfo, 
+                                          teams: [...currentTeams, { companyName: "", cnpj: "", activity: "" }] 
+                                        }
+                                      });
+                                    }}
+                                  >
+                                    <Plus size={10} className="mr-1" /> Add Empresa
+                                  </Button>
+                                </div>
+                                
+                                {(stage.subcontractorInfo.teams || []).map((team: any, tIdx: number) => (
+                                  <div key={tIdx} className="grid grid-cols-12 gap-2 bg-orange-50/50 p-2 rounded border border-orange-100 relative group">
+                                    <div className="col-span-5 space-y-1">
+                                      <Label className="text-[10px] text-orange-800">Razão Social</Label>
+                                      <Input 
+                                        value={team.companyName} 
+                                        onChange={e => {
+                                          const newTeams = [...stage.subcontractorInfo.teams];
+                                          newTeams[tIdx].companyName = e.target.value;
+                                          handleUpdateStage(idx, stage.id, { subcontractorInfo: { ...stage.subcontractorInfo, teams: newTeams } });
+                                        }}
+                                        className="h-7 text-xs bg-white border-orange-200" 
+                                      />
+                                    </div>
+                                    <div className="col-span-3 space-y-1">
+                                      <Label className="text-[10px] text-orange-800">CNPJ</Label>
+                                      <Input 
+                                        value={team.cnpj} 
+                                        onChange={e => {
+                                          const newTeams = [...stage.subcontractorInfo.teams];
+                                          newTeams[tIdx].cnpj = e.target.value;
+                                          handleUpdateStage(idx, stage.id, { subcontractorInfo: { ...stage.subcontractorInfo, teams: newTeams } });
+                                        }}
+                                        className="h-7 text-xs bg-white border-orange-200" 
+                                      />
+                                    </div>
+                                    <div className="col-span-3 space-y-1">
+                                      <Label className="text-[10px] text-orange-800">Atividade</Label>
+                                      <Input 
+                                        value={team.activity} 
+                                        onChange={e => {
+                                          const newTeams = [...stage.subcontractorInfo.teams];
+                                          newTeams[tIdx].activity = e.target.value;
+                                          handleUpdateStage(idx, stage.id, { subcontractorInfo: { ...stage.subcontractorInfo, teams: newTeams } });
+                                        }}
+                                        className="h-7 text-xs bg-white border-orange-200" 
+                                      />
+                                    </div>
+                                    <div className="col-span-1 flex items-end pb-1">
+                                      <Button 
+                                        type="button" 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="w-7 h-7 text-orange-400 hover:text-red-500"
+                                        onClick={() => {
+                                          const newTeams = stage.subcontractorInfo.teams.filter((_: any, i: number) => i !== tIdx);
+                                          handleUpdateStage(idx, stage.id, { subcontractorInfo: { ...stage.subcontractorInfo, teams: newTeams } });
+                                        }}
+                                      >
+                                        <Trash2 size={12} />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                                {(!stage.subcontractorInfo.teams || stage.subcontractorInfo.teams.length === 0) && (
+                                  <p className="text-[10px] text-muted-foreground italic text-center py-2">Nenhuma empresa listada</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="flex justify-end pt-2">
+                             <Button 
+                                type="button" 
+                                variant="destructive" 
+                                size="sm" 
+                                className="h-7 text-[10px] opacity-20 hover:opacity-100 transition-opacity"
+                                onClick={() => {
+                                  if(confirm("Excluir esta etapa?")) {
+                                    if(!stage.id) setStages(prev => prev.filter((_, i) => i !== idx));
+                                    else deleteStageMutation.mutate({ id: stage.id });
+                                  }
+                                }}
+                             >
+                               Excluir Etapa
+                             </Button>
+                          </div>
+                        </AccordionContent>
+                      </AccordionItem>
+                    ))}
+                  </Accordion>
+                  
+                  {(editItem ? dbStages : stages).length === 0 && (
+                    <div className="text-center py-6 border-2 border-dashed border-border rounded-xl">
+                      <p className="text-xs text-muted-foreground italic">Nenhuma etapa ou atividade cadastrada para este PGR.</p>
+                      <Button type="button" variant="link" size="sm" onClick={handleAddStage} className="text-primary text-xs h-auto p-0 mt-1">
+                        Adicionar a primeira etapa
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 {/* ─── Cálculo NR-24 ─── */}

@@ -15,6 +15,7 @@ import {
   companies,
   companyUsers,
   contracts,
+  employees,
   epiFicha,
   inspectionItems,
   inspectionNrs,
@@ -842,6 +843,40 @@ export async function deleteAPR(id: number) {
   const db = await getDb();
   if (!db) return;
   await db.delete(apr).where(eq(apr.id, id));
+}
+
+// =============================================
+// EMPLOYEES (Colaboradores)
+// =============================================
+export async function getEmployeesByCompany(companyId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(employees).where(eq(employees.companyId, companyId)).orderBy(employees.name);
+}
+
+export async function findOrCreateEmployee(companyId: number, name: string, obraId?: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  
+  const existing = await db.select().from(employees)
+    .where(and(eq(employees.companyId, companyId), eq(employees.name, name)))
+    .limit(1);
+    
+  if (existing.length > 0) {
+    if (obraId && existing[0].obraId !== obraId) {
+      await db.update(employees).set({ obraId }).where(eq(employees.id, existing[0].id));
+      return { ...existing[0], obraId };
+    }
+    return existing[0];
+  }
+  
+  const [newEmployee] = await db.insert(employees).values({
+    companyId,
+    name,
+    obraId,
+  }).returning();
+  
+  return newEmployee;
 }
 
 // =============================================

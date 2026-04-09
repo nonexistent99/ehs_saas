@@ -6,6 +6,7 @@ export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  authorizedCompanyIds: number[];
 };
 
 export async function createContext(
@@ -24,9 +25,16 @@ export async function createContext(
     user = null;
   }
 
+  let authorizedCompanyIds: number[] = [];
+  if (user) {
+    const { getUserLinkedCompanies } = await import("../db");
+    authorizedCompanyIds = await getUserLinkedCompanies(user.id);
+  }
+
   return {
     req: opts.req,
     res: opts.res,
     user,
+    authorizedCompanyIds,
   };
 }

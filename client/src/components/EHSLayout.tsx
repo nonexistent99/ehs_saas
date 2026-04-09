@@ -6,11 +6,11 @@ import {
   Bell,
   BookOpen,
   Building2,
-  Car,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Cloud,
   FileText,
   HardHat,
   Home,
@@ -22,7 +22,6 @@ import {
   ShieldAlert,
   Users,
   X,
-  Zap,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -100,7 +99,6 @@ const navItems: NavItem[] = [
     children: [
       { label: "Advertência", icon: <AlertTriangle size={14} />, href: "/seguranca/advertencias" },
       { label: "APR", icon: <ClipboardCheck size={14} />, href: "/seguranca/apr" },
-      { label: "Ficha de EPI", icon: <HardHat size={14} />, href: "/seguranca/epi" },
       { label: "ITS", icon: <BookOpen size={14} />, href: "/seguranca/its" },
       { label: "PT", icon: <FileText size={14} />, href: "/seguranca/pt" },
       { label: "Treinamento", icon: <BookOpen size={14} />, href: "/seguranca/treinamentos" },
@@ -108,9 +106,10 @@ const navItems: NavItem[] = [
   },
   {
     label: "TACT Drive",
-    icon: <Car size={16} />,
+    icon: <Cloud size={16} />,
     children: [
-      { label: "Dashboard TACT", icon: <Car size={14} />, href: "/seguranca/tactdriver" },
+      { label: "Dashboard TACT", icon: <Cloud size={14} />, href: "/seguranca/tactdriver" },
+      { label: "EPI Drive", icon: <Cloud size={14} />, href: "/seguranca/epi" },
     ],
   },
 ];
@@ -231,12 +230,12 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
       {/* Logo */}
       <div className={cn("flex items-center gap-3 px-4 py-4 border-b border-sidebar-border", sidebarCollapsed && "justify-center px-2")}>
         <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-          <Shield size={18} className="text-primary-foreground" />
+          <Cloud size={18} className="text-primary-foreground" />
         </div>
         {!sidebarCollapsed && (
           <div>
-            <div className="font-bold text-sm text-sidebar-foreground leading-tight">EHS</div>
-            <div className="text-xs text-muted-foreground leading-tight">Soluções Inteligentes</div>
+            <div className="font-bold text-sm text-sidebar-foreground leading-tight">TACT Drive</div>
+            <div className="text-xs text-muted-foreground leading-tight">Segurança & Gestão</div>
           </div>
         )}
       </div>

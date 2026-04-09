@@ -8,6 +8,7 @@ import { useLocation, useParams } from "wouter";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Building2, Save } from "lucide-react";
+import { ImageUpload } from "@/components/ImageUpload";
 
 export default function CompanyForm() {
   const [, navigate] = useLocation();
@@ -191,10 +192,12 @@ export default function CompanyForm() {
                   <Input value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}
                     placeholder="SP" maxLength={2} className="bg-secondary border-border" />
                 </div>
-                <div className="space-y-1.5 sm:col-span-2">
-                  <Label>URL do Logo</Label>
-                  <Input value={form.logoUrl} onChange={e => setForm(f => ({ ...f, logoUrl: e.target.value }))}
-                    placeholder="https://..." className="bg-secondary border-border" />
+                <div className="sm:col-span-2">
+                  <ImageUpload 
+                    label="Logo da Empresa" 
+                    value={form.logoUrl} 
+                    onChange={val => setForm(f => ({ ...f, logoUrl: val }))} 
+                  />
                 </div>
               </div>
 

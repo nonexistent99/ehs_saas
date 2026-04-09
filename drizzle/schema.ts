@@ -334,6 +334,10 @@ export const pgrStages = pgTable("pgr_stages", {
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
   order: integer("order").default(0).notNull(),
+  subcontractorInfo: json("subcontractorInfo").$type<{
+    isSubcontracted: boolean;
+    teams: { companyName: string; cnpj: string; activity: string }[];
+  }>().default({ isSubcontracted: false, teams: [] }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
 });
@@ -475,12 +479,28 @@ export type APR = typeof apr.$inferSelect;
 export type InsertAPR = typeof apr.$inferInsert;
 
 // =============================================
+// EMPLOYEES (Colaboradores)
+// =============================================
+export const employees = pgTable("employees", {
+  id: serial("id").primaryKey(),
+  companyId: integer("companyId").notNull().references(() => companies.id),
+  name: varchar("name", { length: 255 }).notNull(),
+  obraId: integer("obraId").references(() => obras.id),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
+});
+
+export type Employee = typeof employees.$inferSelect;
+export type InsertEmployee = typeof employees.$inferInsert;
+
+// =============================================
 // EPI FICHA (Ficha de EPI)
 // =============================================
 export const epiFicha = pgTable("epi_ficha", {
   id: serial("id").primaryKey(),
   companyId: integer("companyId").notNull(),
   userId: integer("userId"),
+  employeeId: integer("employeeId").references(() => employees.id),
   employeeName: varchar("employeeName", { length: 255 }),
   obraId: integer("obraId"),
   epiName: varchar("epiName", { length: 255 }).notNull(),
@@ -490,6 +510,7 @@ export const epiFicha = pgTable("epi_ficha", {
   validUntil: date("validUntil"),
   reason: text("reason"),
   signatureUrl: text("signatureUrl"),
+  responsibleId: integer("responsibleId").references(() => users.id),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdateFn(() => new Date()).notNull(),
 });
