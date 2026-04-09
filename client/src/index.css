@@ -44,6 +44,8 @@
   --color-chart-4: hsl(var(--chart-4));
   --color-chart-5: hsl(var(--chart-5));
 
+  --color-warning: hsl(var(--chart-3));
+
   --animate-neon-pulse: neon-pulse 2s ease-in-out infinite;
   --animate-pulse-glow: pulse-ring 1.5s infinite;
   --animate-logo-breathe: logo-breathe 3s ease-in-out infinite;

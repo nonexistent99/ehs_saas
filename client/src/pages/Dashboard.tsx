@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import {
   AlertTriangle, Bell, Building2, CheckCircle2, ClipboardList, Clock, Eye, FileText,
-  Shield, TrendingUp, Users, Zap, CheckSquare, PlusCircle
+  Shield, TrendingUp, Users, Zap, CheckSquare, PlusCircle, ChevronRight
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
