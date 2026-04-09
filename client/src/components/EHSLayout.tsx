@@ -173,7 +173,8 @@ function NavItemComponent({
       <Link href={item.href}>
         <div
           className={cn(
-            "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm cursor-pointer transition-all duration-200 sidebar-link active",
+            "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm cursor-pointer transition-all duration-200 sidebar-link",
+            isActive && "active",
             depth === 0 ? "mx-2" : "mx-2 ml-6",
             isActive
               ? "bg-primary/10 text-primary"
