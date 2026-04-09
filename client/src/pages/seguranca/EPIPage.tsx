@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HardHat, Download, Plus, Trash2, MessageCircle, User, Loader2, Search, Info, History, Cloud, MessageSquare } from "lucide-react";
+import { HardHat, Download, Plus, Trash2, MessageCircle, User, Loader2, Search, Info, History, Cloud, MessageSquare, Building2 } from "lucide-react";
 import { useState } from "react";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
