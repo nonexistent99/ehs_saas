@@ -374,7 +374,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
           sidebarCollapsed ? "w-[72px]" : "w-64"
         )}
       >
-        <SidebarContent />
+        {SidebarContent()}
         
         {/* Neon Collapse Toggle */}
         <button
@@ -407,7 +407,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
             >
               <X size={18} />
             </Button>
-            <SidebarContent />
+            {SidebarContent()}
           </aside>
         </div>
       )}
