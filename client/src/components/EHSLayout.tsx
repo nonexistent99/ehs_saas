@@ -6,15 +6,19 @@ import {
   Bell,
   BookOpen,
   Building2,
+  Calendar,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
   ClipboardList,
+  Clock,
   Cloud,
+  ExternalLink,
   FileText,
   HardHat,
   Home,
   LogOut,
+  MapPin,
   Menu,
   MessageSquare,
   Settings,
@@ -23,12 +27,31 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Avatar, AvatarFallback } from "./ui/avatar";
 import { trpc } from "@/lib/trpc";
+
+function formatDate(date: Date) {
+  const diasSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+  const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  
+  const diaSemana = diasSemana[date.getDay()];
+  const dia = date.getDate();
+  const mes = meses[date.getMonth()];
+  const ano = date.getFullYear();
+  const hora = date.getHours().toString().padStart(2, '0');
+  const minutos = date.getMinutes().toString().padStart(2, '0');
+  const segundos = date.getSeconds().toString().padStart(2, '0');
+  
+  return {
+    diaSemana,
+    dataCompleta: `${dia} de ${mes} de ${ano}`,
+    hora: `${hora}:${minutos}:${segundos}`
+  };
+}
 
 interface NavItem {
   label: string;
@@ -141,19 +164,19 @@ function NavItemComponent({
       <Link href={item.href}>
         <div
           className={cn(
-            "flex items-center gap-3 px-3 py-2 rounded-md text-sm cursor-pointer transition-all duration-150",
+            "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm cursor-pointer transition-all duration-200 sidebar-link active",
             depth === 0 ? "mx-2" : "mx-2 ml-6",
             isActive
-              ? "bg-primary/15 text-primary border-l-2 border-primary"
-              : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              ? "bg-primary/10 text-primary"
+              : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
           )}
         >
-          <span className={cn("shrink-0", isActive ? "text-primary" : "")}>{item.icon}</span>
+          <span className={cn("shrink-0", isActive ? "text-primary drop-shadow-[0_0_8px_rgba(255,107,0,0.5)]" : "")}>{item.icon}</span>
           {!collapsed && (
             <>
               <span className="flex-1 truncate">{item.label}</span>
               {item.badge ? (
-                <Badge variant="secondary" className="text-xs bg-primary/20 text-primary">
+                <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-primary text-primary-foreground border-none">
                   {item.badge}
                 </Badge>
               ) : null}
@@ -169,17 +192,17 @@ function NavItemComponent({
       <div
         onClick={() => setOpen(!open)}
         className={cn(
-          "flex items-center gap-3 px-3 py-2 rounded-md text-sm cursor-pointer transition-all duration-150 mx-2",
+          "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm cursor-pointer transition-all duration-200 mx-2",
           isParentActive
             ? "text-primary"
-            : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground"
         )}
       >
-        <span className={cn("shrink-0", isParentActive ? "text-primary" : "")}>{item.icon}</span>
+        <span className={cn("shrink-0", isParentActive ? "text-primary drop-shadow-[0_0_8px_rgba(255,107,0,0.5)]" : "")}>{item.icon}</span>
         {!collapsed && (
           <>
             <span className="flex-1 truncate font-medium">{item.label}</span>
-            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <ChevronDown size={14} className={cn("transition-transform duration-200", open ? "rotate-180" : "rotate-0")} />
           </>
         )}
       </div>
@@ -199,6 +222,39 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [geoCity, setGeoCity] = useState<string>("São Paulo, SP");
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          try {
+            const response = await fetch(
+              `https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}`
+            );
+            const data = await response.json();
+            const city = data.address?.city || data.address?.town || data.address?.municipality || "Localização desconhecida";
+            const state = data.address?.state || "";
+            setGeoCity(`${city}${state ? `, ${state}` : ""}`);
+          } catch {
+            setGeoCity("São Paulo, SP");
+          }
+        },
+        () => {
+          setGeoCity("São Paulo, SP");
+        }
+      );
+    }
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const { diaSemana, dataCompleta, hora } = formatDate(currentTime);
 
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
     refetchInterval: 30000,
@@ -227,20 +283,37 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
-      <div className={cn("flex items-center gap-3 px-4 py-4 border-b border-sidebar-border", sidebarCollapsed && "justify-center px-2")}>
-        <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shrink-0">
-          <Cloud size={18} className="text-primary-foreground" />
-        </div>
+      {/* Logo area with animated glow */}
+      <div className={cn(
+        "relative flex items-center justify-center border-b border-sidebar-border px-4 transition-all duration-300",
+        sidebarCollapsed ? "h-20" : "h-32"
+      )}>
+        {/* Animated glow background */}
         {!sidebarCollapsed && (
-          <div>
-            <div className="font-bold text-sm text-sidebar-foreground leading-tight">TACT Drive</div>
-            <div className="text-xs text-muted-foreground leading-tight">Segurança & Gestão</div>
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="absolute w-32 h-32 logo-glow rounded-full blur-2xl animate-pulse" />
+            <div className="absolute w-24 h-24 logo-glow rounded-full blur-xl opacity-50" />
+            <div className="absolute w-16 h-16 bg-primary/20 rounded-full blur-lg animate-logo-breathe" />
           </div>
         )}
+        
+        <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
+          <div className={cn(
+            "rounded-xl bg-gradient-to-br from-primary to-orange-600 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,107,0,0.4)]",
+            sidebarCollapsed ? "w-10 h-10" : "w-14 h-14"
+          )}>
+            <Cloud size={sidebarCollapsed ? 20 : 28} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+          </div>
+          {!sidebarCollapsed && (
+            <div className="flex flex-col items-center gap-0.5">
+              <div className="font-bold text-lg tracking-tight text-white drop-shadow-sm">TACT Drive</div>
+              <div className="text-[10px] uppercase tracking-widest text-primary font-bold opacity-80">EHS Intelligence</div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto py-3 space-y-0.5">
+      <div className="flex-1 overflow-y-auto py-6 space-y-1">
         {navItems
           .filter(item => !item.roles || (user && item.roles.includes((user as any).ehsRole)))
           .map((item) => (
@@ -249,27 +322,32 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* User Profile */}
-      <div className={cn("border-t border-sidebar-border p-3", sidebarCollapsed && "px-2")}>
+      <div className={cn("p-4 border-t border-sidebar-border bg-sidebar-accent/30", sidebarCollapsed && "px-2")}>
         <div className={cn("flex items-center gap-3", sidebarCollapsed && "justify-center")}>
-          <Avatar className="w-8 h-8 shrink-0">
-            <AvatarFallback className="bg-primary/20 text-primary text-xs font-bold">
-              {getInitials(user?.name)}
-            </AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="w-9 h-9 shrink-0 ring-2 ring-primary/20 transition-all hover:ring-primary/50 cursor-pointer">
+              <AvatarFallback className="bg-gradient-to-br from-primary to-orange-600 text-white text-xs font-bold">
+                {getInitials(user?.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-sidebar animate-pulse" />
+          </div>
           {!sidebarCollapsed && (
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-sidebar-foreground truncate">{user?.name || "Usuário"}</div>
-              <div className="mt-0.5">{getRoleBadge((user as any)?.ehsRole)}</div>
+              <div className="text-sm font-semibold text-white truncate">{user?.name || "Usuário"}</div>
+              <div className="mt-0.5 flex">
+                {getRoleBadge((user as any)?.ehsRole)}
+              </div>
             </div>
           )}
           {!sidebarCollapsed && (
             <Button
               variant="ghost"
               size="icon"
-              className="w-7 h-7 text-muted-foreground hover:text-destructive"
+              className="w-8 h-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
               onClick={logout}
             >
-              <LogOut size={14} />
+              <LogOut size={16} />
             </Button>
           )}
         </div>
@@ -278,22 +356,39 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-screen bg-background overflow-hidden font-sans">
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          "hidden lg:flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300 shrink-0",
-          sidebarCollapsed ? "w-14" : "w-56"
+          "hidden lg:flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300 shrink-0 relative glass",
+          sidebarCollapsed ? "w-[72px]" : "w-64"
         )}
       >
         <SidebarContent />
+        
+        {/* Neon Collapse Toggle */}
+        <button
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className={cn(
+            "absolute -right-3 top-24 flex h-6 w-6 items-center justify-center rounded-full border transition-all duration-300 z-50",
+            sidebarCollapsed 
+              ? "border-border bg-background text-muted-foreground hover:text-foreground"
+              : "border-primary/50 bg-primary/20 text-primary animate-neon-pulse shadow-[0_0_10px_rgba(255,107,0,0.5)] hover:bg-primary/30"
+          )}
+        >
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-3 w-3" />
+          ) : (
+            <ChevronLeft className="h-3 w-3 drop-shadow-[0_0_4px_rgba(255,107,0,0.8)]" />
+          )}
+        </button>
       </aside>
 
       {/* Mobile Sidebar Overlay */}
       {mobileOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
-          <div className="fixed inset-0 bg-black/60" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-10">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <aside className="relative w-64 bg-sidebar border-r border-sidebar-border flex flex-col z-10 glass">
             <Button
               variant="ghost"
               size="icon"
@@ -307,55 +402,116 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
-        <header className="h-14 border-b border-border bg-card flex items-center gap-4 px-4 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              if (window.innerWidth < 1024) {
-                setMobileOpen(true);
-              } else {
-                setSidebarCollapsed(!sidebarCollapsed);
-              }
-            }}
-          >
-            <Menu size={18} />
-          </Button>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Spectral Vision Header Layer 1: Info Bar */}
+        <div className="hidden md:flex h-9 items-center justify-between border-b border-border/40 bg-muted/20 px-6 py-0.5 shrink-0 transition-all">
+          <div className="flex items-center gap-6 text-[11px]">
+            <div className="flex items-center gap-2.5 text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5 text-primary opacity-80" />
+              <span className="font-semibold text-foreground uppercase tracking-tight">{diaSemana}</span>
+              <span className="opacity-30">|</span>
+              <span className="font-medium">{dataCompleta}</span>
+            </div>
+            <div className="flex items-center gap-2.5 text-muted-foreground border-l border-border/30 pl-6">
+              <Clock className="h-3.5 w-3.5 text-primary opacity-80" />
+              <span className="font-mono text-foreground font-bold text-xs tracking-wider">{hora}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 text-[11px] text-muted-foreground font-medium">
+            <MapPin className="h-3.5 w-3.5 text-primary opacity-80" />
+            <span className="tracking-tight">{geoCity}</span>
+          </div>
+        </div>
 
-          {/* Breadcrumb */}
-          <div className="flex-1 text-sm text-muted-foreground">
-            <span className="text-foreground font-medium">
-              {navItems.flatMap((n) => [n, ...(n.children || [])]).find((n) => n.href === location)?.label || "Dashboard"}
-            </span>
+        {/* Top Header Layer 2: Main Actions */}
+        <header className="h-14 border-b border-border/60 bg-background/80 backdrop-blur-xl flex items-center gap-4 px-6 shrink-0 sticky top-0 z-30 transition-all">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="lg:hidden text-muted-foreground hover:text-foreground"
+              onClick={() => setMobileOpen(true)}
+            >
+              <Menu size={20} />
+            </Button>
+
+            {/* Breadcrumb / Greetings */}
+            <div className="flex items-center gap-2.5 text-sm transition-all">
+              <span className="text-muted-foreground/60 hidden sm:inline">Olá,</span>
+              <span className="font-bold text-foreground drop-shadow-sm">{user?.name || "Usuário"}</span>
+              <span className="text-muted-foreground/30 mx-1 hidden sm:inline text-lg">/</span>
+              <span className="text-muted-foreground font-medium opacity-80">
+                {navItems.flatMap((n) => [n, ...(n.children || [])]).find((n) => n.href === location)?.label || "Dashboard"}
+              </span>
+            </div>
           </div>
 
+          <div className="flex-1" />
+
           {/* Header Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
             <Link href="/notificacoes">
-              <Button variant="ghost" size="icon" className="relative text-muted-foreground hover:text-foreground">
-                <Bell size={18} />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+              >
+                <Bell size={19} />
                 {(unreadCount ?? 0) > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground text-xs rounded-full flex items-center justify-center font-bold">
+                  <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center font-black animate-pulse-glow ring-2 ring-background">
                     {unreadCount}
                   </span>
                 )}
               </Button>
             </Link>
+            
             <Link href="/chat">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
-                <MessageSquare size={18} />
+              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all">
+                <MessageSquare size={19} />
               </Button>
             </Link>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="relative h-9 w-9 rounded-full ring-2 ring-primary/10 hover:ring-primary/40 transition-all p-0 overflow-hidden"
+                >
+                  <Avatar className="h-full w-full">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-orange-600 text-white text-xs font-bold">
+                      {getInitials(user?.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[180px] mt-1 glass">
+                <DropdownMenuLabel className="font-bold text-xs py-2 uppercase tracking-widest text-primary opacity-80">Perfil</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-border/40" />
+                <DropdownMenuItem className="text-xs font-medium cursor-pointer hover:bg-primary/10 transition-colors">
+                  Configurações
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-border/40" />
+                <DropdownMenuItem
+                  onClick={logout}
+                  className="text-xs font-bold text-destructive cursor-pointer hover:bg-destructive/10 transition-colors"
+                >
+                  <LogOut className="mr-2 h-3.5 w-3.5" />
+                  Sair
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-background">
-          {children}
+        <main className="flex-1 overflow-auto bg-[#0a0a0b] relative">
+          {/* Subtle noise/texture overlay for premium look */}
+          <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
+          
+          <div className="p-6">
+            {children}
+          </div>
         </main>
       </div>
     </div>
