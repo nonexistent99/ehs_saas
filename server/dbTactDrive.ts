@@ -1,15 +1,15 @@
 import { and, desc, eq, gte, lte, or, isNotNull, sql } from "drizzle-orm";
 import { tactDriveDocuments, tactDriveFolders } from "../drizzle/schema";
-import { getDb } from "./db";
+import { getDb, getCompanyCondition } from "./db";
 
 // ─── Folders ─────────────────────────────────────────────────────────────────
 
-export async function getAllFolders(companyId?: number) {
+export async function getAllFolders(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const filters = companyId ? [eq(tactDriveFolders.companyId, companyId)] : [];
+  const compCond = getCompanyCondition(tactDriveFolders.companyId, companyId);
   return db.select().from(tactDriveFolders)
-    .where(filters.length ? and(...filters) : undefined)
+    .where(compCond)
     .orderBy(tactDriveFolders.name);
 }
 
@@ -22,21 +22,23 @@ export async function createFolder(data: {
   return result[0]?.id;
 }
 
-export async function deleteFolder(id: number) {
+export async function deleteFolder(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
+  const compCond = getCompanyCondition(tactDriveFolders.companyId, companyId);
   // Move docs from deleted folder to root (null folderId)
   await db.update(tactDriveDocuments).set({ folderId: null }).where(eq(tactDriveDocuments.folderId, id));
-  return db.delete(tactDriveFolders).where(eq(tactDriveFolders.id, id));
+  return db.delete(tactDriveFolders).where(and(eq(tactDriveFolders.id, id), compCond));
 }
 
 // ─── Documents ───────────────────────────────────────────────────────────────
 
-export async function getAllDocuments(companyId?: number, folderId?: number | null) {
+export async function getAllDocuments(companyId?: number | number[], folderId?: number | null) {
   const db = await getDb();
   if (!db) return [];
   const filters: any[] = [];
-  if (companyId) filters.push(eq(tactDriveDocuments.companyId, companyId));
+  const compCond = getCompanyCondition(tactDriveDocuments.companyId, companyId);
+  if (compCond) filters.push(compCond);
   if (folderId !== undefined) {
     if (folderId === null) {
       filters.push(sql`${tactDriveDocuments.folderId} IS NULL`);
@@ -49,7 +51,7 @@ export async function getAllDocuments(companyId?: number, folderId?: number | nu
     .orderBy(desc(tactDriveDocuments.createdAt));
 }
 
-export async function getExpiringDocuments(companyId?: number, daysAhead = 30) {
+export async function getExpiringDocuments(companyId?: number | number[], daysAhead = 30) {
   const db = await getDb();
   if (!db) return [];
   const today = new Date();
@@ -57,12 +59,13 @@ export async function getExpiringDocuments(companyId?: number, daysAhead = 30) {
   limit.setDate(limit.getDate() + daysAhead);
   const todayStr = today.toISOString().split("T")[0];
   const limitStr = limit.toISOString().split("T")[0];
+  const compCond = getCompanyCondition(tactDriveDocuments.companyId, companyId);
   const filters: any[] = [
     eq(tactDriveDocuments.hasExpiry, true),
     isNotNull(tactDriveDocuments.expiryDate),
     lte(tactDriveDocuments.expiryDate, limitStr),
   ];
-  if (companyId) filters.push(eq(tactDriveDocuments.companyId, companyId));
+  if (compCond) filters.push(compCond);
   return db.select().from(tactDriveDocuments)
     .where(and(...filters))
     .orderBy(tactDriveDocuments.expiryDate);
@@ -93,14 +96,16 @@ export async function createDocument(data: {
 export async function updateDocument(id: number, data: Partial<{
   name: string; description: string; folderId: number | null;
   fileUrl: string; fileName: string; hasExpiry: boolean; expiryDate: string | null;
-}>) {
+}>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  return db.update(tactDriveDocuments).set(data).where(eq(tactDriveDocuments.id, id));
+  const compCond = getCompanyCondition(tactDriveDocuments.companyId, companyId);
+  return db.update(tactDriveDocuments).set(data).where(and(eq(tactDriveDocuments.id, id), compCond));
 }
 
-export async function deleteDocument(id: number) {
+export async function deleteDocument(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
-  return db.delete(tactDriveDocuments).where(eq(tactDriveDocuments.id, id));
+  const compCond = getCompanyCondition(tactDriveDocuments.companyId, companyId);
+  return db.delete(tactDriveDocuments).where(and(eq(tactDriveDocuments.id, id), compCond));
 }

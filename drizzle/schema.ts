@@ -523,8 +523,10 @@ export type InsertEpiFicha = typeof epiFicha.$inferInsert;
 // =============================================
 export const advertencias = pgTable("advertencias", {
   id: serial("id").primaryKey(),
-  companyId: integer("companyId").notNull(),
-  userId: integer("userId"),
+  companyId: integer("companyId").notNull().references(() => companies.id),
+  obraId: integer("obraId").references(() => obras.id),
+  userId: integer("userId").references(() => users.id),
+  employeeId: integer("employeeId").references(() => employees.id),
   employeeName: varchar("employeeName", { length: 255 }),
   type: varchar("type", { length: 50 }).$type<"verbal" | "escrita" | "suspensao" | "demissao">().default("escrita").notNull(),
   reason: text("reason").notNull(),

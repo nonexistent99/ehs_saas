@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/trpc";
+import { companyProcedure, protectedProcedure, router } from "../_core/trpc";
 import {
   getAllChecklistTemplates,
   getChecklistTemplateById,
@@ -27,10 +27,10 @@ const requireAdmOrTecnico = (role?: "adm_ehs" | "cliente" | "tecnico" | "apoio" 
 
 export const checklistRouter = router({
   templates: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional(), search: z.string().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllChecklistTemplates(input?.companyId, input?.search);
+      .query(async ({ input, ctx }) => {
+        return getAllChecklistTemplates(ctx.effectiveCompanyId, input?.search);
       }),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -76,9 +76,10 @@ export const checklistRouter = router({
         }
         return { id: templateId, success: true };
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         name: z.string().optional(),
         description: z.string().optional(),
         type: z.enum(["estatico", "dinamico"]).optional(),
@@ -88,24 +89,24 @@ export const checklistRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...data } = input;
-        await updateChecklistTemplate(id, data);
+        const { id, companyId, ...data } = input;
+        await updateChecklistTemplate(id, data, ctx.effectiveCompanyId);
         return { success: true };
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        await deleteChecklistTemplate(input.id);
+        await deleteChecklistTemplate(input.id, ctx.effectiveCompanyId);
         return { success: true };
       }),
   }),
   
   executions: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional(), status: z.enum(["pendente", "concluida"]).optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllChecklistExecutions(input?.companyId, input?.status);
+      .query(async ({ input, ctx }) => {
+        return getAllChecklistExecutions(ctx.effectiveCompanyId, input?.status);
       }),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -183,13 +184,13 @@ export const checklistRouter = router({
         const totalScorable = okCount + notOkCount;
         const score = totalScorable > 0 ? (okCount / totalScorable) * 100 : 0;
 
-        // 2. Marcar a execução como concluída
-        await updateChecklistExecution(input.id, {
+        const { id, signatureUrl, items, companyId } = input as any;
+        await updateChecklistExecution(id, {
           status: "concluida",
           createdById: ctx.user!.id, // completed by this technical user
-          signatureUrl: input.signatureUrl,
+          signatureUrl: signatureUrl,
           score: String(score.toFixed(2)),
-        });
+        }, ctx.effectiveCompanyId);
 
         // 3. Recorrência (Agendamento Automático)
         const execution = await getChecklistExecutionById(input.id);

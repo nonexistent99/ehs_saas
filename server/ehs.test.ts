@@ -9,6 +9,7 @@ vi.mock("./db", () => ({
   getAllUsers: vi.fn().mockResolvedValue([]),
   getUserById: vi.fn().mockResolvedValue(null),
   createUser: vi.fn().mockResolvedValue(1),
+  createUserWithPassword: vi.fn().mockResolvedValue({ id: 1, success: true }),
   updateUser: vi.fn().mockResolvedValue(undefined),
   deleteUser: vi.fn().mockResolvedValue(undefined),
   getAllCompanies: vi.fn().mockResolvedValue([]),
@@ -67,6 +68,16 @@ vi.mock("./db", () => ({
   getAllTactdriver: vi.fn().mockResolvedValue([]),
   createTactdriver: vi.fn().mockResolvedValue(1),
   updateTactdriver: vi.fn().mockResolvedValue(undefined),
+  getUserByEmail: vi.fn().mockResolvedValue(null),
+  getDb: vi.fn().mockResolvedValue({
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          orderBy: vi.fn().mockResolvedValue([]),
+        }),
+      }),
+    }),
+  }),
 }));
 
 // ─── Context factory ──────────────────────────────────────────────────────────
@@ -79,6 +90,7 @@ function makeCtx(overrides: Partial<TrpcContext> = {}): TrpcContext {
       email: "test@ehs.com",
       loginMethod: "manus",
       role: "admin",
+      ehsRole: "adm_ehs",
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -147,6 +159,7 @@ describe("users", () => {
       name: "João Silva",
       email: "joao@ehs.com",
       ehsRole: "tecnico",
+      password: "password123",
     });
     expect(result.success).toBe(true);
   });
@@ -198,7 +211,7 @@ describe("checkLists", () => {
     const caller = appRouter.createCaller(ctx);
     const result = await caller.checkLists.create({
       nrId: 1,
-      name: "Check List NR-35",
+      title: "Check List NR-35",
       items: [{ description: "Verificar EPI" }],
     });
     expect(result.success).toBe(true);

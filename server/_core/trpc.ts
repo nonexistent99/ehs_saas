@@ -30,19 +30,43 @@ export const protectedProcedure = t.procedure.use(requireUser);
 export const companyProcedure = t.procedure.use(requireUser).use(
   t.middleware(async (opts) => {
     const { ctx, next, input } = opts;
-    // adm_ehs bypasses company checks
     if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-    if (ctx.user.ehsRole === "adm_ehs") return next();
     
-    // Check if input has companyId and if it's authorized
-    const companyId = (input as any)?.companyId;
-    if (companyId && !ctx.authorizedCompanyIds.includes(companyId)) {
-      throw new TRPCError({ 
-        code: "FORBIDDEN", 
-        message: "Acesso a esta empresa não autorizado para seu perfil" 
+    const inputCompanyId = (input as any)?.companyId;
+    
+    // adm_ehs bypasses company checks and uses input if provided, else undefined (all)
+    if (ctx.user.ehsRole === "adm_ehs") {
+      return next({
+        ctx: { 
+          ...ctx, 
+          effectiveCompanyId: inputCompanyId 
+        }
       });
     }
-    return next();
+    
+    // For non-admins, if companyId is in input, validate it
+    if (inputCompanyId) {
+      if (!ctx.authorizedCompanyIds.includes(inputCompanyId)) {
+        throw new TRPCError({ 
+          code: "FORBIDDEN", 
+          message: "Acesso a esta empresa não autorizado para seu perfil" 
+        });
+      }
+      return next({
+        ctx: { 
+          ...ctx, 
+          effectiveCompanyId: inputCompanyId 
+        }
+      });
+    }
+    
+    // If companyId is missing, default to all authorized companies
+    return next({
+      ctx: { 
+        ...ctx, 
+        effectiveCompanyId: ctx.authorizedCompanyIds 
+      }
+    });
   })
 );
 

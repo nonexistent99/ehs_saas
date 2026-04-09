@@ -7,6 +7,7 @@ export type TrpcContext = {
   res: CreateExpressContextOptions["res"];
   user: User | null;
   authorizedCompanyIds: number[];
+  effectiveCompanyId?: number | number[];
 };
 
 export async function createContext(

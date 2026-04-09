@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { router, publicProcedure } from "../_core/trpc";
+import { router, companyProcedure, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { reports, reportData, reportImages, signatures } from "../../drizzle/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
 
 export const reportRouter = router({
-  saveReport: publicProcedure
+  saveReport: companyProcedure
     .input(z.object({
       id: z.number().optional(),
       companyId: z.number(),
@@ -25,12 +26,12 @@ export const reportRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not initialized");
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not initialized" });
 
       let reportId = input.id;
-      const user = ctx.user as { id: number } | undefined;
+      const user = ctx.user;
       
-      if (!user) throw new Error("Unauthorized");
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
 
       if (!reportId) {
         const [newReport] = await db.insert(reports).values({
@@ -46,12 +47,18 @@ export const reportRouter = router({
           payload: input.payload
         });
       } else {
+        // Security check for update
+        const [existing] = await db.select().from(reports).where(eq(reports.id, reportId)).limit(1);
+        if (!existing || (!ctx.authorizedCompanyIds.includes(existing.companyId) && user.ehsRole !== "adm_ehs")) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Não autorizado a editar este relatório" });
+        }
+
         await db.update(reports)
           .set({ status: input.status, updatedAt: new Date() })
           .where(eq(reports.id, reportId));
           
-        const existingData = await db.select().from(reportData).where(eq(reportData.reportId, reportId));
-        if (existingData.length > 0) {
+        const existingDataData = await db.select().from(reportData).where(eq(reportData.reportId, reportId));
+        if (existingDataData.length > 0) {
           await db.update(reportData)
             .set({ payload: input.payload, updatedAt: new Date() })
             .where(eq(reportData.reportId, reportId));
@@ -95,14 +102,19 @@ export const reportRouter = router({
       return { success: true, reportId };
     }),
 
-  getReport: publicProcedure
-    .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
+  getReport: companyProcedure
+    .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not initialized");
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not initialized" });
 
       const [report] = await db.select().from(reports).where(eq(reports.id, input.id));
-      if (!report) throw new Error("Report not found");
+      if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Relatório não encontrado" });
+
+      // Extra security check for isolation
+      if (!ctx.authorizedCompanyIds.includes(report.companyId) && ctx.user.ehsRole !== "adm_ehs") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
 
       const [data] = await db.select().from(reportData).where(eq(reportData.reportId, input.id));
       const images = await db.select().from(reportImages).where(eq(reportImages.reportId, input.id));
@@ -116,29 +128,36 @@ export const reportRouter = router({
       };
     }),
 
-  listReports: publicProcedure
-    .input(z.object({ companyId: z.number() }))
-    .query(async ({ input }) => {
+  listReports: companyProcedure
+    .input(z.object({ companyId: z.number().optional() }).optional())
+    .query(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not initialized");
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not initialized" });
+
+      const { getCompanyCondition } = await import("../db");
+      const condition = getCompanyCondition(reports.companyId, ctx.effectiveCompanyId);
 
       return await db.select()
         .from(reports)
-        .where(eq(reports.companyId, input.companyId))
+        .where(condition)
         .orderBy(desc(reports.createdAt));
     }),
 
-  cloneReport: publicProcedure
-    .input(z.object({ id: z.number() }))
+  cloneReport: companyProcedure
+    .input(z.object({ id: z.number(), companyId: z.number() }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) throw new Error("Database not initialized");
+      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not initialized" });
 
-      const user = ctx.user as { id: number } | undefined;
-      if (!user) throw new Error("Unauthorized");
+      const user = ctx.user;
       
       const [oldReport] = await db.select().from(reports).where(eq(reports.id, input.id));
-      if (!oldReport) throw new Error("Report not found");
+      if (!oldReport) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });
+
+      // Security check
+      if (!ctx.authorizedCompanyIds.includes(oldReport.companyId) && user.ehsRole !== "adm_ehs") {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Não autorizado" });
+      }
       
       const [oldData] = await db.select().from(reportData).where(eq(reportData.reportId, input.id));
 

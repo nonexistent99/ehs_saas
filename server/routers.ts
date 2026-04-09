@@ -168,30 +168,30 @@ export const appRouter = router({
   tactDrive: router({
     // Folders
     folders: router({
-      list: protectedProcedure
+      list: companyProcedure
         .input(z.object({ companyId: z.number().optional() }).optional())
-        .query(async ({ input }) => getAllFolders(input?.companyId)),
-      create: protectedProcedure
-        .input(z.object({ companyId: z.number(), name: z.string().min(1), color: z.string().optional() }))
-        .mutation(async ({ input }) => createFolder(input)),
-      delete: protectedProcedure
-        .input(z.object({ id: z.number() }))
-        .mutation(async ({ input }) => deleteFolder(input.id)),
+        .query(async ({ input, ctx }) => getAllFolders(ctx.effectiveCompanyId)),
+      create: companyProcedure
+        .input(z.object({ companyId: z.number().optional(), name: z.string().min(1), color: z.string().optional() }))
+        .mutation(async ({ input, ctx }) => createFolder({ ...input, companyId: ctx.effectiveCompanyId as number })),
+      delete: companyProcedure
+        .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+        .mutation(async ({ input, ctx }) => deleteFolder(input.id, ctx.effectiveCompanyId)),
     }),
     // Documents
     documents: router({
-      list: protectedProcedure
+      list: companyProcedure
         .input(z.object({
           companyId: z.number().optional(),
           folderId: z.number().nullable().optional(),
         }).optional())
-        .query(async ({ input }) => getAllDocuments(input?.companyId, input?.folderId)),
-      expiring: protectedProcedure
+        .query(async ({ input, ctx }) => getAllDocuments(ctx.effectiveCompanyId, input?.folderId)),
+      expiring: companyProcedure
         .input(z.object({ companyId: z.number().optional(), daysAhead: z.number().optional() }).optional())
-        .query(async ({ input }) => getExpiringDocuments(input?.companyId, input?.daysAhead ?? 30)),
-      create: protectedProcedure
+        .query(async ({ input, ctx }) => getExpiringDocuments(ctx.effectiveCompanyId, input?.daysAhead ?? 30)),
+      create: companyProcedure
         .input(z.object({
-          companyId: z.number(),
+          companyId: z.number().optional(),
           folderId: z.number().nullable().optional(),
           name: z.string().min(1),
           description: z.string().optional(),
@@ -201,20 +201,24 @@ export const appRouter = router({
           hasExpiry: z.boolean().default(false),
           expiryDate: z.string().nullable().optional(),
         }))
-        .mutation(async ({ input, ctx }) => createDocument({ ...input, createdById: ctx.user!.id })),
-      update: protectedProcedure
+        .mutation(async ({ input, ctx }) => createDocument({ ...input, companyId: ctx.effectiveCompanyId as number, createdById: ctx.user!.id })),
+      update: companyProcedure
         .input(z.object({
           id: z.number(),
+          companyId: z.number().optional(),
           name: z.string().optional(),
           description: z.string().optional(),
           folderId: z.number().nullable().optional(),
           hasExpiry: z.boolean().optional(),
           expiryDate: z.string().nullable().optional(),
         }))
-        .mutation(async ({ input }) => { const { id, ...rest } = input; return updateDocument(id, rest); }),
-      delete: protectedProcedure
-        .input(z.object({ id: z.number() }))
-        .mutation(async ({ input }) => deleteDocument(input.id)),
+        .mutation(async ({ input, ctx }) => { 
+          const { id, companyId, ...rest } = input; 
+          return updateDocument(id, rest, ctx.effectiveCompanyId); 
+        }),
+      delete: companyProcedure
+        .input(z.object({ id: z.number(), companyId: z.number().optional() }))
+        .mutation(async ({ input, ctx }) => deleteDocument(input.id, ctx.effectiveCompanyId)),
     }),
   }),
 
@@ -288,7 +292,8 @@ export const appRouter = router({
   users: router({
     list: protectedProcedure
       .input(z.object({ search: z.string().optional() }).optional())
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        requireAdm(ctx.user?.ehsRole);
         return getAllUsers(input?.search);
       }),
     getById: protectedProcedure
@@ -393,15 +398,23 @@ export const appRouter = router({
   // COMPANIES ROUTER
   // =============================================
   companies: router({
-    list: protectedProcedure
-      .input(z.object({ search: z.string().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllCompanies(input?.search);
+    list: companyProcedure
+      .input(z.object({ search: z.string().optional(), companyId: z.number().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        return getAllCompanies(input?.search, ctx.effectiveCompanyId);
       }),
-    getById: protectedProcedure
-      .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        return getCompanyById(input.id);
+    getById: companyProcedure
+      .input(z.object({ id: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const id = input.id || (Array.isArray(ctx.effectiveCompanyId) ? undefined : ctx.effectiveCompanyId);
+        if (!id) throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID required" });
+        
+        // Security check
+        if (ctx.user?.ehsRole !== "adm_ehs" && !ctx.authorizedCompanyIds.includes(id as number)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+        
+        return getCompanyById(id as number);
       }),
     create: protectedProcedure
       .input(z.object({
@@ -423,12 +436,13 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         const { contractValue, ...rest } = input;
-        return createCompany({
+        await createCompany({
           ...rest,
           contractValue: contractValue !== undefined ? contractValue.toString() : undefined,
         });
+        return { success: true };
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
         name: z.string().optional(),
@@ -449,24 +463,30 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
+        
+        // Security check
+        if (ctx.user?.ehsRole !== "adm_ehs" && !ctx.authorizedCompanyIds.includes(input.id)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+
         const { id, contractValue, ...rest } = input;
         return updateCompany(id, {
           ...rest,
           contractValue: contractValue !== undefined ? contractValue.toString() : undefined,
         });
       }),
-    delete: protectedProcedure
+    delete: companyProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input, ctx }) => {
         requireAdm(ctx.user?.ehsRole);
         return deleteCompany(input.id);
       }),
-    getUsers: protectedProcedure
-      .input(z.object({ companyId: z.number() }))
-      .query(async ({ input }) => {
-        return getCompanyUsers(input.companyId);
+    getUsers: companyProcedure
+      .input(z.object({ companyId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        return getCompanyUsers(ctx.effectiveCompanyId);
       }),
-    addUser: protectedProcedure
+    addUser: companyProcedure
       .input(z.object({
         companyId: z.number(),
         userId: z.number(),
@@ -477,16 +497,25 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return addCompanyUser(input);
       }),
-    removeUser: protectedProcedure
+    removeUser: companyProcedure
       .input(z.object({ companyId: z.number(), userId: z.number() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return removeCompanyUser(input.companyId, input.userId);
       }),
-    getObras: protectedProcedure
-      .input(z.object({ companyId: z.number() }))
+    getObras: companyProcedure
+      .input(z.object({ companyId: z.number().optional() }))
       .query(async ({ input, ctx }) => {
-        return getCompanyObras(input.companyId, ctx.user?.id, ctx.user?.ehsRole || undefined);
+        // Here we can use ctx.effectiveCompanyId to filter Obras, but getCompanyObras also has userId check
+        // We'll pass the effectiveCompanyId to ensure it's not looking at other companies' Obras if for some reason effectiveCompanyId is specific.
+        // Actually getCompanyObras uses companyId as first arg.
+        const targetId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? undefined : ctx.effectiveCompanyId);
+        if (targetId) {
+           return getCompanyObras(targetId, ctx.user?.id, ctx.user?.ehsRole || undefined);
+        }
+        // If effectiveCompanyId is an array, we'd need to loop or update getCompanyObras.
+        // For simplicity, we'll use first authorized or let it fail if not provided.
+        return getCompanyObras(input.companyId!, ctx.user?.id, ctx.user?.ehsRole || undefined);
       }),
     createObra: protectedProcedure
       .input(z.object({
@@ -528,10 +557,11 @@ export const appRouter = router({
   // OBRAS ROUTER
   // =============================================
   obras: router({
-    list: protectedProcedure
-      .query(async () => {
+    list: companyProcedure
+      .input(z.object({ companyId: z.number().optional() }).optional())
+      .query(async ({ ctx }) => {
          const { getAllObras } = await import("./db");
-         return getAllObras();
+         return getAllObras(ctx.effectiveCompanyId);
       }),
   }),
 
@@ -574,7 +604,7 @@ export const appRouter = router({
             await createCheckListItem({ ...item, checkListId: checkListId as number });
           }
         }
-        return checkListId;
+        return { success: true, id: checkListId };
       }),
     addItem: protectedProcedure
       .input(z.object({
@@ -612,7 +642,7 @@ export const appRouter = router({
   // INSPECTIONS (RELATÓRIOS) ROUTER
   // =============================================
   inspections: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({
         search: z.string().optional(),
         status: z.string().optional(),
@@ -622,8 +652,8 @@ export const appRouter = router({
         limit: z.number().optional(),
         offset: z.number().optional(),
       }).optional())
-      .query(async ({ input }) => {
-        return getAllInspections(input);
+      .query(async ({ input, ctx }) => {
+        return getAllInspections({ ...input, companyId: ctx.effectiveCompanyId });
       }),
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -680,11 +710,12 @@ export const appRouter = router({
             }
           }
         }
-        return inspectionId;
+        return { success: true, id: inspectionId };
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         title: z.string().optional(),
         description: z.string().optional(),
         status: z.enum(["nao_iniciada", "pendente", "atencao", "resolvida", "concluida"]).optional(),
@@ -694,8 +725,8 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...rest } = input;
-        return updateInspection(id, rest);
+        const { id, companyId, ...rest } = input;
+        return updateInspection(id, rest, ctx.effectiveCompanyId);
       }),
     addItem: protectedProcedure
       .input(z.object({
@@ -830,7 +861,7 @@ export const appRouter = router({
         }
 
         // Just create notification record
-        return createNotification({
+        await createNotification({
           type: input.type,
           title: input.title,
           message: input.message,
@@ -840,6 +871,7 @@ export const appRouter = router({
           sentAt: new Date(),
           metadata: { sentBy: ctx.user!.id, recipientEmail: input.recipientEmail, recipientPhone: input.recipientPhone },
         });
+        return { success: true };
       }),
     markRead: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -866,11 +898,12 @@ export const appRouter = router({
         inspectionId: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        return createChatMessage({
+        const id = await createChatMessage({
           message: input.message,
           inspectionId: input.inspectionId || null,
           senderId: ctx.user!.id,
         });
+        return { success: true, id };
       }),
     markRead: protectedProcedure
       .input(z.object({ inspectionId: z.number().optional() }))
@@ -883,12 +916,12 @@ export const appRouter = router({
   // PGR ROUTER
   // =============================================
   pgr: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllPGR(input?.companyId);
+      .query(async ({ ctx }) => {
+        return getAllPGR(ctx.effectiveCompanyId);
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
         companyId: z.number(),
         obraId: z.number().optional(),
@@ -1016,12 +1049,12 @@ export const appRouter = router({
   // ITS ROUTER
   // =============================================
   its: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllITS(input?.companyId);
+      .query(async ({ ctx }) => {
+        return getAllITS(ctx.effectiveCompanyId);
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
         companyId: z.number(),
         obraId: z.number().optional(),
@@ -1035,9 +1068,10 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return createITS({ ...input, createdById: ctx.user!.id });
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         obraId: z.number().optional(),
         title: z.string().optional(),
         code: z.string().optional(),
@@ -1047,14 +1081,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...rest } = input;
-        return updateITS(id, rest);
+        const { id, companyId, ...rest } = input;
+        return updateITS(id, rest, ctx.effectiveCompanyId);
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deleteITS(input.id);
+        return deleteITS(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1062,12 +1096,12 @@ export const appRouter = router({
   // PT ROUTER
   // =============================================
   pt: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllPT(input?.companyId);
+      .query(async ({ ctx }) => {
+        return getAllPT(ctx.effectiveCompanyId);
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
         companyId: z.number(),
         obraId: z.number().optional(),
@@ -1090,9 +1124,10 @@ export const appRouter = router({
           throw error;
         }
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         obraId: z.number().optional(),
         title: z.string().optional(),
         code: z.string().optional(),
@@ -1103,14 +1138,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...rest } = input;
-        return updatePT(id, rest);
+        const { id, companyId, ...rest } = input;
+        return updatePT(id, rest, ctx.effectiveCompanyId);
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deletePT(input.id);
+        return deletePT(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1118,15 +1153,15 @@ export const appRouter = router({
   // APR ROUTER
   // =============================================
   apr: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({
         companyId: z.number().optional(),
         search: z.string().optional(),
         status: z.string().optional(),
         date: z.string().optional(),
       }).optional())
-      .query(async ({ input }) => {
-        return getAllAPR(input);
+      .query(async ({ input, ctx }) => {
+        return getAllAPR({ ...input, companyId: ctx.effectiveCompanyId });
       }),
     create: protectedProcedure
       .input(z.object({
@@ -1144,9 +1179,10 @@ export const appRouter = router({
         const { date, ...rest } = input;
         return createAPR({ ...rest, date: date ? date : undefined, createdById: ctx.user!.id });
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         title: z.string().optional(),
         activity: z.string().optional(),
         location: z.string().optional(),
@@ -1157,14 +1193,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, date, ...rest } = input;
-        return updateAPR(id, { ...rest, date: date ? date : undefined });
+        const { id, date, companyId, ...rest } = input;
+        return updateAPR(id, { ...rest, date: date ? date : undefined }, ctx.effectiveCompanyId);
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deleteAPR(input.id);
+        return deleteAPR(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1174,8 +1210,8 @@ export const appRouter = router({
   epiFicha: router({
     list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllEpiFicha(input?.companyId);
+      .query(async ({ ctx }) => {
+        return getAllEpiFicha(ctx.effectiveCompanyId);
       }),
     obras: companyProcedure
       .input(z.object({ companyId: z.number() }))
@@ -1249,9 +1285,9 @@ export const appRouter = router({
         ))
         .orderBy(desc(epiFicha.createdAt));
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
-        companyId: z.number(),
+        companyId: z.number().optional(),
         employeeName: z.string().min(1),
         obraId: z.number().optional(),
         items: z.array(z.object({
@@ -1264,14 +1300,16 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
+        const effectiveCompanyId = ctx.effectiveCompanyId as number;
         
         // 1. Encontrar ou criar o colaborador persistente
-        const employee = await findOrCreateEmployee(input.companyId, input.employeeName, input.obraId);
+        const employee = await findOrCreateEmployee(effectiveCompanyId, input.employeeName, input.obraId);
         
         const payload = input.items.map(item => ({
-          companyId: input.companyId,
+          ...item,
+          companyId: effectiveCompanyId,
           employeeId: employee.id,
-          employeeName: employee.name, // Keep for backward compatibility/quick view
+          employeeName: employee.name,
           obraId: input.obraId,
           epiName: item.epiName,
           ca: item.ca,
@@ -1283,11 +1321,11 @@ export const appRouter = router({
         }));
         return createEpiFicha(payload as any);
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deleteEpiFicha(input.id);
+        return deleteEpiFicha(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1295,21 +1333,25 @@ export const appRouter = router({
   // ADVERTÊNCIAS ROUTER
   // =============================================
   advertencias: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ 
          companyId: z.number().optional(),
+         obraId: z.number().optional(),
+         employeeId: z.number().optional(),
          userId: z.number().optional(),
          type: z.string().optional(),
          date: z.string().optional(),
          search: z.string().optional()
       }).optional())
-      .query(async ({ input }) => {
-        return getAllAdvertencias(input);
+      .query(async ({ input, ctx }) => {
+        return getAllAdvertencias({ ...input, companyId: ctx.effectiveCompanyId });
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
         companyId: z.number(),
-        userId: z.number(),
+        obraId: z.number().optional(),
+        employeeId: z.number().optional(),
+        userId: z.number().optional(),
         type: z.enum(["verbal", "escrita", "suspensao", "demissao"]).default("escrita"),
         reason: z.string().min(1),
         description: z.string().optional(),
@@ -1323,11 +1365,11 @@ export const appRouter = router({
         const { date, ...rest } = input;
         return createAdvertencia({ ...rest, date, createdById: ctx.user!.id });
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deleteAdvertencia(input.id);
+        return deleteAdvertencia(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1335,14 +1377,14 @@ export const appRouter = router({
   // TACTDRIVER ROUTER
   // =============================================
   tactdriver: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllTactdriver(input?.companyId);
+      .query(async ({ ctx }) => {
+        return getAllTactdriver(ctx.effectiveCompanyId);
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
-        companyId: z.number(),
+        companyId: z.number().optional(),
         driverName: z.string().min(1),
         vehiclePlate: z.string().optional(),
         vehicleModel: z.string().optional(),
@@ -1353,12 +1395,18 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { date, ...rest } = input;
-        return createTactdriver({ ...rest, date, createdById: ctx.user!.id } as any);
+        const { date, companyId, ...rest } = input;
+        return createTactdriver({ 
+          ...rest, 
+          companyId: ctx.effectiveCompanyId as number,
+          date, 
+          createdById: ctx.user!.id 
+        } as any);
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         driverName: z.string().optional(),
         vehiclePlate: z.string().optional(),
         vehicleModel: z.string().optional(),
@@ -1368,14 +1416,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...rest } = input;
-        return updateTactdriver(id, rest as any);
+        const { id, companyId, ...rest } = input;
+        return updateTactdriver(id, rest as any, ctx.effectiveCompanyId);
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deleteTactdriver(input.id);
+        return deleteTactdriver(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1383,14 +1431,15 @@ export const appRouter = router({
   // TRAININGS ROUTER
   // =============================================
   trainings: router({
-    list: protectedProcedure
+    list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
-      .query(async ({ input }) => {
-        return getAllTrainings(input?.companyId);
+      .query(async ({ ctx }) => {
+        return getAllTrainings(ctx.effectiveCompanyId);
       }),
-    create: protectedProcedure
+    create: companyProcedure
       .input(z.object({
         companyId: z.number(),
+        obraId: z.number().optional(),
         title: z.string().min(1),
         description: z.string().optional(),
         nrId: z.number().optional(),
@@ -1405,9 +1454,10 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return createTraining({ ...input, createdById: ctx.user!.id } as any);
       }),
-    update: protectedProcedure
+    update: companyProcedure
       .input(z.object({
         id: z.number(),
+        companyId: z.number().optional(),
         title: z.string().optional(),
         description: z.string().optional(),
         nrId: z.number().optional(),
@@ -1420,14 +1470,14 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, ...rest } = input;
-        return updateTraining(id, rest as any);
+        const { id, companyId, ...rest } = input;
+        return updateTraining(id, rest as any, ctx.effectiveCompanyId);
       }),
-    delete: protectedProcedure
-      .input(z.object({ id: z.number() }))
+    delete: companyProcedure
+      .input(z.object({ id: z.number(), companyId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        return deleteTraining(input.id);
+        return deleteTraining(input.id, ctx.effectiveCompanyId);
       }),
   }),
 
@@ -1465,10 +1515,10 @@ export const appRouter = router({
   // W-API ROUTER
   // =============================================
   wapi: router({
-    getConsolidatedEmails: protectedProcedure
-      .input(z.object({ companyId: z.number() }))
-      .query(async ({ input }) => {
-        const { getDb } = await import("./db");
+    getConsolidatedEmails: companyProcedure
+      .input(z.object({ companyId: z.number().optional() }))
+      .query(async ({ input, ctx }) => {
+        const { getDb, getCompanyCondition } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
         
@@ -1476,9 +1526,17 @@ export const appRouter = router({
         const { eq, and } = await import("drizzle-orm");
 
         const consolidated = new Set<string>();
+        const targetCompanyId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? ctx.effectiveCompanyId[0] : ctx.effectiveCompanyId);
+        if (!targetCompanyId) throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID required" });
+
+        // Security check
+        const { authorizedCompanyIds } = ctx;
+        if (ctx.user?.ehsRole !== "adm_ehs" && !authorizedCompanyIds.includes(targetCompanyId)) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado à empresa especificada" });
+        }
 
         // 1. E-mails diretos da empresa e matriz de emails
-        const companyRows = await db.select().from(companies).where(eq(companies.id, input.companyId)).limit(1);
+        const companyRows = await db.select().from(companies).where(eq(companies.id, targetCompanyId)).limit(1);
         if (companyRows.length > 0) {
           const comp = companyRows[0];
           if (comp.email) consolidated.add(comp.email);
@@ -1491,7 +1549,7 @@ export const appRouter = router({
         const cUsers = await db.select({ email: users.email })
           .from(companyUsers)
           .innerJoin(users, eq(companyUsers.userId, users.id))
-          .where(and(eq(companyUsers.companyId, input.companyId), eq(companyUsers.isNotificationRecipient, true)));
+          .where(and(eq(companyUsers.companyId, targetCompanyId), eq(companyUsers.isNotificationRecipient, true)));
 
         cUsers.forEach((u: any) => {
           if (u.email) consolidated.add(u.email);
@@ -1500,8 +1558,9 @@ export const appRouter = router({
         return Array.from(consolidated).filter(Boolean);
       }),
 
-    shareDocument: protectedProcedure
+    shareDocument: companyProcedure
       .input(z.object({
+        companyId: z.number().optional(),
         phones: z.array(z.string()).optional(),
         emails: z.array(z.string()).optional(),
         phone: z.string().optional(), // kept for backward compatibility
@@ -1524,9 +1583,13 @@ export const appRouter = router({
           const { ptBR } = await import("date-fns/locale");
 
           if (input.documentType === "inspection") {
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(inspections.companyId, ctx.effectiveCompanyId);
+            
             const inspRows = await db.select({ inspection: inspections, company: companies, obra: obras })
               .from(inspections).leftJoin(companies, eq(inspections.companyId, companies.id))
-              .leftJoin(obras, eq(inspections.obraId, obras.id)).where(eq(inspections.id, input.documentId)).limit(1);
+              .leftJoin(obras, eq(inspections.obraId, obras.id))
+              .where(and(eq(inspections.id, input.documentId), condition)).limit(1);
             if (!inspRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Inspection not found" });
             
             const { inspection, company, obra } = inspRows[0];
@@ -1557,12 +1620,15 @@ export const appRouter = router({
             fileName = `Inspecao_${input.documentId}.pdf`;
           } 
           else if (input.documentType === "checklist") {
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(checklistExecutions.companyId, ctx.effectiveCompanyId);
+
             const rows = await db.select({ execution: checklistExecutions, template: checklistTemplates, company: companies, obra: obras, inspector: users })
               .from(checklistExecutions).innerJoin(checklistTemplates, eq(checklistExecutions.templateId, checklistTemplates.id))
               .innerJoin(companies, eq(checklistExecutions.companyId, companies.id))
               .leftJoin(obras, eq(checklistExecutions.projectId, obras.id))
               .leftJoin(users, eq(checklistExecutions.createdById, users.id))
-              .where(eq(checklistExecutions.id, input.documentId)).limit(1);
+              .where(and(eq(checklistExecutions.id, input.documentId), condition)).limit(1);
 
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Checklist execution not found" });
             const record = rows[0];
@@ -1586,9 +1652,12 @@ export const appRouter = router({
             fileName = `Checklist_${input.documentId}.pdf`;
           }
           else if (input.documentType === "pgr") {
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(pgr.companyId, ctx.effectiveCompanyId);
+
             const rows = await db.select({ pgr: pgr, company: companies, obra: obras })
               .from(pgr).leftJoin(companies, eq(pgr.companyId, companies.id)).leftJoin(obras, eq(pgr.obraId, obras.id))
-              .where(eq(pgr.id, input.documentId)).limit(1);
+              .where(and(eq(pgr.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "PGR not found" });
             const record = rows[0];
 
@@ -1613,9 +1682,12 @@ export const appRouter = router({
             fileName = `PGR_${input.documentId}.pdf`;
           }
           else if (input.documentType === "apr") {
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(apr.companyId, ctx.effectiveCompanyId);
+
             const rows = await db.select({ apr: apr, company: companies, obra: obras })
               .from(apr).leftJoin(companies, eq(apr.companyId, companies.id)).leftJoin(obras, eq(apr.obraId, obras.id))
-              .where(eq(apr.id, input.documentId)).limit(1);
+              .where(and(eq(apr.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "APR not found" });
             const record = rows[0];
 
@@ -1632,9 +1704,12 @@ export const appRouter = router({
             fileName = `APR_${input.documentId}.pdf`;
           }
           else if (input.documentType === "pt") {
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(pt.companyId, ctx.effectiveCompanyId);
+
             const rows = await db.select({ pt: pt, company: companies, obra: obras })
               .from(pt).leftJoin(companies, eq(pt.companyId, companies.id)).leftJoin(obras, eq(pt.obraId, obras.id))
-              .where(eq(pt.id, input.documentId)).limit(1);
+              .where(and(eq(pt.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "PT not found" });
             const record = rows[0];
             let parsedContent: any = {};
@@ -1653,9 +1728,12 @@ export const appRouter = router({
             fileName = `PT_${input.documentId}.pdf`;
           }
           else if (input.documentType === "its") {
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(its.companyId, ctx.effectiveCompanyId);
+
             const rows = await db.select({ its: its, company: companies, obra: obras, author: users })
               .from(its).leftJoin(companies, eq(its.companyId, companies.id)).leftJoin(obras, eq(its.obraId, obras.id))
-              .leftJoin(users, eq(its.createdById, users.id)).where(eq(its.id, input.documentId)).limit(1);
+              .leftJoin(users, eq(its.createdById, users.id)).where(and(eq(its.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "ITS not found" });
             const record = rows[0];
 
@@ -1670,9 +1748,15 @@ export const appRouter = router({
             fileName = `ITS_${input.documentId}.pdf`;
           }
           else if (input.documentType === "treinamento") {
-            const rows = await db.select({ training: trainings, company: companies, nr: nrs })
-              .from(trainings).leftJoin(companies, eq(trainings.companyId, companies.id)).leftJoin(nrs, eq(trainings.nrId, nrs.id))
-              .where(eq(trainings.id, input.documentId)).limit(1);
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(trainings.companyId, ctx.effectiveCompanyId);
+
+            const rows = await db.select({ training: trainings, company: companies, obra: obras, nr: nrs })
+              .from(trainings)
+              .leftJoin(companies, eq(trainings.companyId, companies.id))
+              .leftJoin(obras, eq(trainings.obraId, obras.id))
+              .leftJoin(nrs, eq(trainings.nrId, nrs.id))
+              .where(and(eq(trainings.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Treinamento not found" });
             const record = rows[0];
             const fakeParticipants = Array.from({length: 10}).map((_, i) => ({ name: "", role: "", document: "", signature: "" }));
@@ -1689,9 +1773,16 @@ export const appRouter = router({
             fileName = `Treinamento_${input.documentId}.pdf`;
           }
           else if (input.documentType === "advertencia") {
-            const rows = await db.select({ advertencia: advertencias, company: companies, user: users })
-              .from(advertencias).leftJoin(companies, eq(advertencias.companyId, companies.id)).leftJoin(users, eq(advertencias.userId, users.id))
-              .where(eq(advertencias.id, input.documentId)).limit(1);
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(advertencias.companyId, ctx.effectiveCompanyId);
+
+            const rows = await db.select({ advertencia: advertencias, company: companies, employee: employees, obra: obras, responsible: users })
+              .from(advertencias)
+              .leftJoin(companies, eq(advertencias.companyId, companies.id))
+              .leftJoin(employees, eq(advertencias.employeeId, employees.id))
+              .leftJoin(obras, eq(advertencias.obraId, obras.id))
+              .leftJoin(users, eq(advertencias.userId, users.id))
+              .where(and(eq(advertencias.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Advertencia not found" });
             const record = rows[0];
             let witnessName = "";
@@ -1702,18 +1793,32 @@ export const appRouter = router({
 
             const { generateWarningPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateWarningPdf({
-              warningNumber: input.documentId, type: record.advertencia.type, employeeName: record.user?.name || "Empregado N/A",
-              role: record.user?.ehsRole || "N/A", companyName: record.company?.name || "N/A", reason: record.advertencia.reason,
-              description: record.advertencia.description || "N/A", date: record.advertencia.date, location: record.company?.city || "Sede",
-              issuerName: "Departamento de Segurança ou RH", witnessName,
+              warningNumber: input.documentId, 
+              type: record.advertencia.type, 
+              employeeName: record.employee?.name || record.responsible?.name || "Empregado N/A",
+              role: (record.employee as any)?.role || record.responsible?.ehsRole || "N/A", 
+              companyName: record.company?.name || "N/A", 
+              reason: record.advertencia.reason,
+              description: record.advertencia.description || "N/A", 
+              date: record.advertencia.date, 
+              location: record.obra?.name || record.company?.city || "Sede",
+              issuerName: record.responsible?.name || "Departamento de Segurança", 
+              witnessName,
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `Advertencia_${input.documentId}.pdf`;
           }
           else if (input.documentType === "epi") {
-            const rows = await db.select({ epi: epiFicha, company: companies, user: users })
-              .from(epiFicha).leftJoin(companies, eq(epiFicha.companyId, companies.id)).leftJoin(users, eq(epiFicha.userId, users.id))
-              .where(eq(epiFicha.id, input.documentId)).limit(1);
+            const { getCompanyCondition } = await import("./db");
+            const condition = getCompanyCondition(epiFicha.companyId, ctx.effectiveCompanyId);
+
+            const rows = await db.select({ epi: epiFicha, company: companies, employee: employees, obra: obras, user: users })
+              .from(epiFicha)
+              .leftJoin(companies, eq(epiFicha.companyId, companies.id))
+              .leftJoin(employees, eq(epiFicha.employeeId, employees.id))
+              .leftJoin(obras, eq(epiFicha.obraId, obras.id))
+              .leftJoin(users, eq(epiFicha.userId, users.id))
+              .where(and(eq(epiFicha.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Ficha EPI not found" });
             const record = rows[0];
             const deliveries = [{
@@ -1723,8 +1828,12 @@ export const appRouter = router({
 
             const { generateEpiPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateEpiPdf({
-              companyName: record.company?.name || "N/A", cnpj: record.company?.cnpj || "", employeeName: record.user?.name || "N/A",
-              role: record.user?.ehsRole || "N/A", admissionDate: record.user?.createdAt || new Date(), deliveries,
+              companyName: record.company?.name || "N/A", 
+              cnpj: record.company?.cnpj || "", 
+              employeeName: record.employee?.name || record.user?.name || "N/A",
+              role: (record.employee as any)?.role || record.user?.ehsRole || "N/A", 
+              admissionDate: (record.employee as any)?.admissionDate || record.user?.createdAt || new Date(), 
+              deliveries,
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `EPI_${input.documentId}.pdf`;

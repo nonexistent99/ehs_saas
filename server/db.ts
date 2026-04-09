@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, like, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -57,6 +57,18 @@ export async function getDb() {
 }
 
 // =============================================
+// Helper for Tenant Isolation
+// =============================================
+export function getCompanyCondition(column: any, value?: number | number[]) {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return sql`1=0`;
+    return inArray(column, value);
+  }
+  return eq(column, value);
+}
+
+// =============================================
 // USERS
 // =============================================
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -106,14 +118,22 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getAllUsers(search?: string) {
+export async function getAllUsers(search?: string, ehsRole?: string) {
   const db = await getDb();
   if (!db) return [];
+  
   const query = db.select().from(users);
+  let conditions = [];
+  
   if (search) {
-    return query.where(
-      or(like(users.name, `%${search}%`), like(users.email, `%${search}%`))
-    );
+    conditions.push(or(like(users.name, `%${search}%`), like(users.email, `%${search}%`)));
+  }
+
+  // If not admin, restrict to something? 
+  // For now, routers should handle this with requireAdm if it's a global list.
+  
+  if (conditions.length > 0) {
+    return query.where(and(...conditions)).orderBy(desc(users.createdAt));
   }
   return query.orderBy(desc(users.createdAt));
 }
@@ -140,16 +160,22 @@ export async function deleteUser(id: number) {
 // =============================================
 // COMPANIES
 // =============================================
-export async function getAllCompanies(search?: string) {
+export async function getAllCompanies(search?: string, ids?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const query = db.select().from(companies).where(eq(companies.isActive, true));
+  
+  const compCond = getCompanyCondition(companies.id, ids);
+  const activeCond = eq(companies.isActive, true);
+  
+  let conditions = [activeCond];
+  if (compCond) conditions.push(compCond);
   if (search) {
-    return db.select().from(companies).where(
-      and(eq(companies.isActive, true), or(like(companies.name, `%${search}%`), like(companies.cnpj, `%${search}%`)))
-    ).orderBy(companies.name);
+    conditions.push(or(like(companies.name, `%${search}%`), like(companies.cnpj, `%${search}%`)));
   }
-  return query.orderBy(companies.name);
+
+  return db.select().from(companies)
+    .where(and(...conditions))
+    .orderBy(companies.name);
 }
 
 export async function getCompanyById(id: number) {
@@ -206,16 +232,18 @@ export async function getObraById(id: number) {
   return result[0];
 }
 
-export async function updateObra(id: number, data: Partial<typeof obras.$inferInsert>) {
+export async function updateObra(id: number, data: Partial<typeof obras.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(obras).set({ ...data, updatedAt: new Date() }).where(eq(obras.id, id));
+  const condition = getCompanyCondition(obras.companyId, companyId);
+  await db.update(obras).set({ ...data, updatedAt: new Date() }).where(and(eq(obras.id, id), condition));
 }
 
-export async function getAllObras() {
+export async function getAllObras(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(obras).where(eq(obras.isActive, true));
+  const condition = getCompanyCondition(obras.companyId, companyId);
+  return db.select().from(obras).where(and(eq(obras.isActive, true), condition)).orderBy(obras.name);
 }
 
 export async function getUserLinkedCompanies(userId: number) {
@@ -252,14 +280,15 @@ export async function setUserLinkedObras(userId: number, obraIds: number[]) {
   }
 }
 
-export async function getCompanyUsers(companyId: number) {
+export async function getCompanyUsers(companyId: number | number[]) {
   const db = await getDb();
   if (!db) return [];
+  const condition = getCompanyCondition(companyUsers.companyId, companyId);
   return db
     .select({ companyUser: companyUsers, user: users })
     .from(companyUsers)
     .innerJoin(users, eq(companyUsers.userId, users.id))
-    .where(eq(companyUsers.companyId, companyId));
+    .where(condition);
 }
 
 export async function addCompanyUser(data: typeof companyUsers.$inferInsert) {
@@ -350,11 +379,12 @@ export async function deleteCheckListItem(id: number) {
 // =============================================
 // INSPECTIONS (Relatórios)
 // =============================================
-export async function getAllInspections(filters?: { companyId?: number; status?: string; search?: string; from?: Date; to?: Date }) {
+export async function getAllInspections(filters?: { companyId?: number | number[]; status?: string; search?: string; from?: Date; to?: Date }) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
-  if (filters?.companyId) conditions.push(eq(inspections.companyId, filters.companyId));
+  const compCond = getCompanyCondition(inspections.companyId, filters?.companyId);
+  if (compCond) conditions.push(compCond);
   if (filters?.status && filters.status !== 'all') conditions.push(eq(inspections.status, filters.status as any));
   if (filters?.search) conditions.push(like(inspections.title, `%${filters.search}%`));
   if (filters?.from) conditions.push(gte(inspections.createdAt, filters.from));
@@ -378,8 +408,8 @@ export async function getAllInspections(filters?: { companyId?: number; status?:
       .leftJoin(nrs, eq(inspectionNrs.nrId, nrs.id))
       .where(eq(inspectionNrs.inspectionId, row.inspection.id))
       .limit(1);
-      console.log('--> getDashboardStats finished');
-  return {
+
+    return {
       inspection: row.inspection,
       company: row.company,
       nr: nrRow[0]?.nr ?? null,
@@ -403,10 +433,11 @@ export async function createInspection(data: typeof inspections.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updateInspection(id: number, data: Partial<typeof inspections.$inferInsert>) {
+export async function updateInspection(id: number, data: Partial<typeof inspections.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(inspections).set({ ...data, updatedAt: new Date() }).where(eq(inspections.id, id));
+  const condition = getCompanyCondition(inspections.companyId, companyId);
+  await db.update(inspections).set({ ...data, updatedAt: new Date() }).where(and(eq(inspections.id, id), condition));
 }
 
 export async function getInspectionItems(inspectionId: number) {
@@ -437,13 +468,11 @@ export async function deleteInspectionItem(id: number) {
 // =============================================
 // DASHBOARD STATS
 // =============================================
-export async function getDashboardStats(companyId?: number) {
-  console.log('--> getDashboardStats started');
-
+export async function getDashboardStats(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return null;
 
-  const whereClause = companyId ? eq(inspections.companyId, companyId) : undefined;
+  const whereClause = getCompanyCondition(inspections.companyId, companyId);
 
   const [totalInspections] = await db.select({ count: count() }).from(inspections).where(whereClause);
   const [notStarted] = await db.select({ count: count() }).from(inspections).where(
@@ -611,11 +640,11 @@ export async function markMessagesRead(recipientId: number, inspectionId?: numbe
 // =============================================
 // PGR
 // =============================================
-export async function getAllPGR(companyId?: number) {
+export async function getAllPGR(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(pgr.companyId, companyId)] : [];
-  return db.select().from(pgr).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(pgr.createdAt));
+  const condition = getCompanyCondition(pgr.companyId, companyId);
+  return db.select().from(pgr).where(condition).orderBy(desc(pgr.createdAt));
 }
 
 export async function createPGR(data: typeof pgr.$inferInsert) {
@@ -625,16 +654,18 @@ export async function createPGR(data: typeof pgr.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updatePGR(id: number, data: Partial<typeof pgr.$inferInsert>) {
+export async function updatePGR(id: number, data: Partial<typeof pgr.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(pgr).set({ ...data, updatedAt: new Date() }).where(eq(pgr.id, id));
+  const condition = getCompanyCondition(pgr.companyId, companyId);
+  await db.update(pgr).set({ ...data, updatedAt: new Date() }).where(and(eq(pgr.id, id), condition));
 }
 
-export async function deletePGR(id: number) {
+export async function deletePGR(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(pgr).where(eq(pgr.id, id));
+  const condition = getCompanyCondition(pgr.companyId, companyId);
+  await db.delete(pgr).where(and(eq(pgr.id, id), condition));
 }
 
 // =============================================
@@ -728,11 +759,11 @@ export async function deleteSubcontractor(id: number) {
 // =============================================
 // ITS
 // =============================================
-export async function getAllITS(companyId?: number) {
+export async function getAllITS(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(its.companyId, companyId)] : [];
-  return db.select().from(its).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(its.createdAt));
+  const condition = getCompanyCondition(its.companyId, companyId);
+  return db.select().from(its).where(condition).orderBy(desc(its.createdAt));
 }
 
 export async function createITS(data: typeof its.$inferInsert) {
@@ -742,26 +773,28 @@ export async function createITS(data: typeof its.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updateITS(id: number, data: Partial<typeof its.$inferInsert>) {
+export async function updateITS(id: number, data: Partial<typeof its.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(its).set({ ...data, updatedAt: new Date() }).where(eq(its.id, id));
+  const condition = getCompanyCondition(its.companyId, companyId);
+  await db.update(its).set({ ...data, updatedAt: new Date() }).where(and(eq(its.id, id), condition));
 }
 
-export async function deleteITS(id: number) {
+export async function deleteITS(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(its).where(eq(its.id, id));
+  const condition = getCompanyCondition(its.companyId, companyId);
+  await db.delete(its).where(and(eq(its.id, id), condition));
 }
 
 // =============================================
 // PT
 // =============================================
-export async function getAllPT(companyId?: number) {
+export async function getAllPT(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(pt.companyId, companyId)] : [];
-  return db.select().from(pt).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(pt.createdAt));
+  const condition = getCompanyCondition(pt.companyId, companyId);
+  return db.select().from(pt).where(condition).orderBy(desc(pt.createdAt));
 }
 
 export async function createPT(data: typeof pt.$inferInsert) {
@@ -771,26 +804,28 @@ export async function createPT(data: typeof pt.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updatePT(id: number, data: Partial<typeof pt.$inferInsert>) {
+export async function updatePT(id: number, data: Partial<typeof pt.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(pt).set({ ...data, updatedAt: new Date() }).where(eq(pt.id, id));
+  const condition = getCompanyCondition(pt.companyId, companyId);
+  await db.update(pt).set({ ...data, updatedAt: new Date() }).where(and(eq(pt.id, id), condition));
 }
 
-export async function deletePT(id: number) {
+export async function deletePT(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(pt).where(eq(pt.id, id));
+  const condition = getCompanyCondition(pt.companyId, companyId);
+  await db.delete(pt).where(and(eq(pt.id, id), condition));
 }
 
 // =============================================
 // TRAININGS
 // =============================================
-export async function getAllTrainings(companyId?: number) {
+export async function getAllTrainings(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(trainings.companyId, companyId)] : [];
-  return db.select().from(trainings).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(trainings.createdAt));
+  const condition = getCompanyCondition(trainings.companyId, companyId);
+  return db.select().from(trainings).where(condition).orderBy(desc(trainings.createdAt));
 }
 
 export async function createTraining(data: typeof trainings.$inferInsert) {
@@ -800,26 +835,29 @@ export async function createTraining(data: typeof trainings.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updateTraining(id: number, data: Partial<typeof trainings.$inferInsert>) {
+export async function updateTraining(id: number, data: Partial<typeof trainings.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(trainings).set({ ...data, updatedAt: new Date() }).where(eq(trainings.id, id));
+  const condition = getCompanyCondition(trainings.companyId, companyId);
+  await db.update(trainings).set({ ...data, updatedAt: new Date() }).where(and(eq(trainings.id, id), condition));
 }
 
-export async function deleteTraining(id: number) {
+export async function deleteTraining(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(trainings).where(eq(trainings.id, id));
+  const condition = getCompanyCondition(trainings.companyId, companyId);
+  await db.delete(trainings).where(and(eq(trainings.id, id), condition));
 }
 
 // =============================================
 // APR
 // =============================================
-export async function getAllAPR(filters?: { companyId?: number; search?: string; status?: string; date?: string }) {
+export async function getAllAPR(filters?: { companyId?: number | number[]; search?: string; status?: string; date?: string }) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
-  if (filters?.companyId) conditions.push(eq(apr.companyId, filters.companyId));
+  const compCond = getCompanyCondition(apr.companyId, filters?.companyId);
+  if (compCond) conditions.push(compCond);
   if (filters?.search) conditions.push(like(apr.title, `%${filters.search}%`));
   if (filters?.status && filters.status !== 'all') conditions.push(eq(apr.status, filters.status as any));
   if (filters?.date) conditions.push(eq(apr.date, filters.date));
@@ -833,25 +871,28 @@ export async function createAPR(data: typeof apr.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updateAPR(id: number, data: Partial<typeof apr.$inferInsert>) {
+export async function updateAPR(id: number, data: Partial<typeof apr.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(apr).set({ ...data, updatedAt: new Date() }).where(eq(apr.id, id));
+  const condition = getCompanyCondition(apr.companyId, companyId);
+  await db.update(apr).set({ ...data, updatedAt: new Date() }).where(and(eq(apr.id, id), condition));
 }
 
-export async function deleteAPR(id: number) {
+export async function deleteAPR(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(apr).where(eq(apr.id, id));
+  const condition = getCompanyCondition(apr.companyId, companyId);
+  await db.delete(apr).where(and(eq(apr.id, id), condition));
 }
 
 // =============================================
 // EMPLOYEES (Colaboradores)
 // =============================================
-export async function getEmployeesByCompany(companyId: number) {
+export async function getEmployeesByCompany(companyId: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(employees).where(eq(employees.companyId, companyId)).orderBy(employees.name);
+  const condition = getCompanyCondition(employees.companyId, companyId);
+  return db.select().from(employees).where(condition).orderBy(employees.name);
 }
 
 export async function findOrCreateEmployee(companyId: number, name: string, obraId?: number) {
@@ -882,14 +923,14 @@ export async function findOrCreateEmployee(companyId: number, name: string, obra
 // =============================================
 // EPI FICHA
 // =============================================
-export async function getAllEpiFicha(companyId?: number) {
+export async function getAllEpiFicha(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(epiFicha.companyId, companyId)] : [];
+  const condition = getCompanyCondition(epiFicha.companyId, companyId);
   return db.select({ ficha: epiFicha, user: users })
     .from(epiFicha)
     .leftJoin(users, eq(epiFicha.userId, users.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(condition)
     .orderBy(desc(epiFicha.createdAt));
 }
 
@@ -901,28 +942,40 @@ export async function createEpiFicha(data: typeof epiFicha.$inferInsert | (typeo
   return result.map(r => r.id);
 }
 
-export async function deleteEpiFicha(id: number) {
+export async function deleteEpiFicha(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(epiFicha).where(eq(epiFicha.id, id));
+  const condition = getCompanyCondition(epiFicha.companyId, companyId);
+  await db.delete(epiFicha).where(and(eq(epiFicha.id, id), condition));
 }
 
 // =============================================
 // ADVERTÊNCIAS
 // =============================================
-export async function getAllAdvertencias(filters?: { companyId?: number; userId?: number; type?: string; date?: string; search?: string }) {
+export async function getAllAdvertencias(filters?: { companyId?: number | number[]; obraId?: number; employeeId?: number; type?: string; date?: string; search?: string }) {
   const db = await getDb();
   if (!db) return [];
+  const { advertencias, users, employees, obras } = await import("../drizzle/schema");
+  const { eq, and, desc, like } = await import("drizzle-orm");
   const conditions = [];
-  if (filters?.companyId) conditions.push(eq(advertencias.companyId, filters.companyId));
-  if (filters?.userId) conditions.push(eq(advertencias.userId, filters.userId));
+  const compCond = getCompanyCondition(advertencias.companyId, filters?.companyId);
+  if (compCond) conditions.push(compCond);
+  if (filters?.obraId) conditions.push(eq(advertencias.obraId, filters.obraId));
+  if (filters?.employeeId) conditions.push(eq(advertencias.employeeId, filters.employeeId));
   if (filters?.type && filters.type !== 'all') conditions.push(eq(advertencias.type, filters.type as any));
   if (filters?.date) conditions.push(eq(advertencias.date, filters.date));
   if (filters?.search) conditions.push(like(advertencias.reason, `%${filters.search}%`));
 
-  return db.select({ advertencia: advertencias, user: users })
+  return db.select({ 
+    advertencia: advertencias, 
+    employee: employees,
+    obra: obras,
+    responsible: users
+  })
     .from(advertencias)
-    .leftJoin(users, eq(advertencias.userId, users.id))
+    .leftJoin(employees, eq(advertencias.employeeId, employees.id))
+    .leftJoin(obras, eq(advertencias.obraId, obras.id))
+    .leftJoin(users, eq(advertencias.createdById, users.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(advertencias.createdAt));
 }
@@ -934,20 +987,21 @@ export async function createAdvertencia(data: typeof advertencias.$inferInsert) 
   return result[0]?.id;
 }
 
-export async function deleteAdvertencia(id: number) {
+export async function deleteAdvertencia(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(advertencias).where(eq(advertencias.id, id));
+  const condition = getCompanyCondition(advertencias.companyId, companyId);
+  await db.delete(advertencias).where(and(eq(advertencias.id, id), condition));
 }
 
 // =============================================
 // TACTDRIVER
 // =============================================
-export async function getAllTactdriver(companyId?: number) {
+export async function getAllTactdriver(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = companyId ? [eq(tactdriver.companyId, companyId)] : [];
-  return db.select().from(tactdriver).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(desc(tactdriver.createdAt));
+  const condition = getCompanyCondition(tactdriver.companyId, companyId);
+  return db.select().from(tactdriver).where(condition).orderBy(desc(tactdriver.createdAt));
 }
 
 export async function createTactdriver(data: typeof tactdriver.$inferInsert) {
@@ -957,16 +1011,18 @@ export async function createTactdriver(data: typeof tactdriver.$inferInsert) {
   return result[0]?.id;
 }
 
-export async function updateTactdriver(id: number, data: Partial<typeof tactdriver.$inferInsert>) {
+export async function updateTactdriver(id: number, data: Partial<typeof tactdriver.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(tactdriver).set({ ...data, updatedAt: new Date() }).where(eq(tactdriver.id, id));
+  const condition = getCompanyCondition(tactdriver.companyId, companyId);
+  await db.update(tactdriver).set({ ...data, updatedAt: new Date() }).where(and(eq(tactdriver.id, id), condition));
 }
 
-export async function deleteTactdriver(id: number) {
+export async function deleteTactdriver(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(tactdriver).where(eq(tactdriver.id, id));
+  const condition = getCompanyCondition(tactdriver.companyId, companyId);
+  await db.delete(tactdriver).where(and(eq(tactdriver.id, id), condition));
 }
 
 // =============================================

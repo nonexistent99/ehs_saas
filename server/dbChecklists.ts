@@ -8,17 +8,18 @@ import {
   companies,
   obras,
 } from "../drizzle/schema";
-import { getDb } from "./db";
+import { getDb, getCompanyCondition } from "./db";
 
 // =============================================
 // CHECKLIST TEMPLATES (V2)
 // =============================================
 
-export async function getAllChecklistTemplates(companyId?: number, search?: string) {
+export async function getAllChecklistTemplates(companyId?: number | number[], search?: string) {
   const db = await getDb();
   if (!db) return [];
   const filters = [eq(checklistTemplates.isActive, true)];
-  if (companyId) filters.push(eq(checklistTemplates.companyId, companyId));
+  const compCond = getCompanyCondition(checklistTemplates.companyId, companyId);
+  if (compCond) filters.push(compCond);
   if (search) filters.push(like(checklistTemplates.name, `%${search}%`));
 
   return db
@@ -52,16 +53,18 @@ export async function createChecklistTemplate(data: typeof checklistTemplates.$i
   return result[0]?.id;
 }
 
-export async function updateChecklistTemplate(id: number, data: Partial<typeof checklistTemplates.$inferInsert>) {
+export async function updateChecklistTemplate(id: number, data: Partial<typeof checklistTemplates.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(checklistTemplates).set({ ...data, updatedAt: new Date() }).where(eq(checklistTemplates.id, id));
+  const condition = getCompanyCondition(checklistTemplates.companyId, companyId);
+  await db.update(checklistTemplates).set({ ...data, updatedAt: new Date() }).where(and(eq(checklistTemplates.id, id), condition));
 }
 
-export async function deleteChecklistTemplate(id: number) {
+export async function deleteChecklistTemplate(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(checklistTemplates).set({ isActive: false }).where(eq(checklistTemplates.id, id));
+  const condition = getCompanyCondition(checklistTemplates.companyId, companyId);
+  await db.update(checklistTemplates).set({ isActive: false }).where(and(eq(checklistTemplates.id, id), condition));
 }
 
 export async function createChecklistTemplateItem(data: typeof checklistTemplateItems.$inferInsert) {
@@ -86,12 +89,13 @@ export async function deleteChecklistTemplateItem(id: number) {
 // CHECKLIST EXECUTIONS (V2)
 // =============================================
 
-export async function getAllChecklistExecutions(companyId?: number, status?: "pendente" | "concluida") {
+export async function getAllChecklistExecutions(companyId?: number | number[], status?: "pendente" | "concluida") {
   const db = await getDb();
   if (!db) return [];
   
   const filters: any[] = [];
-  if (companyId) filters.push(eq(checklistExecutions.companyId, companyId));
+  const compCond = getCompanyCondition(checklistExecutions.companyId, companyId);
+  if (compCond) filters.push(compCond);
   if (status) filters.push(eq(checklistExecutions.status, status));
 
   return db
@@ -156,10 +160,11 @@ export async function createChecklistExecution(data: typeof checklistExecutions.
   return result[0]?.id;
 }
 
-export async function updateChecklistExecution(id: number, data: Partial<typeof checklistExecutions.$inferInsert>) {
+export async function updateChecklistExecution(id: number, data: Partial<typeof checklistExecutions.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.update(checklistExecutions).set({ ...data, updatedAt: new Date() }).where(eq(checklistExecutions.id, id));
+  const condition = getCompanyCondition(checklistExecutions.companyId, companyId);
+  await db.update(checklistExecutions).set({ ...data, updatedAt: new Date() }).where(and(eq(checklistExecutions.id, id), condition));
 }
 
 export async function createChecklistExecutionItem(data: typeof checklistExecutionItems.$inferInsert) {
@@ -175,12 +180,13 @@ export async function updateChecklistExecutionItem(id: number, data: Partial<typ
   await db.update(checklistExecutionItems).set(data).where(eq(checklistExecutionItems.id, id));
 }
 
-export async function getPendingDelayedExecutions() {
+export async function getPendingDelayedExecutions(companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
 
   // Consider "Delayed" executions as pendente and date in the past
   const now = new Date();
+  const compCond = getCompanyCondition(checklistExecutions.companyId, companyId);
   
   return db
     .select()
@@ -188,7 +194,8 @@ export async function getPendingDelayedExecutions() {
     .where(
       and(
         eq(checklistExecutions.status, "pendente"),
-        lte(checklistExecutions.date, now.toISOString().split("T")[0])
+        lte(checklistExecutions.date, now.toISOString().split("T")[0]),
+        compCond
       )
     );
 }
