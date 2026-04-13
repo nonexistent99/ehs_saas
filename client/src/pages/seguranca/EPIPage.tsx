@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HardHat, Download, Plus, Trash2, MessageCircle, User, Loader2, Search, Info, History, Cloud, MessageSquare, Building2 } from "lucide-react";
-import { useState } from "react";
+import { HardHat, Download, Plus, Trash2, MessageCircle, User, Loader2, Search, Info, History, Cloud, MessageSquare, Building2, Eraser, ChevronRight } from "lucide-react";
+import { useState, useRef } from "react";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
+import SignatureCanvas from "react-signature-canvas";
 import { useRecentUsers } from "@/hooks/useRecentUsers";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -22,11 +23,17 @@ export default function EPIPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<{ id: number, name: string } | null>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const sigCanvasRef = useRef<SignatureCanvas>(null);
 
   const { data: companies = [] } = trpc.companies.list.useQuery();
   const { data: obras = [] } = trpc.epiFicha.obras.useQuery(
     { companyId: Number(selectedCompanyId) },
     { enabled: !!selectedCompanyId }
+  );
+
+  const { data: formObras = [] } = trpc.epiFicha.obras.useQuery(
+    { companyId: Number(form.companyId) },
+    { enabled: !!form.companyId && open }
   );
   
   const { data: employees = [], isLoading: loadingEmployees } = trpc.epiFicha.employees.useQuery(
@@ -104,7 +111,7 @@ export default function EPIPage() {
           <Select value={form.obraId} onValueChange={v => setForm(f => ({ ...f, obraId: v }))}>
             <SelectTrigger className="bg-secondary/50 border-border h-11"><SelectValue placeholder="Selecione a obra" /></SelectTrigger>
             <SelectContent className="bg-card border-border">
-              {obras.map((o: any) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
+              {formObras.map((o: any) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -167,15 +174,53 @@ export default function EPIPage() {
         </Button>
       </div>
 
+      <div className="space-y-4 pt-4 border-t border-border">
+        <Label className="text-sm font-bold flex items-center gap-2">
+          <Info size={14} className="text-primary" />
+          Assinatura do Colaborador *
+        </Label>
+        <div className="bg-white rounded-xl border border-border overflow-hidden relative">
+          <SignatureCanvas
+            ref={sigCanvasRef}
+            penColor="black"
+            canvasProps={{ 
+              className: "w-full h-40 touch-none block cursor-crosshair",
+              style: { touchAction: "none" }
+            }}
+          />
+          <Button 
+            type="button" 
+            variant="secondary" 
+            size="sm" 
+            className="absolute top-2 right-2 h-7 px-2 text-xs bg-white/80 backdrop-blur hover:bg-white"
+            onClick={() => sigCanvasRef.current?.clear()}
+          >
+            <Eraser size={12} className="mr-1" /> Limpar
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground italic">
+          O colaborador deve assinar no quadro acima antes de confirmar a entrega.
+        </p>
+      </div>
+
       <Button className="w-full h-12 bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20 mt-6" disabled={createMutation.isPending}
         onClick={() => {
           if (!form.companyId || !form.employeeName || !form.obraId) { toast.error("Preencha todos os campos obrigatórios (*)"); return; }
           const validItems = form.items.filter(i => i.epiName.trim() !== "");
           if (validItems.length === 0) { toast.error("Adicione pelo menos um EPI"); return; }
+          
+          if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) {
+            toast.error("A assinatura do colaborador é obrigatória");
+            return;
+          }
+
+          const signatureUrl = sigCanvasRef.current.toDataURL("image/png");
+
           createMutation.mutate({
             companyId: Number(form.companyId),
             employeeName: form.employeeName,
             obraId: Number(form.obraId),
+            signatureUrl,
             items: validItems.map(i => ({
               epiName: i.epiName,
               ca: i.ca || undefined,
@@ -410,14 +455,18 @@ export default function EPIPage() {
                         </div>
 
                         <div className="col-span-3 border-r border-border/50">
-                          <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest leading-loose">Emitido Por</Label>
+                          <Label className="text-[10px] uppercase text-muted-foreground font-black tracking-widest leading-loose">Assinatura / Responsável</Label>
                           <div className="flex items-center gap-2 mt-1.5">
                             <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold">
                               {row.responsible?.name?.[0] || 'R'}
                             </div>
                             <p className="text-sm font-bold text-foreground truncate">{row.responsible?.name || "Sistema"}</p>
                           </div>
-                          <p className="text-[10px] text-muted-foreground font-medium mt-1 uppercase tracking-tight italic">Assinatura Digital Auditada</p>
+                          {row.ficha.signatureUrl ? (
+                            <img src={row.ficha.signatureUrl} className="h-8 object-contain mt-1 opacity-80 group-hover:opacity-100 transition-opacity" alt="Signature" />
+                          ) : (
+                            <p className="text-[10px] text-muted-foreground font-medium mt-1 uppercase tracking-tight italic">Assinatura Digital Auditada</p>
+                          )}
                         </div>
 
                         <div className="col-span-3">

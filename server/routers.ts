@@ -1290,6 +1290,7 @@ export const appRouter = router({
         companyId: z.number().optional(),
         employeeName: z.string().min(1),
         obraId: z.number().optional(),
+        signatureUrl: z.string().optional(),
         items: z.array(z.object({
           epiName: z.string().min(1),
           ca: z.string().optional(),
@@ -1316,6 +1317,7 @@ export const appRouter = router({
           quantity: item.quantity || 1,
           validUntil: item.validUntil ? item.validUntil : undefined,
           reason: item.reason,
+          signatureUrl: input.signatureUrl,
           createdById: ctx.user!.id,
           responsibleId: ctx.user!.id, // Default to creator
         }));

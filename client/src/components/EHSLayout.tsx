@@ -22,8 +22,10 @@ import {
   MapPin,
   Menu,
   MessageSquare,
+  Moon,
   Settings,
   Shield,
+  Sun,
   ShieldAlert,
   Users,
   X,
@@ -42,6 +44,7 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { trpc } from "@/lib/trpc";
+import { useTheme } from "@/contexts/ThemeContext";
 
 function formatDate(date: Date) {
   const diasSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
@@ -229,6 +232,7 @@ function NavItemComponent({
 
 export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [location] = useLocation();
@@ -461,6 +465,17 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
 
           {/* Header Actions */}
           <div className="flex items-center gap-4">
+            {toggleTheme && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleTheme}
+                className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+              >
+                {theme === "light" ? <Moon size={19} /> : <Sun size={19} />}
+              </Button>
+            )}
+
             <Link href="/notificacoes">
               <Button 
                 variant="ghost" 
