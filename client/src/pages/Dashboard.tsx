@@ -233,7 +233,7 @@ export default function Dashboard() {
                       backgroundColor: "rgba(13, 13, 15, 0.95)",
                       border: "1px solid rgba(255, 255, 255, 0.1)",
                       borderRadius: "12px",
-                      backdropBlur: "12px",
+                      backdropFilter: "blur(10px)",
                       boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
                     }}
                     itemStyle={{ color: "hsl(var(--primary))", fontSize: "12px", fontWeight: "bold" }}
@@ -288,7 +288,7 @@ export default function Dashboard() {
                       backgroundColor: "rgba(13, 13, 15, 0.95)",
                       border: "1px solid rgba(255, 255, 255, 0.1)",
                       borderRadius: "12px",
-                      backdropBlur: "12px",
+                      backdropFilter: "blur(10px)",
                     }}
                   />
                   <Legend

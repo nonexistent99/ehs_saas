@@ -37,9 +37,9 @@ export default function AdvertenciasPage() {
     { enabled: filterCompany !== "all" }
   );
   
-  const { data: employees = [] } = trpc.employees.list.useQuery(
-    { obraId: Number(filterObra) },
-    { enabled: filterObra !== "all" }
+  const { data: employees = [] } = trpc.epiFicha.employees.useQuery(
+    { companyId: Number(filterCompany), obraId: Number(filterObra) },
+    { enabled: filterCompany !== "all" && filterObra !== "all" }
   );
 
   const [open, setOpen] = useState(false);
@@ -89,9 +89,9 @@ export default function AdvertenciasPage() {
     { companyId: Number(form.companyId) },
     { enabled: !!form.companyId }
   );
-  const { data: formEmployees = [] } = trpc.employees.list.useQuery(
-    { obraId: Number(form.obraId) },
-    { enabled: !!form.obraId }
+  const { data: formEmployees = [] } = trpc.epiFicha.employees.useQuery(
+    { companyId: Number(form.companyId), obraId: Number(form.obraId) },
+    { enabled: !!form.companyId && !!form.obraId }
   );
 
   const exportPdf = (id: number) => {

@@ -112,7 +112,7 @@ export const reportRouter = router({
       if (!report) throw new TRPCError({ code: "NOT_FOUND", message: "Relatório não encontrado" });
 
       // Extra security check for isolation
-      if (!ctx.authorizedCompanyIds.includes(report.companyId) && ctx.user.ehsRole !== "adm_ehs") {
+      if (!ctx.authorizedCompanyIds.includes(report.companyId) && ctx.user?.ehsRole !== "adm_ehs") {
         throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
       }
 
@@ -150,6 +150,7 @@ export const reportRouter = router({
       if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Database not initialized" });
 
       const user = ctx.user;
+      if (!user) throw new TRPCError({ code: "UNAUTHORIZED" });
       
       const [oldReport] = await db.select().from(reports).where(eq(reports.id, input.id));
       if (!oldReport) throw new TRPCError({ code: "NOT_FOUND", message: "Report not found" });

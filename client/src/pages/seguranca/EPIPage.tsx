@@ -31,10 +31,7 @@ export default function EPIPage() {
     { enabled: !!selectedCompanyId }
   );
 
-  const { data: formObras = [] } = trpc.epiFicha.obras.useQuery(
-    { companyId: Number(form.companyId) },
-    { enabled: !!form.companyId && open }
-  );
+
   
   const { data: employees = [], isLoading: loadingEmployees } = trpc.epiFicha.employees.useQuery(
     { 
@@ -62,6 +59,11 @@ export default function EPIPage() {
     items: [{ epiName: "", ca: "", quantity: "1", validUntil: "", reason: "" }]
   };
   const [form, setForm] = useState(initialForm);
+
+  const { data: formObras = [] } = trpc.epiFicha.obras.useQuery(
+    { companyId: Number(form.companyId) },
+    { enabled: !!form.companyId && open }
+  );
 
   const createMutation = trpc.epiFicha.create.useMutation({
     onSuccess: (ids) => {

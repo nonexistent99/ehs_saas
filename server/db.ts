@@ -170,7 +170,7 @@ export async function getAllCompanies(search?: string, ids?: number | number[]) 
   let conditions = [activeCond];
   if (compCond) conditions.push(compCond);
   if (search) {
-    conditions.push(or(like(companies.name, `%${search}%`), like(companies.cnpj, `%${search}%`)));
+    conditions.push(or(like(companies.name, `%${search}%`), like(companies.cnpj, `%${search}%`)) as any);
   }
 
   return db.select().from(companies)
@@ -522,7 +522,7 @@ export async function getDashboardStats(companyId?: number | number[]) {
     .orderBy(desc(inspections.createdAt))
     .limit(5);
 
-  const whereExec = companyId ? eq(checklistExecutions.companyId, companyId) : undefined;
+  const whereExec = getCompanyCondition(checklistExecutions.companyId, companyId);
   const allPendingExecs = await db.select().from(checklistExecutions)
     .where(and(whereExec, eq(checklistExecutions.status, "pendente" as any)));
 

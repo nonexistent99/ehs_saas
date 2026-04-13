@@ -258,7 +258,6 @@ export default function TreinamentosPage() {
         title="Treinamentos"
         icon={<GraduationCap size={36} />}
         items={items.filter(i => {
-           if (filterObra !== "all" && i.obraId !== Number(filterObra)) return false;
            if (filterSearch && !i.title.toLowerCase().includes(filterSearch.toLowerCase()) && !i.instructor?.toLowerCase().includes(filterSearch.toLowerCase())) return false;
            return true;
         })}

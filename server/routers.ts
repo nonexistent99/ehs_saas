@@ -1579,7 +1579,7 @@ export const appRouter = router({
         let fileName = "documento.pdf";
         
         try {
-          const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users } = await import("../drizzle/schema");
+          const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users, employees } = await import("../drizzle/schema");
           const { eq, and } = await import("drizzle-orm");
           const { format } = await import("date-fns");
           const { ptBR } = await import("date-fns/locale");
@@ -1753,10 +1753,9 @@ export const appRouter = router({
             const { getCompanyCondition } = await import("./db");
             const condition = getCompanyCondition(trainings.companyId, ctx.effectiveCompanyId);
 
-            const rows = await db.select({ training: trainings, company: companies, obra: obras, nr: nrs })
+            const rows = await db.select({ training: trainings, company: companies, nr: nrs })
               .from(trainings)
               .leftJoin(companies, eq(trainings.companyId, companies.id))
-              .leftJoin(obras, eq(trainings.obraId, obras.id))
               .leftJoin(nrs, eq(trainings.nrId, nrs.id))
               .where(and(eq(trainings.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Treinamento not found" });
