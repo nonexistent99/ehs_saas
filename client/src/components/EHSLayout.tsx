@@ -320,7 +320,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
           </div>
           {!sidebarCollapsed && (
             <div className="flex flex-col items-center gap-0.5">
-              <div className="font-bold text-lg tracking-tight text-white drop-shadow-sm">TACT Drive</div>
+              <div className="font-bold text-lg tracking-tight text-sidebar-foreground drop-shadow-sm">TACT Drive</div>
               <div className="text-[10px] uppercase tracking-widest text-primary font-bold opacity-80">EHS Intelligence</div>
             </div>
           )}
@@ -348,7 +348,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
           </div>
           {!sidebarCollapsed && (
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white truncate">{user?.name || "Usuário"}</div>
+              <div className="text-sm font-semibold text-sidebar-foreground truncate">{user?.name || "Usuário"}</div>
               <div className="mt-0.5 flex">
                 {getRoleBadge((user as any)?.ehsRole)}
               </div>
@@ -530,7 +530,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-auto bg-[#0a0a0b] relative">
+        <main className="flex-1 overflow-auto bg-background relative">
           {/* Subtle noise/texture overlay for premium look */}
           <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
           
