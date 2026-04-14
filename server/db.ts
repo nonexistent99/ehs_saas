@@ -188,8 +188,8 @@ export async function getCompanyById(id: number) {
 export async function createCompany(data: typeof companies.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(companies).values(data);
-  return result;
+  const result = await db.insert(companies).values(data).returning({ id: companies.id });
+  return result[0]?.id;
 }
 
 export async function updateCompany(id: number, data: Partial<typeof companies.$inferInsert>) {
@@ -896,6 +896,9 @@ export async function getEmployeesByCompany(companyId: number | number[]) {
 }
 
 export async function findOrCreateEmployee(companyId: number, name: string, obraId?: number) {
+  if (!companyId || isNaN(companyId) || Array.isArray(companyId)) {
+    throw new Error(`Invalid companyId provided to findOrCreateEmployee: ${companyId}`);
+  }
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   

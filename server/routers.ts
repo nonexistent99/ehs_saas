@@ -173,7 +173,11 @@ export const appRouter = router({
         .query(async ({ input, ctx }) => getAllFolders(ctx.effectiveCompanyId)),
       create: companyProcedure
         .input(z.object({ companyId: z.number().optional(), name: z.string().min(1), color: z.string().optional() }))
-        .mutation(async ({ input, ctx }) => createFolder({ ...input, companyId: ctx.effectiveCompanyId as number })),
+        .mutation(async ({ input, ctx }) => {
+          const effectiveCompanyId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? ctx.effectiveCompanyId[0] : ctx.effectiveCompanyId);
+          if (!effectiveCompanyId) throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID required" });
+          return createFolder({ ...input, companyId: effectiveCompanyId as number });
+        }),
       delete: companyProcedure
         .input(z.object({ id: z.number(), companyId: z.number().optional() }))
         .mutation(async ({ input, ctx }) => deleteFolder(input.id, ctx.effectiveCompanyId)),
@@ -201,7 +205,11 @@ export const appRouter = router({
           hasExpiry: z.boolean().default(false),
           expiryDate: z.string().nullable().optional(),
         }))
-        .mutation(async ({ input, ctx }) => createDocument({ ...input, companyId: ctx.effectiveCompanyId as number, createdById: ctx.user!.id })),
+        .mutation(async ({ input, ctx }) => {
+          const effectiveCompanyId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? ctx.effectiveCompanyId[0] : ctx.effectiveCompanyId);
+          if (!effectiveCompanyId) throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID required" });
+          return createDocument({ ...input, companyId: effectiveCompanyId as number, createdById: ctx.user!.id });
+        }),
       update: companyProcedure
         .input(z.object({
           id: z.number(),
@@ -436,10 +444,19 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         const { contractValue, ...rest } = input;
-        await createCompany({
+        const companyId = await createCompany({
           ...rest,
           contractValue: contractValue !== undefined ? contractValue.toString() : undefined,
         });
+
+        if (companyId && ctx.user && ctx.user.ehsRole !== "adm_ehs") {
+          await addCompanyUser({
+            companyId: companyId as number,
+            userId: ctx.user.id,
+            cargo: "equipe_tecnica",
+          });
+        }
+
         return { success: true };
       }),
     update: companyProcedure
@@ -1301,7 +1318,11 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const effectiveCompanyId = ctx.effectiveCompanyId as number;
+        let effectiveCompanyId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? ctx.effectiveCompanyId[0] : ctx.effectiveCompanyId);
+        
+        if (!effectiveCompanyId) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID is required" });
+        }
         
         // 1. Encontrar ou criar o colaborador persistente
         const employee = await findOrCreateEmployee(effectiveCompanyId, input.employeeName, input.obraId);
