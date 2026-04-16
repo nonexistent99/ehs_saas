@@ -38,12 +38,12 @@ function StatCard({
   color: string; subtitle?: string; href?: string;
 }) {
   const content = (
-    <Card className="glass border-border/40 hover:border-primary/50 transition-all duration-300 cursor-pointer group stat-card card-hover overflow-hidden">
-      <CardContent className="p-6 relative z-10">
+    <Card className="glass border-border/40 hover:border-primary/50 transition-all duration-300 cursor-pointer group stat-card card-hover overflow-hidden h-full min-h-[120px]">
+      <CardContent className="p-6 relative z-10 h-full flex flex-col justify-center">
         <div className="flex items-start justify-between">
           <div className="space-y-1">
             <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-[0.15em] opacity-70">{title}</p>
-            <p className="text-4xl font-black text-white tracking-tight drop-shadow-sm count-up">{value}</p>
+            <p className="text-4xl font-black text-foreground tracking-tight drop-shadow-sm count-up">{value}</p>
             {subtitle && <p className="text-[11px] text-muted-foreground/80 font-medium mt-1.5">{subtitle}</p>}
           </div>
           <div className={cn(
@@ -99,9 +99,9 @@ export default function Dashboard() {
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4 bg-muted/10 p-4 rounded-2xl border border-white/5 backdrop-blur-sm">
+      <div className="flex items-center justify-between flex-wrap gap-4 bg-muted/10 p-4 rounded-2xl border border-border/30 backdrop-blur-sm">
         <div className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
             <Zap className="text-primary fill-primary/20" size={24} />
             Dashboard
           </h1>
@@ -116,7 +116,7 @@ export default function Dashboard() {
               value={selectedCompanyId?.toString() || "all"}
               onValueChange={(v: string) => setSelectedCompanyId(v === "all" ? undefined : Number(v))}
             >
-              <SelectTrigger className="w-60 h-10 glass text-xs font-bold border-white/10">
+              <SelectTrigger className="w-60 h-10 glass text-xs font-bold border-border/40">
                 <Building2 size={14} className="mr-2 text-primary" />
                 <SelectValue placeholder="Todas as empresas" />
               </SelectTrigger>
@@ -201,13 +201,34 @@ export default function Dashboard() {
         />
       </div>
 
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[
+          { label: "Novo Relatório", icon: <FileText size={16} />, href: "/relatorios/novo", color: "text-primary" },
+          { label: "Nova Empresa", icon: <Building2 size={16} />, href: "/empresas/nova", color: "text-blue-400" },
+          { label: "Novo Usuário", icon: <Users size={16} />, href: "/usuarios/novo", color: "text-purple-400" },
+          { label: "Nova Inspeção", icon: <ClipboardList size={16} />, href: "/checklists/nova", color: "text-green-400" },
+        ].map((action) => (
+          <Link key={action.href} href={action.href}>
+            <Card className="glass border-border/40 hover:border-primary/50 transition-all duration-300 cursor-pointer hover:shadow-md h-full">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center bg-muted/50", action.color)}>
+                  {action.icon}
+                </div>
+                <span className="text-sm font-bold text-foreground tracking-tight">{action.label}</span>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Bar Chart - Weekly */}
         <div className="lg:col-span-2">
           <Card className="glass border-border/40 overflow-hidden">
             <CardHeader className="pb-4 bg-muted/5 border-b border-border/30">
-              <CardTitle className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-widest">
+              <CardTitle className="text-xs font-bold text-foreground flex items-center gap-2 uppercase tracking-widest">
                 <TrendingUp size={14} className="text-primary" />
                 Produtividade Semanal
               </CardTitle>
@@ -215,29 +236,29 @@ export default function Dashboard() {
             <CardContent className="pt-6">
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={barData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" strokeOpacity={0.4} vertical={false} />
                   <XAxis 
                     dataKey="name" 
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)", fontWeight: 600 }} 
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }} 
                   />
                   <YAxis 
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 10, fill: "rgba(255,255,255,0.4)", fontWeight: 600 }} 
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }} 
                   />
                   <Tooltip
                     cursor={{ fill: "rgba(255,255,255,0.03)" }}
                     contentStyle={{
-                      backgroundColor: "rgba(13, 13, 15, 0.95)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      backgroundColor: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
                       borderRadius: "12px",
                       backdropFilter: "blur(10px)",
                       boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
                     }}
                     itemStyle={{ color: "hsl(var(--primary))", fontSize: "12px", fontWeight: "bold" }}
-                    labelStyle={{ color: "white", marginBottom: "4px", fontSize: "11px" }}
+                    labelStyle={{ color: "hsl(var(--foreground))", marginBottom: "4px", fontSize: "11px" }}
                   />
                   <Bar 
                     dataKey="inspeções" 
@@ -260,7 +281,7 @@ export default function Dashboard() {
         {/* Pie Chart - Status */}
         <Card className="glass border-border/40 overflow-hidden">
           <CardHeader className="pb-4 bg-muted/5 border-b border-border/30">
-            <CardTitle className="text-xs font-bold text-white flex items-center gap-2 uppercase tracking-widest">
+            <CardTitle className="text-xs font-bold text-foreground flex items-center gap-2 uppercase tracking-widest">
               <Zap size={14} className="text-primary" />
               Distribuição de Status
             </CardTitle>
@@ -285,8 +306,8 @@ export default function Dashboard() {
                   </Pie>
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "rgba(13, 13, 15, 0.95)",
-                      border: "1px solid rgba(255, 255, 255, 0.1)",
+                      backgroundColor: "hsl(var(--popover))",
+                      border: "1px solid hsl(var(--border))",
                       borderRadius: "12px",
                       backdropFilter: "blur(10px)",
                     }}
@@ -308,7 +329,7 @@ export default function Dashboard() {
       </div>
 
       {/* Checklists Stats */}
-      <h2 className="text-[11px] font-black text-white mt-8 mb-4 flex items-center gap-2 uppercase tracking-[0.2em]">
+      <h2 className="text-[11px] font-black text-foreground mt-8 mb-4 flex items-center gap-2 uppercase tracking-[0.2em]">
         <ClipboardList size={16} className="text-primary" />
         Gestão de Checklists
       </h2>
@@ -343,7 +364,7 @@ export default function Dashboard() {
       <Card className="glass border-border/40 overflow-hidden mt-8">
         <CardHeader className="pb-4 bg-muted/5 border-b border-border/30">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-[11px] font-black text-white flex items-center gap-2 uppercase tracking-[0.2em]">
+            <CardTitle className="text-[11px] font-black text-foreground flex items-center gap-2 uppercase tracking-[0.2em]">
               <FileText size={14} className="text-primary" />
               Inspeções Recentes
             </CardTitle>
@@ -356,16 +377,16 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent className="p-0">
           {stats?.recentInspections && stats.recentInspections.length > 0 ? (
-            <div className="divide-y divide-white/5">
+            <div className="divide-y divide-border/30">
               {stats.recentInspections.map((item: any) => (
                 <Link key={item.id} href={`/relatorios/${item.id}`}>
-                  <div className="flex items-center justify-between p-4 bg-transparent hover:bg-white/[0.02] transition-colors cursor-pointer group table-row-hover">
+                  <div className="flex items-center justify-between p-4 bg-transparent hover:bg-muted/30 transition-colors cursor-pointer group table-row-hover">
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20 group-hover:border-primary/40 transition-all">
                         <FileText size={16} className="text-primary" />
                       </div>
                       <div>
-                        <p className="text-sm font-bold text-white group-hover:text-primary transition-colors">{item.title}</p>
+                        <p className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">{item.title}</p>
                         <p className="text-[11px] text-muted-foreground uppercase tracking-tight font-medium">
                           {item.companyName} <span className="mx-1 opacity-30">•</span>{" "}
                           {new Date(item.createdAt).toLocaleDateString("pt-BR")}
@@ -381,7 +402,7 @@ export default function Dashboard() {
                       )}>
                         {STATUS_LABELS[item.status] || item.status}
                       </span>
-                      <ChevronRight size={14} className="text-muted-foreground group-hover:text-white transition-transform group-hover:translate-x-0.5" />
+                      <ChevronRight size={14} className="text-muted-foreground group-hover:text-foreground transition-transform group-hover:translate-x-0.5" />
                     </div>
                   </div>
                 </Link>
@@ -392,7 +413,7 @@ export default function Dashboard() {
               <FileText size={48} className="mx-auto mb-3 opacity-10" />
               <p className="text-sm font-medium">Nenhuma inspeção registrada</p>
               <Link href="/relatorios/novo">
-                <Button variant="outline" size="sm" className="mt-4 text-xs font-bold border-white/10">
+                <Button variant="outline" size="sm" className="mt-4 text-xs font-bold border-border/40">
                   Criar Primeiro Relatório
                 </Button>
               </Link>
@@ -401,26 +422,7 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8">
-        {[
-          { label: "Novo Relatório", icon: <FileText size={16} />, href: "/relatorios/novo", color: "text-primary" },
-          { label: "Nova Empresa", icon: <Building2 size={16} />, href: "/empresas/nova", color: "text-blue-400" },
-          { label: "Novo Usuário", icon: <Users size={16} />, href: "/usuarios/novo", color: "text-purple-400" },
-          { label: "Nova Inspeção", icon: <ClipboardList size={16} />, href: "/checklists/nova", color: "text-green-400" },
-        ].map((action) => (
-          <Link key={action.href} href={action.href}>
-            <Card className="glass border-border/40 hover:border-primary/50 transition-all duration-300 cursor-pointer card-hover">
-              <CardContent className="p-5 flex items-center gap-4">
-                <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center bg-white/5", action.color)}>
-                  {action.icon}
-                </div>
-                <span className="text-sm font-bold text-white tracking-tight">{action.label}</span>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+
     </div>
   );
 }

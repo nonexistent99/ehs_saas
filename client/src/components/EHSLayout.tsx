@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -43,6 +44,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
 import { trpc } from "@/lib/trpc";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -235,7 +243,8 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [location] = useLocation();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [location, navigate] = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [geoCity, setGeoCity] = useState<string>("São Paulo, SP");
 
@@ -491,11 +500,25 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
               </Button>
             </Link>
             
-            <Link href="/chat">
-              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all">
-                <MessageSquare size={19} />
-              </Button>
-            </Link>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all" 
+              aria-label="Chat Interno"
+              onClick={() => navigate("/chat")}
+            >
+              <MessageSquare size={19} />
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
+              aria-label="Configurações"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings size={19} />
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -513,7 +536,11 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
               <DropdownMenuContent align="end" className="w-[180px] mt-1 glass">
                 <DropdownMenuLabel className="font-bold text-xs py-2 uppercase tracking-widest text-primary opacity-80">Perfil</DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-border/40" />
-                <DropdownMenuItem className="text-xs font-medium cursor-pointer hover:bg-primary/10 transition-colors">
+                <DropdownMenuItem
+                  className="text-xs font-medium cursor-pointer hover:bg-primary/10 transition-colors"
+                  onClick={() => setSettingsOpen(true)}
+                >
+                  <Settings className="mr-2 h-3.5 w-3.5" />
                   Configurações
                 </DropdownMenuItem>
                 <DropdownMenuSeparator className="bg-border/40" />
@@ -539,6 +566,123 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
           </div>
         </main>
       </div>
+
+      {/* Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="glass sm:max-w-md border-border/60">
+          <DialogHeader>
+            <DialogTitle className="text-foreground font-black text-lg flex items-center gap-2">
+              <Settings size={18} className="text-primary" />
+              Configurações
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm">
+              Gerencie suas preferências de conta e sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 mt-4">
+            {/* Profile Section */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-black text-foreground uppercase tracking-[0.15em] flex items-center gap-2">
+                <Users size={14} className="text-primary" />
+                Perfil
+              </h3>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground font-medium">Nome</span>
+                  <span className="text-sm text-foreground font-bold">{user?.name || "Usuário"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground font-medium">Email</span>
+                  <span className="text-sm text-foreground font-bold">{user?.email || "-"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground font-medium">Cargo</span>
+                  <span>{getRoleBadge((user as any)?.ehsRole)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Theme Section */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-black text-foreground uppercase tracking-[0.15em] flex items-center gap-2">
+                {theme === "dark" ? <Moon size={14} className="text-primary" /> : <Sun size={14} className="text-primary" />}
+                Aparência
+              </h3>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground font-bold">Tema</p>
+                    <p className="text-xs text-muted-foreground">Alterne entre modo claro e escuro</p>
+                  </div>
+                  {toggleTheme && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={toggleTheme}
+                      className="gap-2 text-xs font-bold border-border/50 hover:border-primary/50"
+                    >
+                      {theme === "light" ? <Moon size={14} /> : <Sun size={14} />}
+                      {theme === "light" ? "Escuro" : "Claro"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Notifications Section */}
+            <div className="space-y-3">
+              <h3 className="text-xs font-black text-foreground uppercase tracking-[0.15em] flex items-center gap-2">
+                <Bell size={14} className="text-primary" />
+                Notificações
+              </h3>
+              <div className="bg-muted/30 rounded-xl p-4 border border-border/40 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground font-bold">Chat Interno</p>
+                    <p className="text-xs text-muted-foreground">Comunicação com a equipe</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSettingsOpen(false); navigate("/chat"); }}
+                    className="gap-2 text-xs font-bold border-border/50 hover:border-primary/50"
+                  >
+                    <MessageSquare size={14} />
+                    Abrir Chat
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-foreground font-bold">Central de Notificações</p>
+                    <p className="text-xs text-muted-foreground">Alertas e atualizações</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setSettingsOpen(false); navigate("/notificacoes"); }}
+                    className="gap-2 text-xs font-bold border-border/50 hover:border-primary/50"
+                  >
+                    <Bell size={14} />
+                    Ver Todas
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Logout Section */}
+            <div className="pt-2">
+              <Button
+                variant="destructive"
+                className="w-full gap-2 font-bold text-sm"
+                onClick={() => { setSettingsOpen(false); logout(); }}
+              >
+                <LogOut size={16} />
+                Sair da Conta
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

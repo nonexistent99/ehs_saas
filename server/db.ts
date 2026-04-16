@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, like, lte, or, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, inArray, like, lte, ne, or, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -611,15 +611,19 @@ export async function markNotificationRead(id: number) {
 export async function getChatMessages(params: { inspectionId?: number; companyId?: number; limit?: number }) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = [];
-  if (params.inspectionId) conditions.push(eq(chatMessages.inspectionId, params.inspectionId));
-  if (params.companyId) conditions.push(eq(chatMessages.companyId, params.companyId));
-  return db.select({ message: chatMessages, sender: users })
-    .from(chatMessages)
-    .leftJoin(users, eq(chatMessages.senderId, users.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
-    .orderBy(desc(chatMessages.createdAt))
-    .limit(params.limit || 50);
+  try {
+    const conditions = [];
+    if (params.inspectionId) conditions.push(eq(chatMessages.inspectionId, params.inspectionId));
+    return db.select({ message: chatMessages, sender: users })
+      .from(chatMessages)
+      .leftJoin(users, eq(chatMessages.senderId, users.id))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(chatMessages.createdAt))
+      .limit(params.limit || 50);
+  } catch (err) {
+    console.error("getChatMessages error:", err);
+    return [];
+  }
 }
 
 export async function createChatMessage(data: typeof chatMessages.$inferInsert) {
@@ -632,7 +636,11 @@ export async function createChatMessage(data: typeof chatMessages.$inferInsert) 
 export async function markMessagesRead(recipientId: number, inspectionId?: number) {
   const db = await getDb();
   if (!db) return;
-  const conditions = [eq(chatMessages.recipientId, recipientId)];
+  // Mark all messages NOT sent by this user as read (global chat or inspection chat)
+  const conditions: any[] = [
+    ne(chatMessages.senderId, recipientId),
+    eq(chatMessages.isRead, false),
+  ];
   if (inspectionId) conditions.push(eq(chatMessages.inspectionId, inspectionId));
   await db.update(chatMessages).set({ isRead: true, readAt: new Date() }).where(and(...conditions));
 }

@@ -7,10 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/PageHeader";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useLocation, useParams } from "wouter";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Camera, CheckCircle, ChevronDown, ChevronUp, Clock, FileText, Image, Plus, Save, Trash2, X } from "lucide-react";
+import { AlertTriangle, CalendarIcon, Camera, CheckCircle, ChevronDown, ChevronUp, Clock, FileText, Image, Plus, Save, Trash2, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 // ============ Types ============
 interface OccurrenceImage {
@@ -416,12 +419,39 @@ export default function InspectionForm() {
 
                 <div className="space-y-1.5">
                   <Label>Data da Inspeção</Label>
-                  <Input
-                    value={form.data}
-                    onChange={e => setForm(f => ({ ...f, data: e.target.value }))}
-                    placeholder="DD/MM/AAAA"
-                    className="bg-secondary border-border"
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal bg-secondary border-border h-9",
+                          !form.data && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon size={14} className="mr-2 text-primary" />
+                        {form.data || "Selecione a data"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={(() => {
+                          if (!form.data) return undefined;
+                          const parts = form.data.split("/");
+                          if (parts.length === 3) {
+                            const d = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+                            return isNaN(d.getTime()) ? undefined : d;
+                          }
+                          return undefined;
+                        })()}
+                        onSelect={(date: Date | undefined) => {
+                          if (date) {
+                            setForm(f => ({ ...f, data: date.toLocaleDateString("pt-BR") }));
+                          }
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-1.5 sm:col-span-2">
