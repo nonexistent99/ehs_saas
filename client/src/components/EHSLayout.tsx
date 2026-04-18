@@ -309,7 +309,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
       {/* Logo area with animated glow */}
       <div className={cn(
         "relative flex items-center justify-center border-b border-sidebar-border px-4 transition-all duration-300",
-        sidebarCollapsed ? "h-20" : "h-32"
+        sidebarCollapsed ? "h-20" : "h-36"
       )}>
         {/* Animated glow background */}
         {!sidebarCollapsed && (
@@ -321,15 +321,16 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         )}
         
         <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
-          <div className={cn(
-            "rounded-xl bg-gradient-to-br from-primary to-orange-600 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(255,107,0,0.4)]",
-            sidebarCollapsed ? "w-10 h-10" : "w-14 h-14"
-          )}>
-            <Cloud size={sidebarCollapsed ? 20 : 28} className="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
-          </div>
+          <img 
+            src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"} 
+            alt="TACT Logo" 
+            className={cn(
+              "object-contain drop-shadow-[0_0_12px_rgba(255,107,0,0.4)] transition-all duration-300",
+              sidebarCollapsed ? "w-10 h-10" : "w-44 h-28"
+            )}
+          />
           {!sidebarCollapsed && (
             <div className="flex flex-col items-center gap-0.5">
-              <div className="font-bold text-lg tracking-tight text-sidebar-foreground drop-shadow-sm">TACT Drive</div>
               <div className="text-[10px] uppercase tracking-widest text-primary font-bold opacity-80">EHS Intelligence</div>
             </div>
           )}

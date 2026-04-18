@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Cloud, Eye, EyeOff, Lock, Mail, ShieldCheck, Zap } from "lucide-react";
+import { Eye, EyeOff, Lock, Mail, ShieldCheck, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 
 export default function Login() {
@@ -46,10 +46,7 @@ export default function Login() {
           
           <div className="relative z-10">
             <div className="flex items-center gap-2.5 mb-12">
-              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-[0_0_20px_rgba(255,107,0,0.5)]">
-                <Cloud size={24} className="text-white fill-white/20" />
-              </div>
-              <span className="text-xl font-black text-white tracking-tight uppercase">TACT Drive</span>
+              <img src="/logo-dark.png" alt="TACT Logo" className="h-20 object-contain drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" />
             </div>
 
             <div className="space-y-6">
@@ -82,9 +79,7 @@ export default function Login() {
           <div className="max-w-sm mx-auto w-full">
             <div className="mb-10 text-center lg:text-left">
               <div className="lg:hidden flex justify-center mb-6">
-                 <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-[0_0_25px_rgba(255,107,0,0.5)]">
-                   <Cloud size={32} className="text-white fill-white/20" />
-                 </div>
+                 <img src="/logo-dark.png" alt="TACT Logo" className="h-16 object-contain drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" />
               </div>
               <h2 className="text-3xl font-black text-white tracking-tight">Bem-vindo</h2>
               <p className="text-muted-foreground mt-2 font-medium">Acesse o painel administrativo</p>
