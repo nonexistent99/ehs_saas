@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import {
   AlertTriangle, Bell, Building2, CheckCircle2, ClipboardList, Clock, Eye, FileText,
-  Shield, TrendingUp, Users, Zap, CheckSquare, PlusCircle, ChevronRight
+  Shield, TrendingUp, Users, Zap, CheckSquare, PlusCircle, ChevronRight, Cloud
 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -67,6 +67,7 @@ export default function Dashboard() {
 
   const { data: companies = [] } = trpc.companies.list.useQuery(undefined, { enabled: isAdmin });
   const { data: stats, isLoading } = trpc.dashboard.stats.useQuery();
+  const { data: expiringDocs = [] } = trpc.tactDrive.documents.expiring.useQuery({ daysAhead: 30 });
 
   const pieData = stats ? [
     { name: "Resolvidas", value: stats.resolved, color: STATUS_COLORS.resolvida },
@@ -422,6 +423,57 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
+      {/* TACT Drive: Documentos Vencendo */}
+      {(expiringDocs as any[]).length > 0 && (
+        <Card className="glass border-border/40 overflow-hidden mt-2">
+          <CardHeader className="pb-4 bg-muted/5 border-b border-border/30">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-[11px] font-black text-foreground flex items-center gap-2 uppercase tracking-[0.2em]">
+                <Cloud size={14} className="text-orange-400" />
+                TACT Drive — Documentos Vencendo
+              </CardTitle>
+              <Link href="/seguranca/tactdriver">
+                <Button variant="ghost" size="sm" className="text-primary hover:text-primary hover:bg-primary/10 text-[10px] font-bold uppercase tracking-widest h-7">
+                  Ver Todos <ChevronRight size={12} className="ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/30">
+              {(expiringDocs as any[]).slice(0, 8).map((doc: any) => {
+                const daysLeft = doc.daysUntilExpiry ?? 0;
+                const urgency = daysLeft <= 1 ? "red" : daysLeft <= 7 ? "orange" : "yellow";
+                const urgencyColors = {
+                  red: "bg-red-500/10 text-red-400 border-red-500/20",
+                  orange: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+                  yellow: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
+                };
+                return (
+                  <Link key={doc.id} href="/seguranca/tactdriver">
+                    <div className="flex items-center justify-between p-4 hover:bg-muted/30 transition-colors cursor-pointer group">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center border ${urgencyColors[urgency]}`}>
+                          <Cloud size={15} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-foreground">{doc.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            Vence em: {doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString("pt-BR") : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${urgencyColors[urgency]}`}>
+                        {daysLeft <= 0 ? "VENCIDO" : daysLeft === 1 ? "1 dia" : `${daysLeft} dias`}
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
     </div>
   );

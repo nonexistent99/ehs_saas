@@ -562,7 +562,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
           {/* Subtle noise/texture overlay for premium look */}
           <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
           
-          <div className="p-6">
+          <div className="p-2 sm:p-4 lg:p-6">
             {children}
           </div>
         </main>

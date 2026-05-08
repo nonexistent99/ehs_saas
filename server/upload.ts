@@ -16,7 +16,43 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 // Multer in-memory storage (we process it with sharp before saving)
 const upload = multer({ 
   storage: multer.memoryStorage(),
-  limits: { fileSize: 20 * 1024 * 1024 } // 20 MB size limit
+  limits: { fileSize: 50 * 1024 * 1024 } // 50 MB size limit
+});
+
+// Generic file upload endpoint (supports PDF, DOCX, XLSX, images, etc.)
+router.post("/file", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+
+    const fileBuffer = req.file.buffer;
+    const originalName = req.file.originalname;
+    const mimeType = req.file.mimetype;
+    const ext = path.extname(originalName).toLowerCase();
+    
+    // Generate a unique filename preserving extension
+    const filename = `${randomUUID()}${ext || ".bin"}`;
+    const outputPath = path.join(UPLOADS_DIR, filename);
+
+    // If it's an image, compress it; otherwise save as-is
+    if (mimeType.startsWith("image/")) {
+      await sharp(fileBuffer)
+        .resize({ width: 1200, height: 1200, fit: sharp.fit.inside, withoutEnlargement: true })
+        .jpeg({ quality: 80 })
+        .toFile(outputPath.replace(ext, ".jpeg"));
+      const url = `/uploads/${filename.replace(ext, ".jpeg")}`;
+      return res.status(200).json({ url, fileName: originalName, fileType: mimeType, success: true });
+    } else {
+      // Save binary as-is (PDF, DOCX, etc.)
+      fs.writeFileSync(outputPath, fileBuffer);
+      const url = `/uploads/${filename}`;
+      return res.status(200).json({ url, fileName: originalName, fileType: mimeType, success: true });
+    }
+  } catch (error) {
+    console.error("File upload error:", error);
+    res.status(500).json({ error: "Failed to save file" });
+  }
 });
 
 // Single image upload endpoint

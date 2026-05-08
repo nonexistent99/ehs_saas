@@ -136,10 +136,11 @@ export default function TactDrivePage() {
     try {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/upload/image", { method: "POST", body: fd });
+      // Use generic /file endpoint that supports PDF, DOCX, images, etc.
+      const res = await fetch("/api/upload/file", { method: "POST", body: fd });
       if (!res.ok) throw new Error("Falha no upload");
       const data = await res.json();
-      setDocForm(f => ({ ...f, fileUrl: data.url, fileName: file.name, fileType: file.type }));
+      setDocForm(f => ({ ...f, fileUrl: data.url, fileName: data.fileName || file.name, fileType: data.fileType || file.type }));
       toast.success("Arquivo anexado!");
     } catch (err: any) {
       toast.error(err.message);

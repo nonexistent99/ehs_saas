@@ -6,19 +6,43 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
-import { FileText, Plus, Search } from "lucide-react";
+import { FileText, Plus, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link } from "wouter";
+import { toast } from "sonner";
+import { useAuth } from "@/_core/hooks/useAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function InspectionsList() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const [location] = useLocation();
+  const { user } = useAuth();
+  const utils = trpc.useUtils();
 
   const { data: inspections = [], isLoading } = trpc.inspections.list.useQuery({
     search: search || undefined,
     status: status || undefined,
   });
+
+  const deleteMutation = trpc.inspections.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Relatório excluído com sucesso!");
+      utils.inspections.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const canDelete = (user as any)?.ehsRole === "adm_ehs" || (user as any)?.ehsRole === "tecnico";
 
   return (
     <div className="flex flex-col h-full">
@@ -34,7 +58,7 @@ export default function InspectionsList() {
           </Link>
         }
       />
-      <div className="p-6 space-y-4">
+      <div className="p-4 md:p-6 space-y-4">
         <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-48">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -69,8 +93,8 @@ export default function InspectionsList() {
             </CardContent>
           </Card>
         ) : (
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
-            <table className="w-full">
+          <div className="bg-card border border-border rounded-lg overflow-x-auto">
+            <table className="w-full min-w-[640px]">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Título</th>
@@ -134,6 +158,32 @@ export default function InspectionsList() {
                             Duplicar
                           </Button>
                         </Link>
+                        {canDelete && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                                <Trash2 size={13} />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="bg-card border-border">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir Relatório</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir o relatório <strong>"{item.inspection.title}"</strong>? Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel className="border-border">Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  onClick={() => deleteMutation.mutate({ id: item.inspection.id })}
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
                       </div>
                     </td>
                   </tr>

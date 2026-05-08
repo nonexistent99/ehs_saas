@@ -440,6 +440,15 @@ export async function updateInspection(id: number, data: Partial<typeof inspecti
   await db.update(inspections).set({ ...data, updatedAt: new Date() }).where(and(eq(inspections.id, id), condition));
 }
 
+export async function deleteInspection(id: number, companyId?: number | number[]) {
+  const db = await getDb();
+  if (!db) return;
+  const condition = getCompanyCondition(inspections.companyId, companyId);
+  // Delete related items first
+  await db.delete(inspectionItems).where(eq(inspectionItems.inspectionId, id));
+  await db.delete(inspections).where(and(eq(inspections.id, id), condition));
+}
+
 export async function getInspectionItems(inspectionId: number) {
   const db = await getDb();
   if (!db) return [];

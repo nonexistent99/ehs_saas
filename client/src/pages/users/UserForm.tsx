@@ -26,6 +26,7 @@ export default function UserForm() {
     companyIds: [] as number[],
     obraIds: [] as number[],
   });
+  const [obraSearch, setObraSearch] = useState("");
 
   const { data: allCompanies = [] } = trpc.companies.list.useQuery();
   const { data: allObras = [] } = trpc.obras.list.useQuery();
@@ -207,9 +208,21 @@ export default function UserForm() {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-sm font-semibold mb-3 block">Obras Vinculadas</Label>
-                    <div className="space-y-2 max-h-48 overflow-auto pr-2">
-                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).map((o: any) => (
+                    <Label className="text-sm font-semibold mb-2 block">Obras Vinculadas</Label>
+                    <div className="relative mb-2">
+                      <input
+                        type="text"
+                        placeholder="🔍 Buscar obra..."
+                        value={(obraSearch as string) || ""}
+                        onChange={(e) => setObraSearch(e.target.value)}
+                        className="w-full h-8 px-3 text-xs rounded-md border border-border bg-secondary text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div className="space-y-2 max-h-44 overflow-auto pr-2">
+                      {allObras
+                        .filter((o: any) => form.companyIds.includes(o.companyId))
+                        .filter((o: any) => !obraSearch || o.name.toLowerCase().includes((obraSearch as string).toLowerCase()))
+                        .map((o: any) => (
                         <label key={`obra-${o.id}`} className="flex items-center gap-2 text-sm">
                           <input 
                             type="checkbox" 
@@ -220,10 +233,11 @@ export default function UserForm() {
                             }}
                             className="rounded border-border bg-secondary"
                           />
-                          {o.name}
+                          <span>{o.name}</span>
                         </label>
                       ))}
-                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).length === 0 && <span className="text-xs text-muted-foreground">Nenhuma obra encontrada para as empresas selecionadas</span>}
+                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).length === 0 && 
+                        <span className="text-xs text-muted-foreground">Selecione uma empresa primeiro</span>}
                     </div>
                   </div>
                 </div>

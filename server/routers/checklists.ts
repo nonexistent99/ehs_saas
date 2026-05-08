@@ -20,8 +20,8 @@ import {
 } from "../dbChecklists";
 
 const requireAdmOrTecnico = (role?: "adm_ehs" | "cliente" | "tecnico" | "apoio" | null) => {
-  if (role !== "adm_ehs" && role !== "tecnico") {
-    throw new Error("Acesso restrito a administradores e técnicos EHS");
+  if (role !== "adm_ehs" && role !== "tecnico" && role !== "apoio") {
+    throw new Error("Acesso restrito a administradores, técnicos e apoio EHS");
   }
 };
 

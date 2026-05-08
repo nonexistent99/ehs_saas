@@ -4,22 +4,46 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { toast } from "sonner";
-import { Download, Edit, FileText, MessageSquare } from "lucide-react";
+import { Download, Edit, FileText, MessageSquare, Trash2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/_core/hooks/useAuth";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+
+const STATUS_OPTIONS = [
+  { value: "nao_iniciada", label: "Não Iniciada" },
+  { value: "pendente", label: "Pendente" },
+  { value: "atencao", label: "Atenção" },
+  { value: "resolvida", label: "Resolvida" },
+  { value: "concluida", label: "Concluída" },
+];
 
 export default function InspectionDetail() {
   const params = useParams<{ id: string }>();
   const inspectionId = Number(params.id);
+  const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+  const { user } = useAuth();
 
   const { data: inspection, isLoading } = trpc.inspections.getById.useQuery({ id: inspectionId });
   const { data: inspectionItems = [] } = trpc.inspections.getItems.useQuery({ inspectionId });
   const { data: chatMessages = [] } = trpc.chat.messages.useQuery({ inspectionId });
 
   const [chatMsg, setChatMsg] = useState("");
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const sendChatMutation = trpc.chat.send.useMutation({
     onSuccess: () => {
@@ -29,10 +53,30 @@ export default function InspectionDetail() {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const updateMutation = trpc.inspections.update.useMutation({
+    onSuccess: () => {
+      toast.success("Status atualizado!");
+      utils.inspections.getById.invalidate({ id: inspectionId });
+      utils.inspections.list.invalidate();
+      setUpdatingStatus(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const deleteMutation = trpc.inspections.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Relatório excluído!");
+      navigate("/relatorios");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const handleExportPdf = () => {
     toast.info("Gerando PDF...");
     window.open(`/api/export/inspection/${inspectionId}`, "_blank");
   };
+
+  const canEdit = (user as any)?.ehsRole === "adm_ehs" || (user as any)?.ehsRole === "tecnico";
 
   if (isLoading) {
     return <div className="p-6"><div className="h-48 bg-card rounded-lg animate-pulse" /></div>;
@@ -52,7 +96,26 @@ export default function InspectionDetail() {
         subtitle={`Criado em ${new Date(insp.createdAt).toLocaleDateString("pt-BR")}`}
         backHref="/relatorios"
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {canEdit && (
+              <div className="flex items-center gap-2">
+                <Select
+                  value={insp.status}
+                  onValueChange={(v) => updateMutation.mutate({ id: inspectionId, status: v as any })}
+                  disabled={updateMutation.isPending}
+                >
+                  <SelectTrigger className="h-8 w-40 text-xs bg-card border-border">
+                    <RefreshCw size={11} className="mr-1.5 text-muted-foreground" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-card border-border">
+                    {STATUS_OPTIONS.map(s => (
+                      <SelectItem key={s.value} value={s.value} className="text-xs">{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <Button
               variant="outline" size="sm" className="border-border text-xs"
               onClick={handleExportPdf}
@@ -60,18 +123,47 @@ export default function InspectionDetail() {
               <Download size={13} className="mr-1.5" />
               Exportar PDF
             </Button>
-            <Button
-              size="sm" className="bg-primary text-primary-foreground text-xs"
-              onClick={() => window.location.href = `/relatorios/${inspectionId}/editar`}
-            >
-              <Edit size={13} className="mr-1.5" />
-              Editar
-            </Button>
+            {canEdit && (
+              <Button
+                size="sm" className="bg-primary text-primary-foreground text-xs"
+                onClick={() => navigate(`/relatorios/${inspectionId}/editar`)}
+              >
+                <Edit size={13} className="mr-1.5" />
+                Editar
+              </Button>
+            )}
+            {canEdit && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-destructive/40 text-destructive hover:bg-destructive/10 text-xs">
+                    <Trash2 size={13} className="mr-1.5" />
+                    Excluir
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-card border-border">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Excluir Relatório</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Tem certeza que deseja excluir "<strong>{insp.title}</strong>"? Todos os itens serão removidos. Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="border-border">Cancelar</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => deleteMutation.mutate({ id: inspectionId })}
+                    >
+                      Excluir
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
         }
       />
 
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <Tabs defaultValue="details">
           <TabsList className="bg-secondary border border-border mb-6">
             <TabsTrigger value="details">Detalhes</TabsTrigger>
@@ -146,6 +238,15 @@ export default function InspectionDetail() {
                           <p className="text-sm text-foreground">{item.observacoes}</p>
                         </div>
                       )}
+                      {item.mediaUrls && item.mediaUrls.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {item.mediaUrls.map((url: string, j: number) => (
+                            <a key={j} href={url} target="_blank" rel="noreferrer">
+                              <img src={url} alt={`Evidência ${j+1}`} className="w-20 h-20 object-cover rounded-md border border-border hover:opacity-80 transition-opacity" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -165,14 +266,14 @@ export default function InspectionDetail() {
                     </div>
                   ) : (
                     (chatMessages as any[]).map((msg: any) => (
-                      <div key={msg.id} className="p-3 bg-secondary/40 rounded-lg">
+                      <div key={msg.message?.id ?? msg.id} className="p-3 bg-secondary/40 rounded-lg">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold text-primary">{msg.user?.name || "Usuário"}</span>
+                          <span className="text-xs font-semibold text-primary">{msg.sender?.name || msg.user?.name || "Usuário"}</span>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(msg.createdAt).toLocaleString("pt-BR")}
+                            {new Date(msg.message?.createdAt ?? msg.createdAt).toLocaleString("pt-BR")}
                           </span>
                         </div>
-                        <p className="text-sm text-foreground">{msg.message}</p>
+                        <p className="text-sm text-foreground">{msg.message?.message ?? msg.message}</p>
                       </div>
                     ))
                   )}

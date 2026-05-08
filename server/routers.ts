@@ -81,6 +81,7 @@ import {
   updateUser,
   upsertUser,
   createUserWithPassword,
+  deleteInspection,
   getPgrStages,
   createPgrStage,
   updatePgrStage,
@@ -192,7 +193,16 @@ export const appRouter = router({
         .query(async ({ input, ctx }) => getAllDocuments(ctx.effectiveCompanyId, input?.folderId)),
       expiring: companyProcedure
         .input(z.object({ companyId: z.number().optional(), daysAhead: z.number().optional() }).optional())
-        .query(async ({ input, ctx }) => getExpiringDocuments(ctx.effectiveCompanyId, input?.daysAhead ?? 30)),
+        .query(async ({ input, ctx }) => {
+          const docs = await getExpiringDocuments(ctx.effectiveCompanyId, input?.daysAhead ?? 30);
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          return docs.map((doc: any) => {
+            const expiry = doc.expiryDate ? new Date(doc.expiryDate) : null;
+            const daysUntilExpiry = expiry ? Math.ceil((expiry.getTime() - today.getTime()) / 86400000) : null;
+            return { ...doc, daysUntilExpiry };
+          });
+        }),
       create: companyProcedure
         .input(z.object({
           companyId: z.number().optional(),
@@ -795,6 +805,12 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return deleteInspectionItem(input.id);
       }),
+    delete: companyProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return deleteInspection(input.id, ctx.effectiveCompanyId);
+      }),
     weeklyStats: protectedProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ input }) => {
@@ -920,6 +936,29 @@ export const appRouter = router({
           inspectionId: input.inspectionId || null,
           senderId: ctx.user!.id,
         });
+        // Create system notification for other users (if inspection context)
+        const senderName = ctx.user!.name || "Usuário";
+        const context = input.inspectionId ? `no relatório #${input.inspectionId}` : "no chat interno";
+        // Notify all users except sender — get all active users and notify them
+        try {
+          const allUsers = await getAllUsers();
+          for (const u of allUsers) {
+            if (u.id !== ctx.user!.id && u.isActive) {
+              await createNotification({
+                type: "system",
+                title: `💬 Nova mensagem de ${senderName}`,
+                message: `${input.message.substring(0, 120)}${input.message.length > 120 ? "..." : ""} (${context})`,
+                recipientUserId: u.id,
+                status: "sent",
+                sentAt: new Date(),
+                metadata: { senderId: ctx.user!.id, inspectionId: input.inspectionId },
+              });
+            }
+          }
+        } catch (e) {
+          // Don't fail message send if notification fails
+          console.warn("[Chat] Failed to create notifications:", e);
+        }
         return { success: true, id };
       }),
     markRead: protectedProcedure

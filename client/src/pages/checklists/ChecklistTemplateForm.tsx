@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { useLocation, useParams } from "wouter";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { CheckSquare, Plus, Save, Trash2, GripVertical } from "lucide-react";
+import { CheckSquare, Plus, Save, Trash2, GripVertical, Upload, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 
 interface TemplateItem {
@@ -27,6 +27,12 @@ export default function ChecklistTemplateForm() {
   const isEditing = !!params.id;
   const utils = trpc.useUtils();
   const { user } = useAuth();
+  const imgInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+
+  // Get first linked company for the user (non-admin)
+  const { data: allCompanies = [] } = trpc.companies.list.useQuery();
+  const userCompanyId = (allCompanies[0] as any)?.id ?? 1;
 
   const [form, setForm] = useState({ 
     name: "", 
@@ -170,7 +176,7 @@ export default function ChecklistTemplateForm() {
       frequencyType: form.frequencyType,
       frequencyValue: form.frequencyValue,
       items: validItems,
-      ...(isEditing ? {} : { companyId: 1 }) // Default to company 1
+      ...(isEditing ? {} : { companyId: userCompanyId })
     };
 
     if (isEditing) {
@@ -347,13 +353,65 @@ export default function ChecklistTemplateForm() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Imagem de Referência (Opcional URL)</Label>
-                          <Input
-                            value={item.referenceImgUrl}
-                            onChange={e => updateItem(i, "referenceImgUrl", e.target.value)}
-                            placeholder="https://exemplo.com/imagem.png"
-                            className="bg-card border-input h-9"
-                          />
+                          <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Imagem de Referência (Opcional)</Label>
+                          <div className="flex gap-2 items-center">
+                            {item.referenceImgUrl ? (
+                              <div className="relative w-16 h-16 shrink-0">
+                                <img src={item.referenceImgUrl} alt="ref" className="w-full h-full object-cover rounded-md border border-border" />
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(i, "referenceImgUrl", "")}
+                                  className="absolute -top-1 -right-1 bg-destructive text-white rounded-full w-4 h-4 flex items-center justify-center"
+                                >
+                                  <X size={10} />
+                                </button>
+                              </div>
+                            ) : null}
+                            <div className="flex-1 space-y-1">
+                              <Input
+                                value={item.referenceImgUrl}
+                                onChange={e => updateItem(i, "referenceImgUrl", e.target.value)}
+                                placeholder="URL da imagem ou faça upload →"
+                                className="bg-card border-input h-9 text-xs"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                disabled={uploadingIdx === i}
+                                className="h-7 text-xs px-2 border-border/60"
+                                onClick={() => imgInputRefs.current[i]?.click()}
+                              >
+                                <Upload size={11} className="mr-1" />
+                                {uploadingIdx === i ? "Enviando..." : "Upload"}
+                              </Button>
+                              <input
+                                ref={el => { imgInputRefs.current[i] = el; }}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  setUploadingIdx(i);
+                                  try {
+                                    const fd = new FormData();
+                                    fd.append("file", file);
+                                    const res = await fetch("/api/upload/image", { method: "POST", body: fd });
+                                    if (!res.ok) throw new Error("Falha no upload");
+                                    const data = await res.json();
+                                    updateItem(i, "referenceImgUrl", data.url);
+                                    toast.success("Imagem enviada!");
+                                  } catch (err: any) {
+                                    toast.error(err.message);
+                                  } finally {
+                                    setUploadingIdx(null);
+                                    e.target.value = "";
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
