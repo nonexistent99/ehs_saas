@@ -57,7 +57,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 function formatDate(date: Date) {
   const diasSemana = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
   const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-  
+
   const diaSemana = diasSemana[date.getDay()];
   const dia = date.getDate();
   const mes = meses[date.getMonth()];
@@ -65,7 +65,7 @@ function formatDate(date: Date) {
   const hora = date.getHours().toString().padStart(2, '0');
   const minutos = date.getMinutes().toString().padStart(2, '0');
   const segundos = date.getSeconds().toString().padStart(2, '0');
-  
+
   return {
     diaSemana,
     dataCompleta: `${dia} de ${mes} de ${ano}`,
@@ -319,11 +319,11 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
             <div className="absolute w-16 h-16 bg-primary/20 rounded-full blur-lg animate-logo-breathe" />
           </div>
         )}
-        
+
         <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
-          <img 
-            src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"} 
-            alt="TACT Logo" 
+          <img
+            src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+            alt="TACT Logo"
             className={cn(
               "object-contain drop-shadow-[0_0_12px_rgba(255,107,0,0.4)] transition-all duration-300",
               sidebarCollapsed ? "w-10 h-10" : "w-44 h-28"
@@ -389,13 +389,13 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         )}
       >
         {SidebarContent()}
-        
+
         {/* Neon Collapse Toggle */}
         <button
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className={cn(
             "absolute -right-3 top-24 flex h-6 w-6 items-center justify-center rounded-full border transition-all duration-300 z-50",
-            sidebarCollapsed 
+            sidebarCollapsed
               ? "border-border bg-background text-muted-foreground hover:text-foreground"
               : "border-primary/50 bg-primary/20 text-primary animate-neon-pulse shadow-[0_0_10px_rgba(255,107,0,0.5)] hover:bg-primary/30"
           )}
@@ -487,9 +487,9 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
             )}
 
             <Link href="/notificacoes">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 className="relative text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
               >
                 <Bell size={19} />
@@ -500,11 +500,11 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
                 )}
               </Button>
             </Link>
-            
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all" 
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all"
               aria-label="Chat Interno"
               onClick={() => navigate("/chat")}
             >
@@ -561,7 +561,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-auto bg-background relative">
           {/* Subtle noise/texture overlay for premium look */}
           <div className="absolute inset-0 opacity-[0.02] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
-          
+
           <div className="p-2 sm:p-4 lg:p-6">
             {children}
           </div>

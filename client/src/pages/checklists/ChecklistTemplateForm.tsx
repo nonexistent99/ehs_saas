@@ -34,14 +34,14 @@ export default function ChecklistTemplateForm() {
   const { data: allCompanies = [] } = trpc.companies.list.useQuery();
   const userCompanyId = (allCompanies[0] as any)?.id ?? 1;
 
-  const [form, setForm] = useState({ 
-    name: "", 
-    description: "", 
-    frequencyValue: 1, 
+  const [form, setForm] = useState({
+    name: "",
+    description: "",
+    frequencyValue: 1,
     frequencyType: "meses" as "dias" | "semanas" | "meses",
     type: "estatico" as "estatico" | "dinamico"
   });
-  
+
   const [items, setItems] = useState<TemplateItem[]>([
     { name: "", description: "", norma: "", referenceImgUrl: "", order: 0 }
   ]);
@@ -154,7 +154,7 @@ export default function ChecklistTemplateForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name) { toast.error("Nome é obrigatório"); return; }
-    
+
     const validItems = items.filter(i => i.name.trim()).map((item, index) => ({
       id: item.id,
       name: item.name,
@@ -163,7 +163,7 @@ export default function ChecklistTemplateForm() {
       referenceImgUrl: item.referenceImgUrl || undefined,
       order: index
     }));
-    
+
     if (validItems.length === 0) {
       toast.error("Adicione pelo menos um item ao checklist");
       return;
@@ -198,7 +198,7 @@ export default function ChecklistTemplateForm() {
         title={isEditing ? "Editar Modelo de Checklist" : "Novo Modelo de Checklist"}
         backHref="/checklists/modelos"
       />
-      
+
       <div className="p-6 max-w-4xl space-y-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Card className="bg-card border-border shadow-sm">
@@ -212,34 +212,34 @@ export default function ChecklistTemplateForm() {
                   <p className="text-xs text-muted-foreground">Nome e regra de recorrência do checklist</p>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2 md:col-span-2">
                   <Label>Nome do Modelo <span className="text-destructive">*</span></Label>
-                  <Input 
-                    value={form.name} 
+                  <Input
+                    value={form.name}
                     onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    placeholder="Ex: Inspeção Semanal de Andaimes" 
-                    className="bg-secondary/50 border-input" 
-                    required 
+                    placeholder="Ex: Inspeção Semanal de Andaimes"
+                    className="bg-secondary/50 border-input"
+                    required
                   />
                 </div>
-                
+
                 <div className="space-y-2 md:col-span-2">
                   <Label>Descrição / Instruções</Label>
-                  <Textarea 
-                    value={form.description} 
+                  <Textarea
+                    value={form.description}
                     onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                    placeholder="Instruções para o preenchimento deste checklist..." 
-                    className="bg-secondary/50 border-input resize-none" 
-                    rows={2} 
+                    placeholder="Instruções para o preenchimento deste checklist..."
+                    className="bg-secondary/50 border-input resize-none"
+                    rows={2}
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label>Tipo do Modelo</Label>
-                  <Select 
-                    value={form.type} 
+                  <Select
+                    value={form.type}
                     onValueChange={(v: "estatico" | "dinamico") => setForm(f => ({ ...f, type: v }))}
                   >
                     <SelectTrigger className="bg-secondary/50 border-input">
@@ -254,8 +254,8 @@ export default function ChecklistTemplateForm() {
 
                 <div className="space-y-2">
                   <Label>Tipo de Recorrência</Label>
-                  <Select 
-                    value={form.frequencyType} 
+                  <Select
+                    value={form.frequencyType}
                     onValueChange={(v: "dias" | "semanas" | "meses") => setForm(f => ({ ...f, frequencyType: v }))}
                   >
                     <SelectTrigger className="bg-secondary/50 border-input">
@@ -271,13 +271,13 @@ export default function ChecklistTemplateForm() {
 
                 <div className="space-y-2">
                   <Label>Intervalo de Recorrência (a cada X)</Label>
-                  <Input 
+                  <Input
                     type="number"
                     min={1}
-                    value={form.frequencyValue} 
+                    value={form.frequencyValue}
                     onChange={e => setForm(f => ({ ...f, frequencyValue: parseInt(e.target.value) || 1 }))}
-                    className="bg-secondary/50 border-input" 
-                    required 
+                    className="bg-secondary/50 border-input"
+                    required
                   />
                   <p className="text-[10px] text-muted-foreground mt-1">
                     Ex: Se "Dias" e "7", o próximo abrirá 7 dias após a conclusão do anterior.
@@ -300,11 +300,11 @@ export default function ChecklistTemplateForm() {
                   Adicionar Item
                 </Button>
               </div>
-              
+
               <div className="space-y-3">
                 {items.map((item, i) => (
-                  <div 
-                    key={i} 
+                  <div
+                    key={i}
                     draggable
                     onDragStart={(e) => handleDragStart(e, i)}
                     onDragEnter={(e) => handleDragEnter(e, i)}
@@ -318,7 +318,7 @@ export default function ChecklistTemplateForm() {
                       {i < items.length - 1 && <button type="button" onClick={() => moveItemDown(i)} className="hover:text-primary"><GripVertical size={14} className="rotate-90" /></button>}
                       <span className="text-[10px] font-mono font-bold mt-1 pt-1 opacity-50 border-t border-border/50 w-full text-center">{i + 1}</span>
                     </div>
-                    
+
                     <div className="flex-1 space-y-3">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div className="md:col-span-2 space-y-1.5">
@@ -341,7 +341,7 @@ export default function ChecklistTemplateForm() {
                           />
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                           <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Descrição Adicional (Opcional)</Label>
@@ -415,12 +415,12 @@ export default function ChecklistTemplateForm() {
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="pt-6">
-                      <Button 
-                        type="button" 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
                         className="w-8 h-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() => removeItem(i)}
                       >
@@ -429,7 +429,7 @@ export default function ChecklistTemplateForm() {
                     </div>
                   </div>
                 ))}
-                
+
                 {items.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground border-2 border-dashed border-border rounded-lg">
                     Nenhum item adicionado ainda.

@@ -92,7 +92,7 @@ export async function deleteChecklistTemplateItem(id: number) {
 export async function getAllChecklistExecutions(companyId?: number | number[], status?: "pendente" | "concluida") {
   const db = await getDb();
   if (!db) return [];
-  
+
   const filters: any[] = [];
   const compCond = getCompanyCondition(checklistExecutions.companyId, companyId);
   if (compCond) filters.push(compCond);
@@ -118,7 +118,7 @@ export async function getAllChecklistExecutions(companyId?: number | number[], s
 export async function getChecklistExecutionById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  
+
   const result = await db
     .select({
       execution: checklistExecutions,
@@ -141,7 +141,7 @@ export async function getChecklistExecutionById(id: number) {
 export async function getChecklistExecutionItems(executionId: number) {
   const db = await getDb();
   if (!db) return [];
-  
+
   return db
     .select({
       executionItem: checklistExecutionItems,
@@ -187,7 +187,7 @@ export async function getPendingDelayedExecutions(companyId?: number | number[])
   // Consider "Delayed" executions as pendente and date in the past
   const now = new Date();
   const compCond = getCompanyCondition(checklistExecutions.companyId, companyId);
-  
+
   return db
     .select()
     .from(checklistExecutions)

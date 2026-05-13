@@ -230,9 +230,9 @@ export const appRouter = router({
           hasExpiry: z.boolean().optional(),
           expiryDate: z.string().nullable().optional(),
         }))
-        .mutation(async ({ input, ctx }) => { 
-          const { id, companyId, ...rest } = input; 
-          return updateDocument(id, rest, ctx.effectiveCompanyId); 
+        .mutation(async ({ input, ctx }) => {
+          const { id, companyId, ...rest } = input;
+          return updateDocument(id, rest, ctx.effectiveCompanyId);
         }),
       delete: companyProcedure
         .input(z.object({ id: z.number(), companyId: z.number().optional() }))
@@ -355,18 +355,18 @@ export const appRouter = router({
           loginMethod: "email",
           role: input.ehsRole === "adm_ehs" ? "admin" : "user",
         });
-        
+
         let newUserId: number | undefined;
         if (typeof userOrId === 'number') newUserId = userOrId;
         else if ((userOrId as any)?.id) newUserId = (userOrId as any).id;
         else {
-           const newlyCreated = await getUserByEmail(input.email);
-           newUserId = newlyCreated?.id;
+          const newlyCreated = await getUserByEmail(input.email);
+          newUserId = newlyCreated?.id;
         }
 
         if (newUserId && input.companyIds) await setUserLinkedCompanies(newUserId, input.companyIds);
         if (newUserId && input.obraIds) await setUserLinkedObras(newUserId, input.obraIds);
-        
+
         return userOrId;
       }),
     update: protectedProcedure
@@ -426,12 +426,12 @@ export const appRouter = router({
       .query(async ({ input, ctx }) => {
         const id = input.id || (Array.isArray(ctx.effectiveCompanyId) ? undefined : ctx.effectiveCompanyId);
         if (!id) throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID required" });
-        
+
         // Security check
         if (ctx.user?.ehsRole !== "adm_ehs" && !ctx.authorizedCompanyIds.includes(id as number)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
         }
-        
+
         return getCompanyById(id as number);
       }),
     create: protectedProcedure
@@ -490,7 +490,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        
+
         // Security check
         if (ctx.user?.ehsRole !== "adm_ehs" && !ctx.authorizedCompanyIds.includes(input.id)) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
@@ -538,7 +538,7 @@ export const appRouter = router({
         // Actually getCompanyObras uses companyId as first arg.
         const targetId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? undefined : ctx.effectiveCompanyId);
         if (targetId) {
-           return getCompanyObras(targetId, ctx.user?.id, ctx.user?.ehsRole || undefined);
+          return getCompanyObras(targetId, ctx.user?.id, ctx.user?.ehsRole || undefined);
         }
         // If effectiveCompanyId is an array, we'd need to loop or update getCompanyObras.
         // For simplicity, we'll use first authorized or let it fail if not provided.
@@ -587,8 +587,8 @@ export const appRouter = router({
     list: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ ctx }) => {
-         const { getAllObras } = await import("./db");
-         return getAllObras(ctx.effectiveCompanyId);
+        const { getAllObras } = await import("./db");
+        return getAllObras(ctx.effectiveCompanyId);
       }),
   }),
 
@@ -883,13 +883,13 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         let status = "sent";
-        
+
         if (input.type === "whatsapp" && input.recipientPhone) {
           const { sendWhatsappMessage } = await import("./_core/wapi");
           const whatsappMessage = `*${input.title}*\n\n${input.message}`;
           const success = await sendWhatsappMessage(input.recipientPhone, whatsappMessage);
           if (!success) {
-             status = "failed";
+            status = "failed";
           }
         }
 
@@ -1015,30 +1015,30 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return deletePGR(input.id);
       }),
-      
+
     // STAGES
     stages: protectedProcedure
       .input(z.object({ pgrId: z.number() }))
       .query(async ({ input }) => getPgrStages(input.pgrId)),
     createStage: protectedProcedure
-      .input(z.object({ 
-        pgrId: z.number(), 
-        name: z.string().min(1), 
-        description: z.string().optional(), 
+      .input(z.object({
+        pgrId: z.number(),
+        name: z.string().min(1),
+        description: z.string().optional(),
         order: z.number().optional(),
-        subcontractorInfo: z.any().optional() 
+        subcontractorInfo: z.any().optional()
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return createPgrStage(input);
       }),
     updateStage: protectedProcedure
-      .input(z.object({ 
-        id: z.number(), 
-        name: z.string().optional(), 
-        description: z.string().optional(), 
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
         order: z.number().optional(),
-        subcontractorInfo: z.any().optional() 
+        subcontractorInfo: z.any().optional()
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
@@ -1051,7 +1051,7 @@ export const appRouter = router({
         requireAdmOrTecnico(ctx.user?.ehsRole);
         return deletePgrStage(input.id);
       }),
-    
+
     // RISK MATRIX
     riskMatrixList: protectedProcedure
       .input(z.object({ stageId: z.number() }))
@@ -1277,17 +1277,17 @@ export const appRouter = router({
         if (!db) return [];
         const { obras, epiFicha } = await import("../drizzle/schema");
         const { eq, exists } = await import("drizzle-orm");
-        
+
         // Return Obras that have at least one EPI delivery or are linked to the company
         return db.select().from(obras)
           .where(eq(obras.companyId, input.companyId))
           .orderBy(obras.name);
       }),
     employees: companyProcedure
-      .input(z.object({ 
-        companyId: z.number(), 
+      .input(z.object({
+        companyId: z.number(),
         obraId: z.number().optional(),
-        search: z.string().optional() 
+        search: z.string().optional()
       }))
       .query(async ({ input }) => {
         const { getDb } = await import("./db");
@@ -1295,12 +1295,12 @@ export const appRouter = router({
         if (!db) return [];
         const { employees, epiFicha } = await import("../drizzle/schema");
         const { eq, and, or, sql, like } = await import("drizzle-orm");
-        
+
         const conditions = [eq(employees.companyId, input.companyId)];
         if (input.search) {
           conditions.push(like(employees.name, `%${input.search}%`));
         }
-        
+
         // If obraId is provided, we filter employees who have deliveries in that obra OR are assigned to it
         if (input.obraId) {
           return db.selectDistinct({ id: employees.id, name: employees.name })
@@ -1328,18 +1328,18 @@ export const appRouter = router({
         if (!db) return [];
         const { epiFicha, users } = await import("../drizzle/schema");
         const { eq, and, desc } = await import("drizzle-orm");
-        
-        return db.select({ 
-          ficha: epiFicha, 
-          responsible: { name: users.name } 
+
+        return db.select({
+          ficha: epiFicha,
+          responsible: { name: users.name }
         })
-        .from(epiFicha)
-        .leftJoin(users, eq(epiFicha.responsibleId, users.id))
-        .where(and(
-          eq(epiFicha.companyId, input.companyId),
-          eq(epiFicha.employeeId, input.employeeId)
-        ))
-        .orderBy(desc(epiFicha.createdAt));
+          .from(epiFicha)
+          .leftJoin(users, eq(epiFicha.responsibleId, users.id))
+          .where(and(
+            eq(epiFicha.companyId, input.companyId),
+            eq(epiFicha.employeeId, input.employeeId)
+          ))
+          .orderBy(desc(epiFicha.createdAt));
       }),
     create: companyProcedure
       .input(z.object({
@@ -1358,14 +1358,14 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         let effectiveCompanyId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? ctx.effectiveCompanyId[0] : ctx.effectiveCompanyId);
-        
+
         if (!effectiveCompanyId) {
           throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID is required" });
         }
-        
+
         // 1. Encontrar ou criar o colaborador persistente
         const employee = await findOrCreateEmployee(effectiveCompanyId, input.employeeName, input.obraId);
-        
+
         const payload = input.items.map(item => ({
           ...item,
           companyId: effectiveCompanyId,
@@ -1396,14 +1396,14 @@ export const appRouter = router({
   // =============================================
   advertencias: router({
     list: companyProcedure
-      .input(z.object({ 
-         companyId: z.number().optional(),
-         obraId: z.number().optional(),
-         employeeId: z.number().optional(),
-         userId: z.number().optional(),
-         type: z.string().optional(),
-         date: z.string().optional(),
-         search: z.string().optional()
+      .input(z.object({
+        companyId: z.number().optional(),
+        obraId: z.number().optional(),
+        employeeId: z.number().optional(),
+        userId: z.number().optional(),
+        type: z.string().optional(),
+        date: z.string().optional(),
+        search: z.string().optional()
       }).optional())
       .query(async ({ input, ctx }) => {
         return getAllAdvertencias({ ...input, companyId: ctx.effectiveCompanyId });
@@ -1458,11 +1458,11 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         const { date, companyId, ...rest } = input;
-        return createTactdriver({ 
-          ...rest, 
+        return createTactdriver({
+          ...rest,
           companyId: ctx.effectiveCompanyId as number,
-          date, 
-          createdById: ctx.user!.id 
+          date,
+          createdById: ctx.user!.id
         } as any);
       }),
     update: companyProcedure
@@ -1572,7 +1572,7 @@ export const appRouter = router({
         return { key, url };
       }),
   }),
-  
+
   // =============================================
   // W-API ROUTER
   // =============================================
@@ -1583,7 +1583,7 @@ export const appRouter = router({
         const { getDb, getCompanyCondition } = await import("./db");
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
-        
+
         const { companies, companyUsers, users } = await import("../drizzle/schema");
         const { eq, and } = await import("drizzle-orm");
 
@@ -1637,7 +1637,7 @@ export const appRouter = router({
 
         let pdfBuffer: Buffer | null = null;
         let fileName = "documento.pdf";
-        
+
         try {
           const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users, employees } = await import("../drizzle/schema");
           const { eq, and } = await import("drizzle-orm");
@@ -1647,19 +1647,19 @@ export const appRouter = router({
           if (input.documentType === "inspection") {
             const { getCompanyCondition } = await import("./db");
             const condition = getCompanyCondition(inspections.companyId, ctx.effectiveCompanyId);
-            
+
             const inspRows = await db.select({ inspection: inspections, company: companies, obra: obras })
               .from(inspections).leftJoin(companies, eq(inspections.companyId, companies.id))
               .leftJoin(obras, eq(inspections.obraId, obras.id))
               .where(and(eq(inspections.id, input.documentId), condition)).limit(1);
             if (!inspRows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Inspection not found" });
-            
+
             const { inspection, company, obra } = inspRows[0];
             const items = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, input.documentId)).orderBy(inspectionItems.order);
-            
+
             const dataFormatada = inspection.inspectedAt ? format(new Date(inspection.inspectedAt), "dd/MM/yyyy", { locale: ptBR }) : format(new Date(inspection.createdAt), "dd/MM/yyyy", { locale: ptBR });
             const local = obra?.address ? `${obra.address}${obra?.city ? " — " + obra.city : ""}${obra?.state ? "/" + obra.state : ""}` : (inspection as any).location || company?.address || "";
-            
+
             const itens = items.map((item: any) => ({
               titulo: item.title || "Ocorrência",
               status: item.status || "pendente",
@@ -1668,7 +1668,7 @@ export const appRouter = router({
               prazo: item.resolvedAt ? format(new Date(item.resolvedAt), "dd/MM/yyyy", { locale: ptBR }) : undefined,
               imagens: Array.isArray(item.mediaUrls) ? item.mediaUrls.map((url: string) => ({ url })) : [],
             }));
-            
+
             const { generateTechnicalReportPdf } = await import("./pdfTemplateEngine");
             pdfBuffer = await generateTechnicalReportPdf({
               empresa: company?.name || "—",
@@ -1680,7 +1680,7 @@ export const appRouter = router({
               itens,
             });
             fileName = `Inspecao_${input.documentId}.pdf`;
-          } 
+          }
           else if (input.documentType === "checklist") {
             const { getCompanyCondition } = await import("./db");
             const condition = getCompanyCondition(checklistExecutions.companyId, ctx.effectiveCompanyId);
@@ -1724,16 +1724,16 @@ export const appRouter = router({
             const record = rows[0];
 
             let parsedContent: any = {};
-            try { parsedContent = JSON.parse(record.pgr.content || "{}"); } catch (e) {}
+            try { parsedContent = JSON.parse(record.pgr.content || "{}"); } catch (e) { }
 
             const stages = await db.select().from(pgrStages).where(eq(pgrStages.pgrId, input.documentId)).orderBy(pgrStages.order);
 
             const { generateGroPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateGroPdf({
               title: record.pgr.title, companyName: record.company?.name || "N/A", obraName: record.obra?.name || "Matriz",
-              version: record.pgr.version, validFrom: record.pgr.validFrom, 
+              version: record.pgr.version, validFrom: record.pgr.validFrom,
               riskMatrix: parsedContent.risks || [],
-              actionPlan: parsedContent.actionPlan || [], 
+              actionPlan: parsedContent.actionPlan || [],
               responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
               clientLogoUrl: record.company?.logoUrl || undefined,
               stages: stages.map(s => ({
@@ -1775,7 +1775,7 @@ export const appRouter = router({
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "PT not found" });
             const record = rows[0];
             let parsedContent: any = {};
-            try { parsedContent = JSON.parse(record.pt.content || "{}"); } catch (e) {}
+            try { parsedContent = JSON.parse(record.pt.content || "{}"); } catch (e) { }
 
             const { generatePtPdf } = await import("./pdfTemplates");
             pdfBuffer = await generatePtPdf({
@@ -1820,7 +1820,7 @@ export const appRouter = router({
               .where(and(eq(trainings.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Treinamento not found" });
             const record = rows[0];
-            const fakeParticipants = Array.from({length: 10}).map((_, i) => ({ name: "", role: "", document: "", signature: "" }));
+            const fakeParticipants = Array.from({ length: 10 }).map((_, i) => ({ name: "", role: "", document: "", signature: "" }));
 
             const { generateTrainingPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateTrainingPdf({
@@ -1854,16 +1854,16 @@ export const appRouter = router({
 
             const { generateWarningPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateWarningPdf({
-              warningNumber: input.documentId, 
-              type: record.advertencia.type, 
+              warningNumber: input.documentId,
+              type: record.advertencia.type,
               employeeName: record.employee?.name || record.responsible?.name || "Empregado N/A",
-              role: (record.employee as any)?.role || record.responsible?.ehsRole || "N/A", 
-              companyName: record.company?.name || "N/A", 
+              role: (record.employee as any)?.role || record.responsible?.ehsRole || "N/A",
+              companyName: record.company?.name || "N/A",
               reason: record.advertencia.reason,
-              description: record.advertencia.description || "N/A", 
-              date: record.advertencia.date, 
+              description: record.advertencia.description || "N/A",
+              date: record.advertencia.date,
               location: record.obra?.name || record.company?.city || "Sede",
-              issuerName: record.responsible?.name || "Departamento de Segurança", 
+              issuerName: record.responsible?.name || "Departamento de Segurança",
               witnessName,
               clientLogoUrl: record.company?.logoUrl || undefined
             });
@@ -1889,17 +1889,17 @@ export const appRouter = router({
 
             const { generateEpiPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateEpiPdf({
-              companyName: record.company?.name || "N/A", 
-              cnpj: record.company?.cnpj || "", 
+              companyName: record.company?.name || "N/A",
+              cnpj: record.company?.cnpj || "",
               employeeName: record.employee?.name || record.user?.name || "N/A",
-              role: (record.employee as any)?.role || record.user?.ehsRole || "N/A", 
-              admissionDate: (record.employee as any)?.admissionDate || record.user?.createdAt || new Date(), 
+              role: (record.employee as any)?.role || record.user?.ehsRole || "N/A",
+              admissionDate: (record.employee as any)?.admissionDate || record.user?.createdAt || new Date(),
               deliveries,
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `EPI_${input.documentId}.pdf`;
           } else {
-             throw new TRPCError({ code: "BAD_REQUEST", message: "Document type not implemented for direct share yet." });
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Document type not implemented for direct share yet." });
           }
         } catch (err: any) {
           console.error("PDF Gen Error:", err);
@@ -1907,7 +1907,7 @@ export const appRouter = router({
         }
 
         if (!pdfBuffer) {
-           throw new TRPCError({ code: "BAD_REQUEST", message: "Failed to generate." });
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Failed to generate." });
         }
 
         // Must prefix with data uri so w-api can detect mime type or handle base64 correctly
@@ -1919,36 +1919,36 @@ export const appRouter = router({
         // Send to all phones via whatsapp
         const allPhones = [...(input.phones || [])];
         if (input.phone) allPhones.push(input.phone);
-        
+
         let successCount = 0;
         for (const p of allPhones) {
-           const success = await sendWhatsappDocument(p, base64Pdf, "pdf", fileName, input.message);
-           if (success) successCount++;
+          const success = await sendWhatsappDocument(p, base64Pdf, "pdf", fileName, input.message);
+          if (success) successCount++;
         }
 
         // Send to emails
         if (input.emails && input.emails.length > 0) {
-           const transporter = nodemailer.createTransport({
-             host: process.env.SMTP_HOST || "smtp.gmail.com",
-             port: Number(process.env.SMTP_PORT) || 587,
-             secure: false,
-             auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-           });
-           
-           for (const e of input.emails) {
-              try {
-                await transporter.sendMail({
-                  from: `"EHS Platform" <${process.env.SMTP_USER}>`,
-                  to: e,
-                  subject: `Documento Compartilhado: ${fileName}`,
-                  text: input.message || "Segue o documento anexo.",
-                  attachments: [{ filename: fileName, content: pdfBuffer }]
-                });
-                successCount++;
-              } catch (err) {
-                console.error("Email API failed:", err);
-              }
-           }
+          const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || "smtp.gmail.com",
+            port: Number(process.env.SMTP_PORT) || 587,
+            secure: false,
+            auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+          });
+
+          for (const e of input.emails) {
+            try {
+              await transporter.sendMail({
+                from: `"EHS Platform" <${process.env.SMTP_USER}>`,
+                to: e,
+                subject: `Documento Compartilhado: ${fileName}`,
+                text: input.message || "Segue o documento anexo.",
+                attachments: [{ filename: fileName, content: pdfBuffer }]
+              });
+              successCount++;
+            } catch (err) {
+              console.error("Email API failed:", err);
+            }
+          }
         }
 
         if (successCount === 0 && (allPhones.length > 0 || (input.emails && input.emails.length > 0))) {

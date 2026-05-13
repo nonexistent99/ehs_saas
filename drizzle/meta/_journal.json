@@ -57,6 +57,13 @@
       "when": 1775755295006,
       "tag": "0007_true_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776489142742,
+      "tag": "0008_curious_romulus",
+      "breakpoints": true
     }
   ]
 }

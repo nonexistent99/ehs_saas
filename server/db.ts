@@ -121,17 +121,17 @@ export async function getUserByOpenId(openId: string) {
 export async function getAllUsers(search?: string, ehsRole?: string) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const query = db.select().from(users);
   let conditions = [];
-  
+
   if (search) {
     conditions.push(or(like(users.name, `%${search}%`), like(users.email, `%${search}%`)));
   }
 
   // If not admin, restrict to something? 
   // For now, routers should handle this with requireAdm if it's a global list.
-  
+
   if (conditions.length > 0) {
     return query.where(and(...conditions)).orderBy(desc(users.createdAt));
   }
@@ -163,10 +163,10 @@ export async function deleteUser(id: number) {
 export async function getAllCompanies(search?: string, ids?: number | number[]) {
   const db = await getDb();
   if (!db) return [];
-  
+
   const compCond = getCompanyCondition(companies.id, ids);
   const activeCond = eq(companies.isActive, true);
-  
+
   let conditions = [activeCond];
   if (compCond) conditions.push(compCond);
   if (search) {
@@ -208,7 +208,7 @@ export async function getCompanyObras(companyId: number, userId?: number, role?:
   const db = await getDb();
   if (!db) return [];
   if (role === 'adm_ehs' || !userId) {
-     return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true)));
+    return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true)));
   }
   const { obraUsers } = await import("../drizzle/schema");
   const rows = await db
@@ -538,8 +538,8 @@ export async function getDashboardStats(companyId?: number | number[]) {
   let pendingChecklists = allPendingExecs.length;
   let overdueChecklists = 0;
   const today = new Date();
-  today.setHours(0,0,0,0);
-  for(const e of allPendingExecs) {
+  today.setHours(0, 0, 0, 0);
+  for (const e of allPendingExecs) {
     if (e.date) {
       const ed = new Date(e.date.toString() + "T00:00:00");
       if (ed.getTime() < today.getTime()) overdueChecklists++;
@@ -548,7 +548,7 @@ export async function getDashboardStats(companyId?: number | number[]) {
 
   const completedExecs = await db.select().from(checklistExecutions)
     .where(and(whereExec, eq(checklistExecutions.status, "concluida" as any)));
-  
+
   let totalScore = 0;
   let scoredCount = 0;
   for (const e of completedExecs) {
@@ -918,11 +918,11 @@ export async function findOrCreateEmployee(companyId: number, name: string, obra
   }
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  
+
   const existing = await db.select().from(employees)
     .where(and(eq(employees.companyId, companyId), eq(employees.name, name)))
     .limit(1);
-    
+
   if (existing.length > 0) {
     if (obraId && existing[0].obraId !== obraId) {
       await db.update(employees).set({ obraId }).where(eq(employees.id, existing[0].id));
@@ -930,13 +930,13 @@ export async function findOrCreateEmployee(companyId: number, name: string, obra
     }
     return existing[0];
   }
-  
+
   const [newEmployee] = await db.insert(employees).values({
     companyId,
     name,
     obraId,
   }).returning();
-  
+
   return newEmployee;
 }
 
@@ -986,8 +986,8 @@ export async function getAllAdvertencias(filters?: { companyId?: number | number
   if (filters?.date) conditions.push(eq(advertencias.date, filters.date));
   if (filters?.search) conditions.push(like(advertencias.reason, `%${filters.search}%`));
 
-  return db.select({ 
-    advertencia: advertencias, 
+  return db.select({
+    advertencia: advertencias,
     employee: employees,
     obra: obras,
     responsible: users

@@ -33,7 +33,7 @@ export default function ChecklistExecutionForm() {
   const params = useParams<{ id?: string }>();
   const isEditing = !!params.id;
   const executionId = params.id ? Number(params.id) : undefined;
-  
+
   const utils = trpc.useUtils();
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const sigCanvasRef = useRef<SignatureCanvas>(null);
@@ -52,7 +52,7 @@ export default function ChecklistExecutionForm() {
     { enabled: !!startForm.companyId }
   );
   const selectedObra = obras.find((o: any) => String(o.id) === startForm.projectId);
-  
+
   const { data: executionData, isLoading: isLoadingExecution } = trpc.checklistsV2.executions.get.useQuery(
     { id: executionId! },
     { enabled: isEditing }
@@ -119,7 +119,7 @@ export default function ChecklistExecutionForm() {
         const preview = URL.createObjectURL(file);
         newImages.push({ url: "", file, preview });
       }
-      setLocalItems(prev => prev.map(item => 
+      setLocalItems(prev => prev.map(item =>
         item.id === id ? { ...item, imagens: [...(item.imagens || []), ...newImages] } : item
       ));
     } catch {
@@ -128,7 +128,7 @@ export default function ChecklistExecutionForm() {
   };
 
   const removeImage = (itemId: number, imgIdx: number) => {
-    setLocalItems(prev => prev.map(item => 
+    setLocalItems(prev => prev.map(item =>
       item.id === itemId ? { ...item, imagens: item.imagens.filter((_: any, ii: number) => ii !== imgIdx) } : item
     ));
   };
@@ -138,7 +138,7 @@ export default function ChecklistExecutionForm() {
       toast.error("A assinatura do responsável é obrigatória para concluir.");
       return;
     }
-    
+
     setUploading(true);
     try {
       // Get base64 signature
@@ -167,7 +167,7 @@ export default function ChecklistExecutionForm() {
         mediaUrls: item.imagens.filter((img: ItemImage) => img.url).map((img: ItemImage) => img.url),
       }));
 
-      await completeMutation.mutateAsync({ 
+      await completeMutation.mutateAsync({
         id: executionId!,
         signatureUrl: signatureBase64,
         items: itemsToUpdate
@@ -192,7 +192,7 @@ export default function ChecklistExecutionForm() {
         title={isEditing ? "Preencher Inspeção" : "Nova Inspeção"}
         backHref="/checklists/realizados"
       />
-      
+
       <div className="p-4 md:p-6 max-w-4xl mx-auto w-full space-y-4">
         {!isEditing ? (
           <form onSubmit={handleStart} className="space-y-4">
@@ -211,7 +211,7 @@ export default function ChecklistExecutionForm() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label>Empresa Atendida *</Label>
-                    <Select value={startForm.companyId} onValueChange={v => setStartForm(f => ({...f, companyId: v}))}>
+                    <Select value={startForm.companyId} onValueChange={v => setStartForm(f => ({ ...f, companyId: v }))}>
                       <SelectTrigger className="bg-secondary/50 border-input h-10">
                         <SelectValue placeholder="Selecione a empresa..." />
                       </SelectTrigger>
@@ -225,7 +225,7 @@ export default function ChecklistExecutionForm() {
 
                   <div className="space-y-1.5">
                     <Label>Modelo de Checklist *</Label>
-                    <Select value={startForm.templateId} onValueChange={v => setStartForm(f => ({...f, templateId: v}))}>
+                    <Select value={startForm.templateId} onValueChange={v => setStartForm(f => ({ ...f, templateId: v }))}>
                       <SelectTrigger className="bg-secondary/50 border-input h-10">
                         <SelectValue placeholder="Selecione o modelo..." />
                       </SelectTrigger>
@@ -241,7 +241,7 @@ export default function ChecklistExecutionForm() {
                     <Label>Projeto / Obra (Opcional)</Label>
                     <Select
                       value={startForm.projectId}
-                      onValueChange={v => setStartForm(f => ({...f, projectId: v}))}
+                      onValueChange={v => setStartForm(f => ({ ...f, projectId: v }))}
                       disabled={!startForm.companyId}
                     >
                       <SelectTrigger className="bg-secondary/50 border-input h-10">
@@ -264,12 +264,12 @@ export default function ChecklistExecutionForm() {
 
                   <div className="space-y-1.5">
                     <Label>Data da Inspeção</Label>
-                    <Input type="date" value={startForm.date} onChange={e => setStartForm(f => ({...f, date: e.target.value}))} className="h-10" />
+                    <Input type="date" value={startForm.date} onChange={e => setStartForm(f => ({ ...f, date: e.target.value }))} className="h-10" />
                   </div>
                 </div>
               </CardContent>
             </Card>
-            
+
             <div className="flex justify-end pt-2">
               <Button type="submit" disabled={startMutation.isPending} className="bg-primary hover:bg-primary/90 text-primary-foreground h-12 px-6 w-full sm:w-auto text-base">
                 <Check size={18} className="mr-2" />
@@ -302,8 +302,8 @@ export default function ChecklistExecutionForm() {
                     <p className="text-xs text-muted-foreground">Data da inspeção</p>
                     <p className="text-sm font-semibold">{executionData?.execution?.date ? new Date(executionData.execution.date).toLocaleDateString("pt-BR") : ""}</p>
                   </div>
-                  {isCompleted 
-                    ? <span className="ml-3 px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-xs font-bold uppercase tracking-wide">Concluído</span> 
+                  {isCompleted
+                    ? <span className="ml-3 px-3 py-1 bg-green-500/10 text-green-500 border border-green-500/20 rounded-full text-xs font-bold uppercase tracking-wide">Concluído</span>
                     : <span className="ml-3 px-3 py-1 bg-orange-500/10 text-orange-500 border border-orange-500/20 rounded-full text-xs font-bold uppercase tracking-wide">Pendente</span>
                   }
                 </div>
@@ -315,7 +315,7 @@ export default function ChecklistExecutionForm() {
                 <ClipboardCheck className="text-primary" size={20} />
                 Itens de Verificação
               </h3>
-              
+
               {localItems.map((item, i) => (
                 <Card key={item.id} className="bg-card border border-border/60 shadow-sm overflow-hidden transition-all hover:border-primary/20">
                   <CardContent className="p-0">
@@ -340,29 +340,28 @@ export default function ChecklistExecutionForm() {
                             if (opt === "Conforme") activeClasses = "bg-green-500/20 border-green-500/60 text-green-600 shadow-sm scale-[0.98]";
                             else if (opt === "Não Conforme") activeClasses = "bg-red-500/20 border-red-500/60 text-red-600 shadow-sm scale-[0.98]";
                           }
-                          
+
                           return (
                             <button
                               key={opt}
                               type="button"
                               disabled={isCompleted}
-                              className={`py-3 sm:py-4 px-2 text-sm sm:text-base font-bold rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
-                                isSelected ? activeClasses : "bg-card border-border/60 text-muted-foreground hover:bg-secondary/50 hover:border-primary/20"
-                              }`}
+                              className={`py-3 sm:py-4 px-2 text-sm sm:text-base font-bold rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 ${isSelected ? activeClasses : "bg-card border-border/60 text-muted-foreground hover:bg-secondary/50 hover:border-primary/20"
+                                }`}
                               onClick={() => handleItemChange(item.id, "status", opt)}
                             >
-                              {opt === "Conforme" ? <Check size={18} className={isSelected ? "text-green-600" : "opacity-50"} /> : 
-                               opt === "Não Conforme" ? <X size={18} className={isSelected ? "text-red-600" : "opacity-50"} /> :
-                               <div className="h-[18px] opacity-50">-</div>}
+                              {opt === "Conforme" ? <Check size={18} className={isSelected ? "text-green-600" : "opacity-50"} /> :
+                                opt === "Não Conforme" ? <X size={18} className={isSelected ? "text-red-600" : "opacity-50"} /> :
+                                  <div className="h-[18px] opacity-50">-</div>}
                               {opt}
                             </button>
                           );
                         })}
                       </div>
-                      
+
                       {/* Observation Textarea */}
                       <div className="pt-2">
-                        <Textarea 
+                        <Textarea
                           placeholder="Adicione observações para este item..."
                           value={item.observation}
                           disabled={isCompleted}
@@ -463,16 +462,16 @@ export default function ChecklistExecutionForm() {
                       <SignatureCanvas
                         ref={sigCanvasRef}
                         penColor="black"
-                        canvasProps={{ 
+                        canvasProps={{
                           className: "w-full h-[200px] border-b border-border/50 touch-none block bg-white cursor-crosshair",
                           style: { touchAction: "none" }
                         }}
                       />
                       <div className="absolute top-0 right-0 p-2">
-                        <Button 
-                          type="button" 
-                          variant="secondary" 
-                          size="sm" 
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
                           className="h-8 shadow-sm bg-white/80 backdrop-blur"
                           onClick={() => sigCanvasRef.current?.clear()}
                         >
@@ -489,11 +488,11 @@ export default function ChecklistExecutionForm() {
                 </Card>
               </div>
             )}
-            
+
             {/* View Only Signature Area */}
             {isCompleted && executionData?.execution?.signatureUrl && (
               <div className="pt-6">
-                 <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                   Assinatura do Técnico
                 </h3>
                 <Card className="bg-card border-border">
@@ -510,18 +509,18 @@ export default function ChecklistExecutionForm() {
             {!isCompleted && (
               <div className="fixed bottom-0 left-0 right-0 p-4 bg-card/80 backdrop-blur-xl border-t border-border shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-50 flex justify-end gap-3 md:pl-[250px]">
                 <div className="max-w-4xl mx-auto w-full flex justify-end gap-3">
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     variant="outline"
                     className="h-12 border-border/80 bg-background hover:bg-secondary w-full sm:w-auto"
                     onClick={() => navigate("/checklists/realizados")}
                   >
                     Salvar Progresso (Rascunho)
                   </Button>
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     disabled={isPending}
-                    onClick={handleSaveAndComplete} 
+                    onClick={handleSaveAndComplete}
                     className="h-12 bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-600/20 w-full sm:w-auto font-bold text-base px-8"
                   >
                     <Save size={18} className="mr-2" />

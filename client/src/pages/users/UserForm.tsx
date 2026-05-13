@@ -192,8 +192,8 @@ export default function UserForm() {
                     <div className="space-y-2 max-h-48 overflow-auto pr-2">
                       {allCompanies.map((c: any) => (
                         <label key={`comp-${c.id}`} className="flex items-center gap-2 text-sm">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={form.companyIds.includes(c.id)}
                             onChange={(e) => {
                               if (e.target.checked) setForm(f => ({ ...f, companyIds: [...f.companyIds, c.id] }));
@@ -223,20 +223,20 @@ export default function UserForm() {
                         .filter((o: any) => form.companyIds.includes(o.companyId))
                         .filter((o: any) => !obraSearch || o.name.toLowerCase().includes((obraSearch as string).toLowerCase()))
                         .map((o: any) => (
-                        <label key={`obra-${o.id}`} className="flex items-center gap-2 text-sm">
-                          <input 
-                            type="checkbox" 
-                            checked={form.obraIds.includes(o.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) setForm(f => ({ ...f, obraIds: [...f.obraIds, o.id] }));
-                              else setForm(f => ({ ...f, obraIds: f.obraIds.filter(id => id !== o.id) }));
-                            }}
-                            className="rounded border-border bg-secondary"
-                          />
-                          <span>{o.name}</span>
-                        </label>
-                      ))}
-                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).length === 0 && 
+                          <label key={`obra-${o.id}`} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={form.obraIds.includes(o.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) setForm(f => ({ ...f, obraIds: [...f.obraIds, o.id] }));
+                                else setForm(f => ({ ...f, obraIds: f.obraIds.filter(id => id !== o.id) }));
+                              }}
+                              className="rounded border-border bg-secondary"
+                            />
+                            <span>{o.name}</span>
+                          </label>
+                        ))}
+                      {allObras.filter((o: any) => form.companyIds.includes(o.companyId)).length === 0 &&
                         <span className="text-xs text-muted-foreground">Selecione uma empresa primeiro</span>}
                     </div>
                   </div>
