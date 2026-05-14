@@ -848,11 +848,11 @@ export const appRouter = router({
   // DASHBOARD ROUTER
   // =============================================
   dashboard: router({
-    stats: protectedProcedure
+    stats: companyProcedure
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ input, ctx }) => {
-        // For cliente role, restrict to their company
-        const companyId = input?.companyId;
+        // For cliente role, restrict to their authorized companies via effectiveCompanyId
+        const companyId = input?.companyId || ctx.effectiveCompanyId;
         const stats = await getDashboardStats(companyId);
         return stats;
       }),

@@ -31,7 +31,7 @@ export default function UserForm() {
   const { data: allCompanies = [] } = trpc.companies.list.useQuery();
   const { data: allObras = [] } = trpc.obras.list.useQuery();
 
-  const { data: existingUser } = trpc.users.getById.useQuery(
+  const { data: existingUser, isLoading: isLoadingUser } = trpc.users.getById.useQuery(
     { id: Number(params.id) },
     { enabled: isEditing }
   );
@@ -93,6 +93,17 @@ export default function UserForm() {
         subtitle={isEditing ? "Atualize os dados do usuário" : "Preencha os dados para criar um novo usuário"}
         backHref="/usuarios"
       />
+
+      {isEditing && isLoadingUser ? (
+        <div className="p-6 max-w-2xl space-y-4">
+          <div className="h-10 bg-card rounded-lg animate-pulse" />
+          <div className="h-10 bg-card rounded-lg animate-pulse" />
+          <div className="h-10 bg-card rounded-lg animate-pulse" />
+          <div className="h-10 bg-card rounded-lg animate-pulse" />
+          <div className="h-10 bg-card rounded-lg animate-pulse" />
+          <p className="text-center text-muted-foreground text-sm animate-pulse">Carregando dados do usuário...</p>
+        </div>
+      ) : (
 
       <div className="p-6 max-w-2xl">
         <form onSubmit={handleSubmit}>
@@ -265,6 +276,7 @@ export default function UserForm() {
           </Card>
         </form>
       </div>
+      )}
     </div>
   );
 }

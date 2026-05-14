@@ -367,23 +367,17 @@ export default function ChecklistTemplateForm() {
                                 </button>
                               </div>
                             ) : null}
-                            <div className="flex-1 space-y-1">
-                              <Input
-                                value={item.referenceImgUrl}
-                                onChange={e => updateItem(i, "referenceImgUrl", e.target.value)}
-                                placeholder="URL da imagem ou faça upload →"
-                                className="bg-card border-input h-9 text-xs"
-                              />
+                            <div className="flex-1">
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
                                 disabled={uploadingIdx === i}
-                                className="h-7 text-xs px-2 border-border/60"
+                                className="h-8 text-xs px-3 border-border/60"
                                 onClick={() => imgInputRefs.current[i]?.click()}
                               >
-                                <Upload size={11} className="mr-1" />
-                                {uploadingIdx === i ? "Enviando..." : "Upload"}
+                                <Upload size={12} className="mr-1.5" />
+                                {uploadingIdx === i ? "Enviando..." : item.referenceImgUrl ? "Trocar Imagem" : "Upload de Imagem"}
                               </Button>
                               <input
                                 ref={el => { imgInputRefs.current[i] = el; }}

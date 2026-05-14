@@ -102,6 +102,7 @@ export default function ChecklistExecutionForm() {
         name: i.templateItem.name,
         description: i.templateItem.description,
         norma: i.templateItem.norma,
+        referenceImgUrl: i.templateItem.referenceImgUrl || "",
         imagens: (i.executionItem.mediaUrls || []).map((url: string) => ({ url, preview: url })) // Load existing images
       })));
     }
@@ -322,10 +323,22 @@ export default function ChecklistExecutionForm() {
                     <div className="p-4 bg-secondary/10 border-b border-border/50">
                       <div className="flex gap-3">
                         <span className="w-7 h-7 shrink-0 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold">{i + 1}</span>
-                        <div>
+                        <div className="flex-1">
                           <h4 className="font-semibold text-base leading-tight mt-0.5">{item.name}</h4>
                           {item.norma && <span className="inline-block mt-1.5 text-xs bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full font-medium">{item.norma}</span>}
                           {item.description && <p className="text-sm text-muted-foreground mt-2">{item.description}</p>}
+                          {item.referenceImgUrl && (
+                            <div className="mt-3 p-2 bg-blue-500/5 border border-blue-500/20 rounded-lg">
+                              <p className="text-[10px] uppercase tracking-wider text-blue-500 font-bold mb-1.5 flex items-center gap-1">
+                                📷 Imagem de Referência
+                              </p>
+                              <img
+                                src={item.referenceImgUrl}
+                                alt="Referência do modelo"
+                                className="max-h-40 w-auto rounded-md border border-border/50 object-contain"
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

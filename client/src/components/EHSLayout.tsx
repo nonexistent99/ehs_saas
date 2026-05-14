@@ -100,6 +100,7 @@ const navItems: NavItem[] = [
   {
     label: "Empresas",
     icon: <Building2 size={16} />,
+    roles: ["adm_ehs"],
     children: [
       { label: "Cadastrar Empresa", icon: <Building2 size={14} />, href: "/empresas/nova" },
       { label: "Lista de Empresas", icon: <Building2 size={14} />, href: "/empresas" },

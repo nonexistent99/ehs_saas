@@ -17,9 +17,18 @@ import { getDb, getCompanyCondition } from "./db";
 export async function getAllChecklistTemplates(companyId?: number | number[], search?: string) {
   const db = await getDb();
   if (!db) return [];
-  const filters = [eq(checklistTemplates.isActive, true)];
+  const activeFilter = eq(checklistTemplates.isActive, true);
   const compCond = getCompanyCondition(checklistTemplates.companyId, companyId);
-  if (compCond) filters.push(compCond);
+  
+  // Static (system-wide) templates should be visible to ALL users
+  // Build company filter: show templates from user's companies OR static templates
+  let companyOrStaticFilter: any = undefined;
+  if (compCond) {
+    companyOrStaticFilter = or(compCond, eq(checklistTemplates.type, "estatico"));
+  }
+  
+  const filters: any[] = [activeFilter];
+  if (companyOrStaticFilter) filters.push(companyOrStaticFilter);
   if (search) filters.push(like(checklistTemplates.name, `%${search}%`));
 
   return db

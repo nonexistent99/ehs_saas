@@ -1,8 +1,10 @@
-conta cliente o dash com todos os dados
-cliente n pode ver a section empresas
-lista de usuarios não apaga os usuarios e n tem como reativar 
-lista de usuarios quando for alterar n fica os dados e tem q preencher tudo novamente
-modelos de checklist não aparece o modelo estatico q é pra ser o padrão do sistema e o dinamico os clientes podem fazer
-apartir das necessidades
-no modelo de checklist a imagem n fica salva só fica com a de teste com o link, nao quero q use o link
-na verificação de itens não aparece a imagem
+Filtragem do Painel: Os clientes agora visualizam apenas as estatísticas de suas empresas autorizadas.
+
+Restrição de Navegação: O menu "Empresas" agora está oculto para clientes (somente para administradores).
+
+Reativação de Usuário: Adicionado um botão "Reativar" à lista de usuários para usuários excluídos temporariamente.
+
+Correção do Formulário de Usuário: Implementado um estado de carregamento para garantir que os dados sejam preenchidos corretamente ao editar usuários.
+Visibilidade de Modelos: Os modelos estáticos de todo o sistema agora estão visíveis para todos os clientes, conforme o esperado.
+Persistência de Imagens: O processo de upload de imagens de modelos foi simplificado, removendo o campo de link manual para evitar erros.
+Imagens de Verificação: Imagens de referência do modelo agora são exibidas durante a execução da lista de verificação para orientar o usuário.

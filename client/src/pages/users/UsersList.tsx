@@ -38,6 +38,14 @@ export default function UsersList() {
     onError: (err) => toast.error(err.message),
   });
 
+  const reactivateMutation = trpc.users.update.useMutation({
+    onSuccess: () => {
+      toast.success("Usuário reativado com sucesso!");
+      utils.users.list.invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
     return name.split(" ").slice(0, 2).map(n => n[0]).join("").toUpperCase();
@@ -105,12 +113,13 @@ export default function UsersList() {
               <tbody className="divide-y divide-border">
                 {users.map((user: any) => {
                   const roleConfig = ROLE_CONFIG[(user.ehsRole as string) || "tecnico"] || ROLE_CONFIG.tecnico;
+                  const isInactive = (user as any).isActive === false;
                   return (
-                    <tr key={user.id} className="hover:bg-secondary/20 transition-colors">
+                    <tr key={user.id} className={`hover:bg-secondary/20 transition-colors ${isInactive ? "opacity-60" : ""}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar className="w-8 h-8">
-                            <AvatarFallback className="bg-primary/15 text-primary text-xs font-bold">
+                            <AvatarFallback className={`text-xs font-bold ${isInactive ? "bg-muted text-muted-foreground" : "bg-primary/15 text-primary"}`}>
                               {getInitials(user.name)}
                             </AvatarFallback>
                           </Avatar>
@@ -134,7 +143,7 @@ export default function UsersList() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        {(user as any).isActive !== false ? (
+                        {!isInactive ? (
                           <span className="status-resolvido text-xs px-2 py-1 rounded-full font-medium">Ativo</span>
                         ) : (
                           <span className="status-atencao text-xs px-2 py-1 rounded-full font-medium">Inativo</span>
@@ -147,30 +156,57 @@ export default function UsersList() {
                               <Edit size={13} />
                             </Button>
                           </Link>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive">
-                                <Trash2 size={13} />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent className="bg-card border-border">
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Desativar usuário?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  O usuário <strong>{user.name}</strong> será desativado e não poderá mais acessar o sistema.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-destructive text-white hover:bg-destructive/90"
-                                  onClick={() => deleteMutation.mutate({ id: user.id })}
-                                >
-                                  Desativar
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          {isInactive ? (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="w-7 h-7 text-green-500 hover:text-green-600 hover:bg-green-500/10" title="Reativar usuário">
+                                  <UserCheck size={13} />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="bg-card border-border">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Reativar usuário?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    O usuário <strong>{user.name}</strong> será reativado e poderá acessar o sistema novamente.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-green-600 text-white hover:bg-green-700"
+                                    onClick={() => reactivateMutation.mutate({ id: user.id, isActive: true })}
+                                  >
+                                    Reativar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          ) : (
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-destructive">
+                                  <Trash2 size={13} />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="bg-card border-border">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Desativar usuário?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    O usuário <strong>{user.name}</strong> será desativado e não poderá mais acessar o sistema.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-white hover:bg-destructive/90"
+                                    onClick={() => deleteMutation.mutate({ id: user.id })}
+                                  >
+                                    Desativar
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          )}
                         </div>
                       </td>
                     </tr>
