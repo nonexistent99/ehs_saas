@@ -86,11 +86,45 @@ export const checklistRouter = router({
         isFavorite: z.boolean().optional(),
         frequencyType: z.enum(["dias", "semanas", "meses"]).optional(),
         frequencyValue: z.number().optional(),
+        items: z.array(z.object({
+          id: z.number().optional(),
+          name: z.string().min(1),
+          description: z.string().optional(),
+          norma: z.string().optional(),
+          referenceImgUrl: z.string().optional(),
+          order: z.number().default(0),
+        })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, companyId, ...data } = input;
+        const { id, companyId, items, ...data } = input;
         await updateChecklistTemplate(id, data, ctx.effectiveCompanyId);
+        
+        // If items are provided, replace the existing ones
+        if (items) {
+          const db = await import("../db").then(m => m.getDb());
+          const { checklistTemplateItems } = await import("../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          
+          if (db) {
+            // Delete old items
+            await db.delete(checklistTemplateItems).where(eq(checklistTemplateItems.templateId, id));
+            // Insert new items
+            if (items.length > 0) {
+              for (const item of items) {
+                await createChecklistTemplateItem({
+                  name: item.name,
+                  description: item.description,
+                  norma: item.norma,
+                  referenceImgUrl: item.referenceImgUrl,
+                  order: item.order,
+                  templateId: id,
+                });
+              }
+            }
+          }
+        }
+        
         return { success: true };
       }),
     delete: companyProcedure

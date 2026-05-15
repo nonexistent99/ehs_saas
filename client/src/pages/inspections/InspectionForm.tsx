@@ -611,7 +611,10 @@ export default function InspectionForm() {
                               capture="environment"
                               multiple
                               className="hidden"
-                              onChange={e => handleImageSelect(i, e.target.files)}
+                              onChange={e => {
+                                handleImageSelect(i, e.target.files);
+                                e.target.value = "";
+                              }}
                             />
                             <input
                               ref={el => { fileInputRefs.current[i] = el; }}
@@ -619,7 +622,10 @@ export default function InspectionForm() {
                               accept="image/*"
                               multiple
                               className="hidden"
-                              onChange={e => handleImageSelect(i, e.target.files)}
+                              onChange={e => {
+                                handleImageSelect(i, e.target.files);
+                                e.target.value = "";
+                              }}
                             />
                           </div>
 
