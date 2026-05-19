@@ -43,7 +43,6 @@ export default function InspectionDetail() {
   const { data: chatMessages = [] } = trpc.chat.messages.useQuery({ inspectionId });
 
   const [chatMsg, setChatMsg] = useState("");
-  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const sendChatMutation = trpc.chat.send.useMutation({
     onSuccess: () => {
@@ -58,7 +57,16 @@ export default function InspectionDetail() {
       toast.success("Status atualizado!");
       utils.inspections.getById.invalidate({ id: inspectionId });
       utils.inspections.list.invalidate();
-      setUpdatingStatus(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateItemMutation = trpc.inspections.updateItem.useMutation({
+    onSuccess: () => {
+      toast.success("Item atualizado!");
+      utils.inspections.getItems.invalidate({ inspectionId });
+      utils.inspections.getById.invalidate({ id: inspectionId });
+      utils.inspections.list.invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
@@ -213,12 +221,30 @@ export default function InspectionDetail() {
                 {items.map((item: any, i: number) => (
                   <Card key={item.id} className="bg-card border-border">
                     <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
+                      <div className="flex items-start justify-between mb-3 gap-3">
+                        <div className="flex-1 min-w-0">
                           <span className="text-xs text-muted-foreground font-mono mr-2">#{i + 1}</span>
                           <span className="font-medium text-foreground text-sm">{item.title || `Item ${i + 1}`}</span>
                         </div>
-                        <StatusBadge status={item.status || "pendente"} />
+                        {canEdit ? (
+                          <Select
+                            value={item.status || "pendente"}
+                            onValueChange={(v) => updateItemMutation.mutate({ id: item.id, status: v as any })}
+                            disabled={updateItemMutation.isPending}
+                          >
+                            <SelectTrigger className="h-7 w-36 text-xs bg-card border-border">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-card border-border">
+                              <SelectItem value="pendente" className="text-xs">🔴 Pendente</SelectItem>
+                              <SelectItem value="atencao" className="text-xs">🟡 Atenção</SelectItem>
+                              <SelectItem value="resolvido" className="text-xs">🟢 Resolvido</SelectItem>
+                              <SelectItem value="previsto" className="text-xs">🔵 Previsto</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <StatusBadge status={item.status || "pendente"} />
+                        )}
                       </div>
                       {item.situacao && (
                         <div className="mb-2">

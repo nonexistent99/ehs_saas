@@ -9,13 +9,16 @@ vi.mock("./db", () => ({
   getCompanyCondition: vi.fn((col, val) => {
     // Basic mock of the condition logic
     if (val === undefined) return null;
-    return val; 
+    return val;
   }),
   getAllInspections: vi.fn().mockResolvedValue([]),
   getCompanyById: vi.fn().mockResolvedValue({ id: 1, name: "Company 1" }),
   getCompanyUsers: vi.fn().mockResolvedValue([]),
   getAllCompanies: vi.fn().mockResolvedValue([]),
   getCompanyObras: vi.fn().mockResolvedValue([]),
+  upsertInspectionItems: vi.fn().mockResolvedValue(undefined),
+  recomputeInspectionStatus: vi.fn().mockResolvedValue(undefined),
+  hardDeleteUser: vi.fn().mockResolvedValue(undefined),
 }));
 
 function makeCtx(overrides: Partial<TrpcContext> = {}): TrpcContext {

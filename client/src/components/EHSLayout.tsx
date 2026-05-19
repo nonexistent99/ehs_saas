@@ -250,11 +250,14 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const [geoCity, setGeoCity] = useState<string>("São Paulo, SP");
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    // Update clock once per second so seconds tick; keep the work tiny — just setState
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
 
-    if (navigator.geolocation) {
+    // Geolocation: fire once on mount, cache result in sessionStorage for the rest of the session
+    const cached = typeof window !== "undefined" ? sessionStorage.getItem("ehs-geo-city") : null;
+    if (cached) {
+      setGeoCity(cached);
+    } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         async (position) => {
           try {
@@ -264,14 +267,15 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
             const data = await response.json();
             const city = data.address?.city || data.address?.town || data.address?.municipality || "Localização desconhecida";
             const state = data.address?.state || "";
-            setGeoCity(`${city}${state ? `, ${state}` : ""}`);
+            const cityStr = `${city}${state ? `, ${state}` : ""}`;
+            setGeoCity(cityStr);
+            try { sessionStorage.setItem("ehs-geo-city", cityStr); } catch { /* ignore */ }
           } catch {
             setGeoCity("São Paulo, SP");
           }
         },
-        () => {
-          setGeoCity("São Paulo, SP");
-        }
+        () => setGeoCity("São Paulo, SP"),
+        { timeout: 10_000, maximumAge: 24 * 60 * 60 * 1000 }
       );
     }
 
@@ -281,7 +285,9 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const { diaSemana, dataCompleta, hora } = formatDate(currentTime);
 
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
-    refetchInterval: 30000,
+    refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 
   const getInitials = (name?: string | null) => {

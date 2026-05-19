@@ -7,7 +7,23 @@ import superjson from "superjson";
 import App from "./App";
 import "./index.css";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Data stays fresh for 30s — navigation reuses cached data instead of refetching
+      staleTime: 30_000,
+      // Keep cached data in memory for 5 minutes after the last component using it unmounts
+      gcTime: 5 * 60_000,
+      // Don't refetch on window focus by default (chat/notifications opt in explicitly)
+      refetchOnWindowFocus: false,
+      // Don't retry mutations errors aggressively
+      retry: 1,
+    },
+    mutations: {
+      retry: 0,
+    },
+  },
+});
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;

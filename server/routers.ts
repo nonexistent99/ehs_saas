@@ -104,6 +104,9 @@ import {
   deleteRisk,
   findOrCreateEmployee,
   getEmployeesByCompany,
+  upsertInspectionItems,
+  recomputeInspectionStatus,
+  hardDeleteUser,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -343,38 +346,54 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdm(ctx.user?.ehsRole);
-        // Check if email already exists
+        // Check if email already exists (active or inactive)
         const existing = await getUserByEmail(input.email);
         if (existing) {
-          throw new TRPCError({ code: "CONFLICT", message: "Email já cadastrado" });
+          const msg = existing.isActive
+            ? "Email já cadastrado para um usuário ativo."
+            : "Email já cadastrado para um usuário desativado. Reative-o na lista de usuários em vez de criar outro.";
+          throw new TRPCError({ code: "CONFLICT", message: msg });
         }
-        const passwordHash = await bcrypt.hash(input.password, 10);
-        const openId = `ehs_${nanoid(16)}`;
-        const userOrId = await createUserWithPassword({
-          openId,
-          name: input.name,
-          email: input.email,
-          passwordHash,
-          ehsRole: input.ehsRole,
-          phone: input.phone || null,
-          whatsapp: input.whatsapp || null,
-          isActive: true,
-          loginMethod: "email",
-          role: input.ehsRole === "adm_ehs" ? "admin" : "user",
-        });
+        try {
+          const passwordHash = await bcrypt.hash(input.password, 10);
+          const openId = `ehs_${nanoid(16)}`;
+          const userOrId = await createUserWithPassword({
+            openId,
+            name: input.name,
+            email: input.email,
+            passwordHash,
+            ehsRole: input.ehsRole,
+            phone: input.phone || null,
+            whatsapp: input.whatsapp || null,
+            isActive: true,
+            loginMethod: "email",
+            role: input.ehsRole === "adm_ehs" ? "admin" : "user",
+          });
 
-        let newUserId: number | undefined;
-        if (typeof userOrId === 'number') newUserId = userOrId;
-        else if ((userOrId as any)?.id) newUserId = (userOrId as any).id;
-        else {
-          const newlyCreated = await getUserByEmail(input.email);
-          newUserId = newlyCreated?.id;
+          let newUserId: number | undefined;
+          if (typeof userOrId === 'number') newUserId = userOrId;
+          else if ((userOrId as any)?.id) newUserId = (userOrId as any).id;
+          else {
+            const newlyCreated = await getUserByEmail(input.email);
+            newUserId = newlyCreated?.id;
+          }
+
+          if (newUserId && input.companyIds && input.companyIds.length > 0) {
+            await setUserLinkedCompanies(newUserId, input.companyIds);
+          }
+          if (newUserId && input.obraIds && input.obraIds.length > 0) {
+            await setUserLinkedObras(newUserId, input.obraIds);
+          }
+
+          return userOrId;
+        } catch (err: any) {
+          console.error("[users.create] failed:", err);
+          // Postgres unique violation on email
+          if (err?.code === "23505") {
+            throw new TRPCError({ code: "CONFLICT", message: "Email já cadastrado." });
+          }
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err?.message || "Falha ao criar usuário" });
         }
-
-        if (newUserId && input.companyIds) await setUserLinkedCompanies(newUserId, input.companyIds);
-        if (newUserId && input.obraIds) await setUserLinkedObras(newUserId, input.obraIds);
-
-        return userOrId;
       }),
     update: protectedProcedure
       .input(z.object({
@@ -391,16 +410,24 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         const isAdmin = ctx.user?.ehsRole === "adm_ehs";
-        if (!isAdmin && ctx.user?.id !== input.id) {
+        const isSelf = ctx.user?.id === input.id;
+        if (!isAdmin && !isSelf) {
           throw new TRPCError({ code: "FORBIDDEN", message: "Apenas ADM EHS pode editar outros usuários" });
         }
-        
+
+        // Prevent admin from deactivating themselves (lock-out protection)
+        if (isAdmin && isSelf && input.isActive === false) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Você não pode desativar sua própria conta" });
+        }
+
         const { id, password, companyIds, obraIds, ...rest } = input;
         const updateData: Record<string, unknown> = { ...rest };
-        
+
         if (!isAdmin) {
+          // Non-admin self-edit: cannot change role/active/email
           delete updateData.ehsRole;
           delete updateData.isActive;
+          delete updateData.email;
         }
 
         if (password) {
@@ -731,27 +758,25 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { nrIds, items, ...inspectionData } = input;
+        const { nrIds, items, inspectionDate, address: _address, ...inspectionData } = input;
         const inspectionId = await createInspection({
           ...inspectionData,
           inspectedById: ctx.user!.id,
+          inspectedAt: inspectionDate ? new Date(inspectionDate) : undefined,
         });
-        // Save items if provided
-        if (items && items.length > 0) {
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (item.title || item.situacao) {
-              await createInspectionItem({
-                inspectionId,
-                title: item.title || "",
-                situacao: item.situacao || "",
-                status: item.status || "pendente",
-                planoAcao: item.planoAcao || "",
-                observacoes: item.observacoes || "",
-                mediaUrls: item.mediaUrls || [],
-                order: i,
-              });
-            }
+        // Save items if provided (single bulk upsert: faster + recomputes status)
+        if (inspectionId && items && items.length > 0) {
+          const valid = items.filter(item => item.title || item.situacao);
+          if (valid.length > 0) {
+            await upsertInspectionItems(inspectionId as number, valid.map((item, i) => ({
+              title: item.title || "",
+              situacao: item.situacao || "",
+              status: item.status || "pendente",
+              planoAcao: item.planoAcao || "",
+              observacoes: item.observacoes || "",
+              mediaUrls: item.mediaUrls || [],
+              order: i,
+            })));
           }
         }
         return { success: true, id: inspectionId };
@@ -760,17 +785,42 @@ export const appRouter = router({
       .input(z.object({
         id: z.number(),
         companyId: z.number().optional(),
+        obraId: z.number().optional(),
         title: z.string().optional(),
         description: z.string().optional(),
         status: z.enum(["nao_iniciada", "pendente", "atencao", "resolvida", "concluida"]).optional(),
         watermark: z.string().optional(),
         address: z.string().optional(),
         inspectionDate: z.string().optional(),
+        items: z.array(z.object({
+          id: z.number().optional(),
+          title: z.string().optional(),
+          situacao: z.string().optional(),
+          planoAcao: z.string().optional(),
+          observacoes: z.string().optional(),
+          status: z.enum(["resolvido", "pendente", "atencao", "previsto"]).default("pendente"),
+          mediaUrls: z.array(z.string()).optional(),
+        })).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        const { id, companyId, ...rest } = input;
-        return updateInspection(id, rest, ctx.effectiveCompanyId);
+        const { id, companyId, items, inspectionDate, address: _address, ...rest } = input;
+        const patch: Record<string, unknown> = { ...rest };
+        if (inspectionDate) patch.inspectedAt = new Date(inspectionDate);
+        await updateInspection(id, patch as any, ctx.effectiveCompanyId);
+        if (items !== undefined) {
+          await upsertInspectionItems(id, items.map((it, i) => ({
+            id: it.id,
+            title: it.title,
+            situacao: it.situacao,
+            planoAcao: it.planoAcao,
+            observacoes: it.observacoes,
+            status: it.status,
+            mediaUrls: it.mediaUrls || [],
+            order: i,
+          })));
+        }
+        return { success: true };
       }),
     addItem: protectedProcedure
       .input(z.object({
@@ -808,13 +858,13 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
         const { id, situacaoEvidenciada, planoDeAcao, observacoes, mediaUrls, nrReference, ...rest } = input;
-        return updateInspectionItem(id, {
-          ...rest,
-          situacao: situacaoEvidenciada,
-          planoAcao: planoDeAcao,
-          observacoes,
-          mediaUrls: mediaUrls || [],
-        });
+        // Build patch with only provided fields — don't wipe existing values
+        const patch: Record<string, unknown> = { ...rest };
+        if (situacaoEvidenciada !== undefined) patch.situacao = situacaoEvidenciada;
+        if (planoDeAcao !== undefined) patch.planoAcao = planoDeAcao;
+        if (observacoes !== undefined) patch.observacoes = observacoes;
+        if (mediaUrls !== undefined) patch.mediaUrls = mediaUrls;
+        return updateInspectionItem(id, patch);
       }),
     deleteItem: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -834,27 +884,34 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
-        // Last 7 days (use statically imported 'inspections' as inspTable)
-        const inspTable = inspections;
+        // Single query: fetch last 7 days of inspections, then bucket in JS
+        const start = new Date();
+        start.setDate(start.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+
+        const baseWhere = input?.companyId ? eq(inspections.companyId, input.companyId) : undefined;
+        const rows = await db.select({ createdAt: inspections.createdAt, status: inspections.status })
+          .from(inspections)
+          .where(and(baseWhere, gte(inspections.createdAt, start)));
+
         const days: { date: string; naoIniciada: number; pendente: number; atencao: number; resolvida: number }[] = [];
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date();
-          d.setDate(d.getDate() - i);
-          d.setHours(0, 0, 0, 0);
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(start);
+          d.setDate(start.getDate() + i);
           const nextD = new Date(d);
-          nextD.setDate(nextD.getDate() + 1);
+          nextD.setDate(d.getDate() + 1);
           const dateStr = d.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
-          const baseWhere = input?.companyId ? eq(inspTable.companyId, input.companyId) : undefined;
-          const dayFilter = (status: string) => and(
-            baseWhere,
-            eq(inspTable.status, status as any),
-            gte(inspTable.createdAt, d),
-          );
-          const [ni] = await db.select({ c: count() }).from(inspTable).where(dayFilter("nao_iniciada"));
-          const [pe] = await db.select({ c: count() }).from(inspTable).where(dayFilter("pendente"));
-          const [at] = await db.select({ c: count() }).from(inspTable).where(dayFilter("atencao"));
-          const [re] = await db.select({ c: count() }).from(inspTable).where(dayFilter("resolvida"));
-          days.push({ date: dateStr, naoIniciada: ni.c, pendente: pe.c, atencao: at.c, resolvida: re.c });
+          const inDay = rows.filter(r => {
+            const t = new Date(r.createdAt).getTime();
+            return t >= d.getTime() && t < nextD.getTime();
+          });
+          days.push({
+            date: dateStr,
+            naoIniciada: inDay.filter(r => r.status === "nao_iniciada").length,
+            pendente: inDay.filter(r => r.status === "pendente").length,
+            atencao: inDay.filter(r => r.status === "atencao").length,
+            resolvida: inDay.filter(r => r.status === "resolvida").length,
+          });
         }
         return days;
       }),
@@ -952,35 +1009,42 @@ export const appRouter = router({
           inspectionId: input.inspectionId || null,
           senderId: ctx.user!.id,
         });
-        // Create system notification for other users (if inspection context)
+        // Fire-and-forget batch notification — never block message send on notification work
         const senderName = ctx.user!.name || "Usuário";
         const context = input.inspectionId ? `no relatório #${input.inspectionId}` : "no chat interno";
-        // Notify all users except sender — get all active users and notify them
-        try {
-          const allUsers = await getAllUsers();
-          for (const u of allUsers) {
-            if (u.id !== ctx.user!.id && u.isActive) {
-              await createNotification({
-                type: "system",
-                title: `💬 Nova mensagem de ${senderName}`,
-                message: `${input.message.substring(0, 120)}${input.message.length > 120 ? "..." : ""} (${context})`,
-                recipientUserId: u.id,
-                status: "sent",
-                sentAt: new Date(),
-                metadata: { senderId: ctx.user!.id, inspectionId: input.inspectionId },
-              });
-            }
+        const preview = `${input.message.substring(0, 120)}${input.message.length > 120 ? "..." : ""} (${context})`;
+        const senderId = ctx.user!.id;
+        const inspectionIdMeta = input.inspectionId;
+
+        (async () => {
+          try {
+            const { getDb } = await import("./db");
+            const { notifications: notifTable, users: usersTable } = await import("../drizzle/schema");
+            const db = await getDb();
+            if (!db) return;
+            const allUsers = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.isActive, true));
+            const recipients = allUsers.filter(u => u.id !== senderId);
+            if (recipients.length === 0) return;
+            await db.insert(notifTable).values(recipients.map(u => ({
+              type: "system" as const,
+              title: `💬 Nova mensagem de ${senderName}`,
+              message: preview,
+              recipientUserId: u.id,
+              status: "sent" as const,
+              sentAt: new Date(),
+              metadata: { senderId, inspectionId: inspectionIdMeta },
+            })));
+          } catch (e) {
+            console.warn("[Chat] Failed to create notifications:", e);
           }
-        } catch (e) {
-          // Don't fail message send if notification fails
-          console.warn("[Chat] Failed to create notifications:", e);
-        }
+        })();
+
         return { success: true, id };
       }),
     markRead: protectedProcedure
       .input(z.object({ inspectionId: z.number().optional() }))
       .mutation(async ({ input, ctx }) => {
-        return markMessagesRead(ctx.user!.id);
+        return markMessagesRead(ctx.user!.id, input.inspectionId);
       }),
   }),
 

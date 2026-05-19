@@ -66,7 +66,10 @@ export default function Dashboard() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | undefined>();
 
   const { data: companies = [] } = trpc.companies.list.useQuery(undefined, { enabled: isAdmin });
-  const { data: stats, isLoading } = trpc.dashboard.stats.useQuery();
+  // Pass the admin-selected companyId so the dashboard data reflects the filter
+  const { data: stats, isLoading } = trpc.dashboard.stats.useQuery(
+    selectedCompanyId ? { companyId: selectedCompanyId } : undefined
+  );
   const { data: expiringDocs = [] } = trpc.tactDrive.documents.expiring.useQuery({ daysAhead: 30 });
 
   const pieData = stats ? [

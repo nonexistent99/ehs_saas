@@ -31,7 +31,7 @@ export default function InspectionsList() {
 
   const { data: inspections = [], isLoading } = trpc.inspections.list.useQuery({
     search: search || undefined,
-    status: status || undefined,
+    status: status && status !== "all" ? status : undefined,
   });
 
   const deleteMutation = trpc.inspections.delete.useMutation({

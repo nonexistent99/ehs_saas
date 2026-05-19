@@ -25,6 +25,7 @@ import {
   notifications,
   nrs,
   obras,
+  obraUsers,
   pgr,
   pgrStages,
   pt,
@@ -45,7 +46,12 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       if (!queryClient) {
-        queryClient = postgres(process.env.DATABASE_URL);
+        queryClient = postgres(process.env.DATABASE_URL, {
+          max: 10,
+          idle_timeout: 20,
+          connect_timeout: 10,
+          prepare: false,
+        });
       }
       _db = drizzle(queryClient);
     } catch (error) {
@@ -154,7 +160,25 @@ export async function updateUser(id: number, data: Partial<typeof users.$inferIn
 export async function deleteUser(id: number) {
   const db = await getDb();
   if (!db) return;
-  await db.update(users).set({ isActive: false }).where(eq(users.id, id));
+  // Soft-delete user: keep history. Active links remain so reactivation restores access.
+  await db.update(users).set({ isActive: false, updatedAt: new Date() }).where(eq(users.id, id));
+}
+
+export async function hardDeleteUser(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  // Hard-delete: clean child rows first to avoid FK orphans
+  try {
+    await db.delete(companyUsers).where(eq(companyUsers.userId, id));
+  } catch (err) {
+    console.warn("[DB] hardDeleteUser companyUsers cleanup failed:", (err as any)?.message);
+  }
+  try {
+    await db.delete(obraUsers).where(eq(obraUsers.userId, id));
+  } catch (err) {
+    console.warn("[DB] hardDeleteUser obraUsers cleanup failed:", (err as any)?.message);
+  }
+  await db.delete(users).where(eq(users.id, id));
 }
 
 // =============================================
@@ -207,15 +231,23 @@ export async function deleteCompany(id: number) {
 export async function getCompanyObras(companyId: number, userId?: number, role?: string) {
   const db = await getDb();
   if (!db) return [];
+  // Admin (or unauthenticated context) sees all obras for the company
   if (role === 'adm_ehs' || !userId) {
-    return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true)));
+    return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true))).orderBy(obras.name);
   }
-  const rows = await db
-    .select()
-    .from(obras)
-    .innerJoin(obraUsers, eq(obras.id, obraUsers.obraId))
-    .where(and(eq(obras.companyId, companyId), eq(obras.isActive, true), eq(obraUsers.userId, userId)));
-  return rows.map(r => r.obras);
+  // Non-admin: only obras they're explicitly linked to. If user has no link, fall back to none.
+  try {
+    const rows = await db
+      .select()
+      .from(obras)
+      .innerJoin(obraUsers, eq(obras.id, obraUsers.obraId))
+      .where(and(eq(obras.companyId, companyId), eq(obras.isActive, true), eq(obraUsers.userId, userId)))
+      .orderBy(obras.name);
+    return rows.map(r => r.obras);
+  } catch (err) {
+    console.warn("[DB] getCompanyObras (with obraUsers) failed:", (err as any)?.message);
+    return [];
+  }
 }
 
 export async function createObra(data: typeof obras.$inferInsert) {
@@ -255,9 +287,23 @@ export async function getUserLinkedCompanies(userId: number) {
 export async function setUserLinkedCompanies(userId: number, companyIds: number[]) {
   const db = await getDb();
   if (!db) return;
-  await db.delete(companyUsers).where(eq(companyUsers.userId, userId));
-  if (companyIds.length > 0) {
-    await db.insert(companyUsers).values(companyIds.map(cId => ({ companyId: cId, userId })));
+
+  // Preserve existing cargos: only remove links no longer requested, only add missing ones.
+  const existing = await db.select().from(companyUsers).where(eq(companyUsers.userId, userId));
+  const existingIds = new Set(existing.map(r => r.companyId));
+  const newIds = new Set(companyIds);
+
+  const toRemove = existing.filter(r => !newIds.has(r.companyId)).map(r => r.companyId);
+  const toAdd = companyIds.filter(cId => !existingIds.has(cId));
+
+  if (toRemove.length > 0) {
+    await db.delete(companyUsers).where(and(
+      eq(companyUsers.userId, userId),
+      inArray(companyUsers.companyId, toRemove),
+    ));
+  }
+  if (toAdd.length > 0) {
+    await db.insert(companyUsers).values(toAdd.map(cId => ({ companyId: cId, userId })));
   }
 }
 
@@ -277,12 +323,24 @@ export async function setUserLinkedObras(userId: number, obraIds: number[]) {
   const db = await getDb();
   if (!db) return;
   try {
-    await db.delete(obraUsers).where(eq(obraUsers.userId, userId));
-    if (obraIds.length > 0) {
-      await db.insert(obraUsers).values(obraIds.map(oId => ({ obraId: oId, userId })));
+    const existing = await db.select().from(obraUsers).where(eq(obraUsers.userId, userId));
+    const existingIds = new Set(existing.map(r => r.obraId));
+    const newIds = new Set(obraIds);
+
+    const toRemove = existing.filter(r => !newIds.has(r.obraId)).map(r => r.obraId);
+    const toAdd = obraIds.filter(oId => !existingIds.has(oId));
+
+    if (toRemove.length > 0) {
+      await db.delete(obraUsers).where(and(
+        eq(obraUsers.userId, userId),
+        inArray(obraUsers.obraId, toRemove),
+      ));
+    }
+    if (toAdd.length > 0) {
+      await db.insert(obraUsers).values(toAdd.map(oId => ({ obraId: oId, userId })));
     }
   } catch (err) {
-    console.warn("[DB] obra_users table may not exist, skipping setUserLinkedObras:", (err as any)?.message);
+    console.warn("[DB] setUserLinkedObras failed:", (err as any)?.message);
   }
 }
 
@@ -290,16 +348,30 @@ export async function getCompanyUsers(companyId: number | number[]) {
   const db = await getDb();
   if (!db) return [];
   const condition = getCompanyCondition(companyUsers.companyId, companyId);
+  // Only show active users in a company's user list
+  const where = condition ? and(condition, eq(users.isActive, true)) : eq(users.isActive, true);
   return db
     .select({ companyUser: companyUsers, user: users })
     .from(companyUsers)
     .innerJoin(users, eq(companyUsers.userId, users.id))
-    .where(condition);
+    .where(where);
 }
 
 export async function addCompanyUser(data: typeof companyUsers.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  // If link already exists, update cargo / notification flag instead of inserting a duplicate
+  const existing = await db.select().from(companyUsers).where(and(
+    eq(companyUsers.companyId, data.companyId),
+    eq(companyUsers.userId, data.userId),
+  )).limit(1);
+  if (existing.length > 0) {
+    await db.update(companyUsers).set({
+      cargo: data.cargo,
+      isNotificationRecipient: data.isNotificationRecipient ?? existing[0].isNotificationRecipient,
+    }).where(eq(companyUsers.id, existing[0].id));
+    return;
+  }
   await db.insert(companyUsers).values(data);
 }
 
@@ -477,29 +549,91 @@ export async function createInspectionItem(data: typeof inspectionItems.$inferIn
 export async function updateInspectionItem(id: number, data: Partial<typeof inspectionItems.$inferInsert>) {
   const db = await getDb();
   if (!db) return;
-  await db.update(inspectionItems).set({ ...data, updatedAt: new Date() }).where(eq(inspectionItems.id, id));
+
+  // If status is set to "resolvido" and no resolvedAt yet, stamp it.
+  const patch: Partial<typeof inspectionItems.$inferInsert> = { ...data, updatedAt: new Date() };
+  if (data.status === "resolvido" && data.resolvedAt === undefined) {
+    patch.resolvedAt = new Date();
+  }
+
+  await db.update(inspectionItems).set(patch).where(eq(inspectionItems.id, id));
 
   const itemRows = await db.select().from(inspectionItems).where(eq(inspectionItems.id, id)).limit(1);
   if (itemRows.length > 0) {
-    const inspectionId = itemRows[0].inspectionId;
-    const allItems = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, inspectionId));
-    
-    let hasOpen = false;
-    for (const item of allItems) {
-      if (item.status === "atencao" || item.status === "pendente") {
-        hasOpen = true;
-      }
-    }
-    
-    let newStatus = hasOpen ? "atencao" : "resolvida";
-    await db.update(inspections).set({ status: newStatus as any }).where(eq(inspections.id, inspectionId));
+    await recomputeInspectionStatus(itemRows[0].inspectionId);
   }
 }
 
 export async function deleteInspectionItem(id: number) {
   const db = await getDb();
   if (!db) return;
+  const itemRows = await db.select().from(inspectionItems).where(eq(inspectionItems.id, id)).limit(1);
   await db.delete(inspectionItems).where(eq(inspectionItems.id, id));
+  if (itemRows.length > 0) {
+    await recomputeInspectionStatus(itemRows[0].inspectionId);
+  }
+}
+
+/**
+ * Recomputes inspection status from item statuses.
+ * Rule: any "pendente" or "atencao" item keeps the report in "atencao".
+ * When all items are "resolvido"/"previsto", report becomes "resolvida".
+ * Empty inspections keep their current status.
+ */
+export async function recomputeInspectionStatus(inspectionId: number) {
+  const db = await getDb();
+  if (!db) return;
+
+  const allItems = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, inspectionId));
+  if (allItems.length === 0) return;
+
+  const hasOpen = allItems.some(item => item.status === "atencao" || item.status === "pendente");
+  const newStatus = hasOpen ? "atencao" : "resolvida";
+
+  await db.update(inspections).set({ status: newStatus as any, updatedAt: new Date() }).where(eq(inspections.id, inspectionId));
+}
+
+/**
+ * Replaces inspection items with the provided list.
+ * - Items with `id` are updated in place (preserves history/createdAt).
+ * - Items without `id` are inserted.
+ * - Items missing from the payload (but present in DB) are deleted.
+ * After upsert, the inspection status is recomputed from item statuses.
+ */
+export async function upsertInspectionItems(
+  inspectionId: number,
+  items: Array<Partial<typeof inspectionItems.$inferInsert> & { id?: number }>,
+) {
+  const db = await getDb();
+  if (!db) return;
+
+  const existing = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, inspectionId));
+  const incomingIds = new Set(items.filter(i => i.id).map(i => i.id as number));
+  const toDelete = existing.filter(e => !incomingIds.has(e.id)).map(e => e.id);
+
+  if (toDelete.length > 0) {
+    await db.delete(inspectionItems).where(inArray(inspectionItems.id, toDelete));
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const { id, ...rest } = it;
+    const data: Partial<typeof inspectionItems.$inferInsert> = {
+      ...rest,
+      inspectionId,
+      order: rest.order ?? i,
+    };
+    if (data.status === "resolvido" && data.resolvedAt === undefined) {
+      data.resolvedAt = new Date();
+    }
+    if (id) {
+      await db.update(inspectionItems).set({ ...data, updatedAt: new Date() }).where(eq(inspectionItems.id, id));
+    } else {
+      await db.insert(inspectionItems).values(data as typeof inspectionItems.$inferInsert);
+    }
+  }
+
+  await recomputeInspectionStatus(inspectionId);
 }
 
 // =============================================
@@ -510,99 +644,118 @@ export async function getDashboardStats(companyId?: number | number[]) {
   if (!db) return null;
 
   const whereClause = getCompanyCondition(inspections.companyId, companyId);
+  const whereExec = getCompanyCondition(checklistExecutions.companyId, companyId);
 
-  const [totalInspections] = await db.select({ count: count() }).from(inspections).where(whereClause);
-  const [notStarted] = await db.select({ count: count() }).from(inspections).where(
-    and(whereClause, eq(inspections.status, "nao_iniciada"))
-  );
-  const [pending] = await db.select({ count: count() }).from(inspections).where(
-    and(whereClause, eq(inspections.status, "pendente"))
-  );
-  const [attention] = await db.select({ count: count() }).from(inspections).where(
-    and(whereClause, eq(inspections.status, "atencao"))
-  );
-  const [resolved] = await db.select({ count: count() }).from(inspections).where(
-    and(whereClause, eq(inspections.status, "resolvida"))
-  );
-  const [totalUsers] = await db.select({ count: count() }).from(users).where(eq(users.isActive, true));
-  // NRs são dados de referência do sistema, não métricas do usuário
-  const [sentNotifications] = await db.select({ count: count() }).from(notifications).where(eq(notifications.status, "sent"));
-  const [readNotifications] = await db.select({ count: count() }).from(notifications).where(eq(notifications.status, "read"));
-  const [totalCompanies] = await db.select({ count: count() }).from(companies).where(eq(companies.isActive, true));
-  // Dados semanais reais
+  // Compute weekly window first (used in parallel query below)
   const now = new Date();
-  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
+  const dayOfWeek = now.getDay();
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   startOfWeek.setHours(0, 0, 0, 0);
-  const weeklyInspections = await db.select().from(inspections).where(
-    and(whereClause, gte(inspections.createdAt, startOfWeek))
-  );
-  const dayNames = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
-  const weeklyData = dayNames.map((name, i) => {
-    const dayDate = new Date(startOfWeek);
-    dayDate.setDate(startOfWeek.getDate() + i);
-    const nextDay = new Date(dayDate);
-    nextDay.setDate(dayDate.getDate() + 1);
-    const count2 = weeklyInspections.filter(insp => {
-      const d = new Date(insp.createdAt);
-      return d >= dayDate && d < nextDay;
-    }).length;
-    return { name, inspeções: count2 };
-  });
 
-  const recentInspections = await db
+  // Single grouped query for inspection status counts (replaces 5 sequential queries)
+  const inspectionCountsP = db
+    .select({ status: inspections.status, count: count() })
+    .from(inspections)
+    .where(whereClause)
+    .groupBy(inspections.status);
+
+  // Single grouped query for notification status counts
+  const notificationCountsP = db
+    .select({ status: notifications.status, count: count() })
+    .from(notifications)
+    .groupBy(notifications.status);
+
+  const totalUsersP = db.select({ count: count() }).from(users).where(eq(users.isActive, true));
+  const totalCompaniesP = db.select({ count: count() }).from(companies).where(eq(companies.isActive, true));
+  const weeklyInspectionsP = db.select({ createdAt: inspections.createdAt }).from(inspections)
+    .where(and(whereClause, gte(inspections.createdAt, startOfWeek)));
+  const recentInspectionsP = db
     .select({ inspection: inspections, company: companies })
     .from(inspections)
     .leftJoin(companies, eq(inspections.companyId, companies.id))
     .where(whereClause)
     .orderBy(desc(inspections.createdAt))
     .limit(5);
-
-  const whereExec = getCompanyCondition(checklistExecutions.companyId, companyId);
-  const allPendingExecs = await db.select().from(checklistExecutions)
+  const pendingExecsP = db.select({ date: checklistExecutions.date }).from(checklistExecutions)
     .where(and(whereExec, eq(checklistExecutions.status, "pendente" as any)));
+  const scoreAggP = db
+    .select({ count: count(), totalScore: sql<string>`COALESCE(SUM(${checklistExecutions.score}), 0)` })
+    .from(checklistExecutions)
+    .where(and(whereExec, eq(checklistExecutions.status, "concluida" as any)));
 
-  let pendingChecklists = allPendingExecs.length;
-  let overdueChecklists = 0;
+  // Run all queries concurrently
+  const [
+    inspectionCounts,
+    notificationCounts,
+    [totalUsers],
+    [totalCompanies],
+    weeklyInspections,
+    recentInspections,
+    pendingExecs,
+    [scoreAgg],
+  ] = await Promise.all([
+    inspectionCountsP,
+    notificationCountsP,
+    totalUsersP,
+    totalCompaniesP,
+    weeklyInspectionsP,
+    recentInspectionsP,
+    pendingExecsP,
+    scoreAggP,
+  ]);
+
+  // Sum inspection statuses
+  const statusCount = (s: string) => inspectionCounts.find(r => r.status === s)?.count ?? 0;
+  const totalInspectionsCount = inspectionCounts.reduce((a, b) => a + b.count, 0);
+  const sentCount = notificationCounts.find(r => r.status === "sent")?.count ?? 0;
+  const readCount = notificationCounts.find(r => r.status === "read")?.count ?? 0;
+
+  // Weekly distribution
+  const dayNames = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+  const weeklyData = dayNames.map((name, i) => {
+    const dayStart = new Date(startOfWeek);
+    dayStart.setDate(startOfWeek.getDate() + i);
+    const nextDay = new Date(dayStart);
+    nextDay.setDate(dayStart.getDate() + 1);
+    const c = weeklyInspections.filter(insp => {
+      const d = new Date(insp.createdAt);
+      return d >= dayStart && d < nextDay;
+    }).length;
+    return { name, inspeções: c };
+  });
+
+  // Overdue computation
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  for (const e of allPendingExecs) {
+  let overdueChecklists = 0;
+  for (const e of pendingExecs) {
     if (e.date) {
       const ed = new Date(e.date.toString() + "T00:00:00");
       if (ed.getTime() < today.getTime()) overdueChecklists++;
     }
   }
 
-  const completedExecs = await db.select().from(checklistExecutions)
-    .where(and(whereExec, eq(checklistExecutions.status, "concluida" as any)));
-
-  let totalScore = 0;
-  let scoredCount = 0;
-  for (const e of completedExecs) {
-    if (e.score) {
-      totalScore += parseFloat(e.score);
-      scoredCount++;
-    }
-  }
+  const totalScore = parseFloat(scoreAgg?.totalScore ?? "0");
+  const scoredCount = scoreAgg?.count ?? 0;
   const averageChecklistScore = scoredCount > 0 ? (totalScore / scoredCount) : 0;
 
   return {
-    totalInspections: totalInspections.count,
-    notStarted: notStarted.count,
-    pending: pending.count,
-    attention: attention.count,
-    resolved: resolved.count,
+    totalInspections: totalInspectionsCount,
+    notStarted: statusCount("nao_iniciada"),
+    pending: statusCount("pendente"),
+    attention: statusCount("atencao"),
+    resolved: statusCount("resolvida"),
     totalUsers: totalUsers.count,
     totalCompanies: totalCompanies.count,
     weeklyData,
-    sentNotifications: sentNotifications.count,
-    readNotifications: readNotifications.count,
+    sentNotifications: sentCount,
+    readNotifications: readCount,
     recentInspections: recentInspections.map((row: any) => ({
       ...row.inspection,
       companyName: row.company?.name || "Empresa Removida",
     })),
-    pendingChecklists,
+    pendingChecklists: pendingExecs.length,
     overdueChecklists,
     averageChecklistScore,
   };
@@ -1084,10 +1237,9 @@ export async function getUserByEmail(email: string) {
 export async function createUserWithPassword(data: typeof users.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const result = await db.insert(users).values(data).returning({ id: users.id });
-  const insertId = result[0]?.id;
-  const created = await db.select().from(users).where(eq(users.id, insertId)).limit(1);
-  return created[0];
+  // Single round-trip: returning() with no selector returns the whole row
+  const [created] = await db.insert(users).values(data).returning();
+  return created;
 }
 
 // =============================================

@@ -24,6 +24,7 @@ interface OccurrenceImage {
 }
 
 interface Occurrence {
+  id?: number;
   title: string;
   status: "pendente" | "atencao" | "resolvido" | "previsto";
   descricao: string;
@@ -116,9 +117,12 @@ export default function InspectionForm() {
     }
   }, [existing]);
 
+  // Track whether existing items were already loaded so we don't overwrite user edits on refetch
+  const [itemsLoaded, setItemsLoaded] = useState(false);
   useEffect(() => {
-    if (existingItems && (existingItems as any[]).length > 0) {
+    if (isEditing && !itemsLoaded && existingItems && (existingItems as any[]).length > 0) {
       setOccurrences((existingItems as any[]).map((item: any) => ({
+        id: item.id,
         title: item.title || "",
         status: item.status || "pendente",
         descricao: item.situacao || "",
@@ -126,8 +130,9 @@ export default function InspectionForm() {
         prazo: item.observacoes || "",
         imagens: (item.mediaUrls || []).map((url: string) => ({ url, caption: "" })),
       })));
+      setItemsLoaded(true);
     }
-  }, [existingItems]);
+  }, [existingItems, isEditing, itemsLoaded]);
 
   // Clone logic
   const searchParams = new URLSearchParams(window.location.search);
@@ -156,9 +161,11 @@ export default function InspectionForm() {
     }
   }, [cloneData, isEditing]);
 
+  const [cloneItemsLoaded, setCloneItemsLoaded] = useState(false);
   useEffect(() => {
-    if (cloneItems && (cloneItems as any[]).length > 0 && !isEditing) {
+    if (!isEditing && !cloneItemsLoaded && cloneItems && (cloneItems as any[]).length > 0) {
       setOccurrences((cloneItems as any[]).map((item: any) => ({
+        // No id on cloned items — they should be inserted as new
         title: item.title || "",
         status: "pendente",
         descricao: item.situacao || "",
@@ -166,8 +173,9 @@ export default function InspectionForm() {
         prazo: item.observacoes || "",
         imagens: (item.mediaUrls || []).map((url: string) => ({ url, caption: "" })),
       })));
+      setCloneItemsLoaded(true);
     }
-  }, [cloneItems, isEditing]);
+  }, [cloneItems, isEditing, cloneItemsLoaded]);
 
   // Checklist Import Logic
   const checklistId = searchParams.get("checklistId");
@@ -221,6 +229,8 @@ export default function InspectionForm() {
     onSuccess: () => {
       toast.success("Relatório atualizado!");
       utils.inspections.list.invalidate();
+      utils.inspections.getById.invalidate({ id: Number(params.id) });
+      utils.inspections.getItems.invalidate({ inspectionId: Number(params.id) });
       navigate(`/relatorios/${params.id}`);
     },
     onError: (err: any) => toast.error(err.message),
@@ -282,15 +292,17 @@ export default function InspectionForm() {
 
     setUploading(true);
     try {
-      // Upload any pending images
+      // Upload all pending images in parallel across occurrences
       const uploadedOccurrences = await Promise.all(occurrences.map(async (occ) => {
         const uploadedImages = await Promise.all(occ.imagens.map(async (img) => {
           if (img.file) {
             try {
               const url = await uploadImageFile(img.file);
-              return { ...img, url };
-            } catch {
-              return img; // keep preview if upload fails
+              return { ...img, url, file: undefined, preview: undefined };
+            } catch (err) {
+              console.error("Upload failed:", err);
+              toast.error(`Falha ao enviar imagem: ${img.file.name}`);
+              return img;
             }
           }
           return img;
@@ -298,31 +310,42 @@ export default function InspectionForm() {
         return { ...occ, imagens: uploadedImages };
       }));
 
-      const obra = (obras as any[]).find((o: any) => String(o.id) === form.obraId);
-      const obraAddress = obra ? [obra.address, obra.city, obra.state].filter(Boolean).join(", ") : "";
-
       const validItems = uploadedOccurrences.filter(o => o.title || o.descricao);
-      const payload = {
-        title: form.title,
-        companyId: Number(form.companyId),
-        obraId: form.obraId && form.obraId !== "none" ? Number(form.obraId) : undefined,
-        description: form.observacoes || undefined,
-        status: form.status,
-        address: obraAddress || undefined,
-        items: validItems.map(o => ({
-          title: o.title,
-          situacao: o.descricao,
-          status: o.status,
-          planoAcao: o.planoAcao,
-          observacoes: o.prazo,
-          mediaUrls: o.imagens.filter(img => img.url).map(img => img.url),
-        })),
-      };
 
       if (isEditing) {
-        updateMutation.mutate({ id: Number(params.id), ...payload });
+        updateMutation.mutate({
+          id: Number(params.id),
+          title: form.title,
+          companyId: Number(form.companyId),
+          obraId: form.obraId && form.obraId !== "none" ? Number(form.obraId) : undefined,
+          description: form.observacoes || undefined,
+          status: form.status,
+          items: validItems.map((o, i) => ({
+            id: o.id,
+            title: o.title,
+            situacao: o.descricao,
+            status: o.status,
+            planoAcao: o.planoAcao,
+            observacoes: o.prazo,
+            mediaUrls: o.imagens.filter(img => img.url).map(img => img.url),
+          })),
+        } as any);
       } else {
-        createMutation.mutate(payload);
+        createMutation.mutate({
+          title: form.title,
+          companyId: Number(form.companyId),
+          obraId: form.obraId && form.obraId !== "none" ? Number(form.obraId) : undefined,
+          description: form.observacoes || undefined,
+          status: form.status,
+          items: validItems.map(o => ({
+            title: o.title,
+            situacao: o.descricao,
+            status: o.status,
+            planoAcao: o.planoAcao,
+            observacoes: o.prazo,
+            mediaUrls: o.imagens.filter(img => img.url).map(img => img.url),
+          })),
+        } as any);
       }
     } finally {
       setUploading(false);

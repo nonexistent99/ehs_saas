@@ -12,6 +12,9 @@ vi.mock("./db", () => ({
   createUserWithPassword: vi.fn().mockResolvedValue({ id: 1, success: true }),
   updateUser: vi.fn().mockResolvedValue(undefined),
   deleteUser: vi.fn().mockResolvedValue(undefined),
+  hardDeleteUser: vi.fn().mockResolvedValue(undefined),
+  upsertInspectionItems: vi.fn().mockResolvedValue(undefined),
+  recomputeInspectionStatus: vi.fn().mockResolvedValue(undefined),
   getAllCompanies: vi.fn().mockResolvedValue([]),
   getCompanyById: vi.fn().mockResolvedValue(null),
   createCompany: vi.fn().mockResolvedValue(1),
@@ -134,7 +137,6 @@ describe("dashboard", () => {
     expect(typeof stats.pending).toBe("number");
     expect(typeof stats.resolved).toBe("number");
     expect(typeof stats.totalUsers).toBe("number");
-    expect(typeof stats.totalNrs).toBe("number");
     expect(typeof stats.sentNotifications).toBe("number");
     expect(typeof stats.readNotifications).toBe("number");
     expect(Array.isArray(stats.recentInspections)).toBe(true);

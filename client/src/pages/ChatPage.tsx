@@ -16,7 +16,13 @@ export default function ChatPage() {
 
   const { data: rawMessages = [], isLoading, error } = trpc.chat.messages.useQuery(
     { limit: 100 },
-    { refetchInterval: 3000, retry: 2 }
+    {
+      // Poll every 5s while the chat page is open, stop in the background
+      refetchInterval: 5000,
+      refetchIntervalInBackground: false,
+      retry: 2,
+      staleTime: 0,
+    }
   );
 
   // Show error if query fails
@@ -67,11 +73,12 @@ export default function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (messages.length > 0 && user?.id) {
       const hasUnread = messages.some((m: any) => !m.isRead && m.senderId !== user?.id);
       if (hasUnread) markReadMutation.mutate({});
     }
-  }, [messages]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, user?.id]);
 
   const handleSend = () => {
     if (!message.trim()) return;

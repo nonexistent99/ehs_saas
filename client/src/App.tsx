@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import EHSLayout from "./components/EHSLayout";
 import { useAuth } from "./_core/hooks/useAuth";
+import { useEffect } from "react";
 
 // Pages
 import Dashboard from "./pages/Dashboard";
@@ -37,7 +38,13 @@ import NRsPage from "./pages/nrs/NRsPage";
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
 
-  if (loading) {
+  useEffect(() => {
+    if (!loading && !isAuthenticated && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }, [loading, isAuthenticated]);
+
+  if (loading || !isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -48,11 +55,6 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    window.location.href = "/login";
-    return null;
   }
 
   return (
@@ -67,14 +69,10 @@ function Router() {
     <Switch>
       <Route path="/" component={() => {
         const { isAuthenticated, loading } = useAuth();
-        if (!loading && isAuthenticated) {
-          window.location.href = "/dashboard";
-          return null;
-        }
-        if (!loading && !isAuthenticated) {
-          window.location.href = "/login";
-          return null;
-        }
+        useEffect(() => {
+          if (loading) return;
+          window.location.href = isAuthenticated ? "/dashboard" : "/login";
+        }, [loading, isAuthenticated]);
         return (
           <div className="min-h-screen bg-background flex items-center justify-center">
             <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center animate-pulse">
