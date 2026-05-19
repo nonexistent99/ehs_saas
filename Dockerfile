@@ -11,7 +11,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 FROM base AS build
 COPY . /usr/src/app
 WORKDIR /usr/src/app
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --no-frozen-lockfile
 RUN pnpm run build
 
 FROM base
@@ -24,4 +24,4 @@ COPY --from=build /usr/src/app/scripts /usr/src/app/scripts
 
 WORKDIR /usr/src/app
 EXPOSE 3000
-CMD [ "pnpm", "start" ]
+CMD [ "pnpm", "start"
