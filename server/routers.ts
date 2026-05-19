@@ -113,7 +113,7 @@ import {
   pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha,
   nrs, companies, companyUsers, obras, users, employees,
 } from "../drizzle/schema";
-import { eq, and, count, desc, gte, lte, like } from "drizzle-orm";
+import { eq, and, or, count, desc, gte, lte, like, sql } from "drizzle-orm";
 
 // =============================================
 // HELPERS
