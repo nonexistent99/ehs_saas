@@ -24,4 +24,4 @@ COPY --from=build /usr/src/app/scripts /usr/src/app/scripts
 
 WORKDIR /usr/src/app
 EXPOSE 3000
-CMD [ "pnpm", "start"
+CMD [ "pnpm", "start"]
