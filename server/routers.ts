@@ -1983,49 +1983,45 @@ export const appRouter = router({
         const base64Pdf = `data:application/pdf;base64,${pdfBuffer.toString("base64")}`;
 
         const { sendWhatsappDocument } = await import("./_core/wapi");
-        const { default: nodemailer } = await import("nodemailer");
 
         // Send to all phones via whatsapp
         const allPhones = [...(input.phones || [])];
         if (input.phone) allPhones.push(input.phone);
 
         let successCount = 0;
+        const failureMessages: string[] = [];
+
         for (const p of allPhones) {
           const success = await sendWhatsappDocument(p, base64Pdf, "pdf", fileName, input.message);
           if (success) successCount++;
+          else failureMessages.push(`WhatsApp para ${p}`);
         }
 
-        // Send to emails
+        // Send to emails (only load nodemailer if there are recipients)
         if (input.emails && input.emails.length > 0) {
+          if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: "Envio de e-mail não configurado. Defina SMTP_USER e SMTP_PASS nas variáveis de ambiente.",
+            });
+          }
+
+          let nodemailer: typeof import("nodemailer");
+          try {
+            nodemailer = (await import("nodemailer")).default as unknown as typeof import("nodemailer");
+          } catch (err) {
+            console.error("[Email] nodemailer not installed:", err);
+            throw new TRPCError({
+              code: "INTERNAL_SERVER_ERROR",
+              message: "Módulo de e-mail indisponível no servidor. Contate o suporte.",
+            });
+          }
+
           const transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || "smtp.gmail.com",
             port: Number(process.env.SMTP_PORT) || 587,
-            secure: false,
+            secure: Number(process.env.SMTP_PORT) === 465,
             auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
           });
 
-          for (const e of input.emails) {
-            try {
-              await transporter.sendMail({
-                from: `"EHS Platform" <${process.env.SMTP_USER}>`,
-                to: e,
-                subject: `Documento Compartilhado: ${fileName}`,
-                text: input.message || "Segue o documento anexo.",
-                attachments: [{ filename: fileName, content: pdfBuffer }]
-              });
-              successCount++;
-            } catch (err) {
-              console.error("Email API failed:", err);
-            }
-          }
-        }
-
-        if (successCount === 0 && (allPhones.length > 0 || (input.emails && input.emails.length > 0))) {
-          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar documento." });
-        }
-        return { success: true, count: successCount };
-      }),
-  }),
-});
-
-export type AppRouter = typeof appRouter;
+          for (const e of inpu
