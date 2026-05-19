@@ -105,8 +105,6 @@ import {
   findOrCreateEmployee,
   getEmployeesByCompany,
   upsertInspectionItems,
-  recomputeInspectionStatus,
-  hardDeleteUser,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -2024,4 +2022,6 @@ export const appRouter = router({
             auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
           });
 
-          for (const e of inpu
+          for (const e of input.emails) {
+            try {
+              awa
