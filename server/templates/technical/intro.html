@@ -1,0 +1,139 @@
+<!-- INTRODUÇÃO — Padrão relatoriomodelo.pdf -->
+<div style="page-break-after: always; font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; position: relative; overflow: hidden; padding-bottom: 60px;">
+
+  <!-- Cabeçalho azul escuro com logo EHS (idêntico à capa) -->
+  <div style="background: #1e3a5f; padding: 22px 36px; display: flex; align-items: center; justify-content: space-between; position: relative; overflow: hidden;">
+    <svg style="position: absolute; right: 0; top: 0; height: 100%; opacity: 0.35;" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMid meet">
+      <ellipse cx="250" cy="0" rx="180" ry="90" fill="#e8420d" transform="rotate(-15 250 0)"/>
+      <ellipse cx="290" cy="20" rx="130" ry="65" fill="#c23508" transform="rotate(-20 290 20)"/>
+    </svg>
+    <div style="position: relative; z-index: 1; display: flex; align-items: center; gap: 10px;">
+      <svg width="44" height="44" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="26" cy="26" r="24" fill="none" stroke="#e8420d" stroke-width="2.5"/>
+        <circle cx="26" cy="26" r="18" fill="none" stroke="#e8420d" stroke-width="1.5" opacity="0.5"/>
+        <text x="26" y="31" text-anchor="middle" font-family="Arial" font-weight="900" font-size="16" fill="white">EHS</text>
+      </svg>
+      <div>
+        <div style="color: white; font-weight: 900; font-size: 20px; letter-spacing: 2px; line-height: 1;">EHS</div>
+        <div style="color: #aab8cc; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;">Soluções Inteligentes</div>
+      </div>
+    </div>
+  </div>
+  <!-- Linha laranja inferior do header -->
+  <div style="height: 5px; background: #e8420d;"></div>
+
+  <!-- Swoosh decorativo de fundo -->
+  <div style="position: absolute; bottom: 0; left: -40px; opacity: 0.05; pointer-events: none; z-index: 0;">
+    <svg width="500" height="400" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="150" cy="400" rx="350" ry="200" fill="#e8420d" transform="rotate(-30 150 400)"/>
+      <ellipse cx="250" cy="350" rx="280" ry="160" fill="#1e3a5f" transform="rotate(-25 250 350)"/>
+    </svg>
+  </div>
+
+  <!-- Conteúdo da introdução -->
+  <div style="position: relative; z-index: 1; padding: 40px 50px 60px;">
+
+    <!-- Título INTRODUÇÃO -->
+    <h2 style="font-size: 22px; font-weight: 900; color: #111; text-align: center; text-transform: uppercase; letter-spacing: 3px; margin: 0 0 30px 0;">INTRODUÇÃO</h2>
+
+    <!-- Texto introdutório -->
+    <p style="line-height: 1.9; color: #333; font-size: 13px; text-align: justify; margin: 0 0 30px 0;">
+      • Relatório técnico que tem como principal função evidenciar e orientar desvios dentro do canteiro de obra, os apontamentos aqui informados é uma forma de orientar tecnicamente a empresa para auxiliar na tomada de decisões.
+    </p>
+
+    <!-- Selos de status — estilo circular conforme modelo -->
+    <div style="display: flex; flex-direction: column; gap: 22px; margin-bottom: 40px;">
+
+      <!-- RESOLVIDO -->
+      <div style="display: flex; align-items: flex-start; gap: 24px;">
+        <div style="flex-shrink: 0; width: 90px; height: 90px; border-radius: 50%; border: 4px solid #16a34a; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px;">
+          <div style="font-size: 7px; color: #16a34a; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;">DATA</div>
+          <div style="font-weight: 900; font-size: 13px; color: #16a34a; letter-spacing: 1px; text-transform: uppercase; line-height: 1.1;">RESOLVIDO</div>
+          <div style="font-size: 7px; color: #16a34a; letter-spacing: 0.5px; margin-top: 2px;">DD/MM/AA</div>
+        </div>
+        <div style="padding-top: 14px;">
+          <strong style="color: #111; font-size: 13px;">RESOLVIDO:</strong>
+          <span style="color: #333; font-size: 13px; line-height: 1.7;"> Está TAG é aplicada a situações que foram resolvidas e informada a data que foi realizado o atendimento, itens resolvidos são removidos dos próximos relatórios.</span>
+        </div>
+      </div>
+
+      <!-- PENDENTE -->
+      <div style="display: flex; align-items: flex-start; gap: 24px;">
+        <div style="flex-shrink: 0; width: 90px; height: 90px; border-radius: 50%; border: 4px solid #dc2626; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px;">
+          <div style="font-size: 7px; color: #dc2626; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;">DATA</div>
+          <div style="font-weight: 900; font-size: 13px; color: #dc2626; letter-spacing: 1px; text-transform: uppercase; line-height: 1.1;">PENDENTE</div>
+          <div style="font-size: 7px; color: #dc2626; letter-spacing: 0.5px; margin-top: 2px;">DD/MM/AA</div>
+        </div>
+        <div style="padding-top: 14px;">
+          <strong style="color: #111; font-size: 13px;">PENDENTE:</strong>
+          <span style="color: #333; font-size: 13px; line-height: 1.7;"> Está TAG é aplicada a situações que não foram resolvidas e a data que a mesma foi evidenciada no relatório, este item obrigatoriamente é monitorado até ser resolvido.</span>
+        </div>
+      </div>
+
+      <!-- PREVISTO -->
+      <div style="display: flex; align-items: flex-start; gap: 24px;">
+        <div style="flex-shrink: 0; width: 90px; height: 90px; border-radius: 50%; border: 4px solid #2563eb; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px;">
+          <div style="font-size: 7px; color: #2563eb; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;">DATA</div>
+          <div style="font-weight: 900; font-size: 13px; color: #2563eb; letter-spacing: 1px; text-transform: uppercase; line-height: 1.1;">PREVISTO</div>
+          <div style="font-size: 7px; color: #2563eb; letter-spacing: 0.5px; margin-top: 2px;">DD/MM/AA</div>
+        </div>
+        <div style="padding-top: 14px;">
+          <strong style="color: #111; font-size: 13px;">PREVISTO:</strong>
+          <span style="color: #333; font-size: 13px; line-height: 1.7;"> Está TAG é aplicada quando um item não pode ser atendido de imediato porém já foi dado um prazo de execução.</span>
+        </div>
+      </div>
+
+      <!-- ATENÇÃO -->
+      <div style="display: flex; align-items: flex-start; gap: 24px;">
+        <div style="flex-shrink: 0; width: 90px; height: 90px; border-radius: 50%; border: 4px solid #9ca3af; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 6px;">
+          <div style="font-size: 7px; color: #6b7280; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;">DATA</div>
+          <div style="font-weight: 900; font-size: 12px; color: #6b7280; letter-spacing: 1px; text-transform: uppercase; line-height: 1.1;">ATENÇÃO</div>
+          <div style="font-size: 7px; color: #6b7280; letter-spacing: 0.5px; margin-top: 2px;">DD/MM/AA</div>
+        </div>
+        <div style="padding-top: 14px;">
+          <strong style="color: #111; font-size: 13px;">ATENÇÃO:</strong>
+          <span style="color: #333; font-size: 13px; line-height: 1.7;"> Está TAG é aplicada a situações que requer atenção e analise de situações com base informativo.</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Glossário -->
+    <h3 style="font-size: 14px; font-weight: 900; color: #111; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 10px 0; border-bottom: 2px solid #1e3a5f; padding-bottom: 6px;">GLOSSÁRIO:</h3>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2px 30px; font-size: 12px; color: #333;">
+      <div><strong style="color: #e8420d;">ASO</strong> - Atestado de saúde ocupacional</div>
+      <div><strong style="color: #e8420d;">APR</strong> - Análise Preliminar de Risco</div>
+      <div><strong style="color: #e8420d;">CAT</strong> - Comunicação de Acidente de Trabalho</div>
+      <div><strong style="color: #e8420d;">PGR</strong> - Programa de Gerenciamento de Riscos</div>
+      <div><strong style="color: #e8420d;">DDS</strong> - Diálogo Diário de Segurança</div>
+      <div><strong style="color: #e8420d;">PCMSO</strong> - Prog. Controle Médico de Saúde Ocup.</div>
+      <div><strong style="color: #e8420d;">OS</strong> - Ordem de Serviço</div>
+      <div><strong style="color: #e8420d;">IT</strong> - Instrução Técnica</div>
+      <div><strong style="color: #e8420d;">TST</strong> - Técnico de Segurança do Trabalho</div>
+      <div><strong style="color: #e8420d;">EPC</strong> - Equipamento de Proteção Coletiva</div>
+    </div>
+  </div>
+
+  <!-- Rodapé fixo EHS em todas as páginas -->
+  <div style="position: fixed; bottom: 0; left: 0; right: 0; background: #1e3a5f; padding: 0; z-index: 100;">
+    <div style="height: 5px; background: #e8420d;"></div>
+    <div style="padding: 8px 36px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="color: #e8420d; font-size: 10px;">📞</span>
+        <span style="color: #aab8cc; font-size: 8px;">55 (11) 5542-4242 / 9 8589-3388</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="color: #aab8cc; font-size: 8px;">www.ehsss.com.br</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="color: #aab8cc; font-size: 8px;">contato@ehsss.com.br</span>
+        <span style="color: #e8420d; font-size: 10px;">✉</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="color: #aab8cc; font-size: 8px;">Rua Barão do Triunfo, 612 · Cj. 901 · Brooklin · SP · Cep: 04602-002</span>
+        <span style="color: #e8420d; font-size: 10px;">📍</span>
+      </div>
+    </div>
+  </div>
+
+</div>

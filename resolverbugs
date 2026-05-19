@@ -1,0 +1,14 @@
+preciso que o admin consiga alterar a senha ou o proprio usuario consiga alterar o cadastro dele
+
+lista de empresas: todos os usuarios, estão ficando como tecnicos de todas as empresas 
+
+pesquisar relatorio, quando for resolvido ser atualizado item por item, caso tenha um item em aberto ainda continua como atenção
+
+bug da furadeira, itens de verificação estão aparecendo no relatorio de atenção e não está adicionando novos itens e a foto n está atualizando
+
+está dando esse erro Failed query: delete from "obra_users" where "obra_users"."userId" = $1 params: 6755
+quando vão mexer com os usuarios,
+
+e o servidor está meio pesado e demorando para carregar, optimize para ser mais rapida a navegação e o carregamento do site, e conserte os bugs apontados acima.
+
+não estou conseguindo criar mais usuarios, está aparecendo esse erro:
