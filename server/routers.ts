@@ -107,6 +107,13 @@ import {
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
+import {
+  inspections, inspectionItems,
+  checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems,
+  pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha,
+  nrs, companies, companyUsers, obras, users, employees,
+} from "../drizzle/schema";
+import { eq, and, count, desc, gte, lte, like } from "drizzle-orm";
 
 // =============================================
 // HELPERS
@@ -825,11 +832,10 @@ export const appRouter = router({
       .input(z.object({ companyId: z.number().optional() }).optional())
       .query(async ({ input }) => {
         const { getDb } = await import("./db");
-        const { inspections: inspTable } = await import("../drizzle/schema");
-        const { and, eq, gte, count } = await import("drizzle-orm");
         const db = await getDb();
         if (!db) return [];
-        // Last 7 days
+        // Last 7 days (use statically imported 'inspections' as inspTable)
+        const inspTable = inspections;
         const days: { date: string; naoIniciada: number; pendente: number; atencao: number; resolvida: number }[] = [];
         for (let i = 6; i >= 0; i--) {
           const d = new Date();
@@ -1285,8 +1291,6 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
-        const { obras, epiFicha } = await import("../drizzle/schema");
-        const { eq, exists } = await import("drizzle-orm");
 
         // Return Obras that have at least one EPI delivery or are linked to the company
         return db.select().from(obras)
@@ -1303,8 +1307,6 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
-        const { employees, epiFicha } = await import("../drizzle/schema");
-        const { eq, and, or, sql, like } = await import("drizzle-orm");
 
         const conditions = [eq(employees.companyId, input.companyId)];
         if (input.search) {
@@ -1336,8 +1338,6 @@ export const appRouter = router({
         const { getDb } = await import("./db");
         const db = await getDb();
         if (!db) return [];
-        const { epiFicha, users } = await import("../drizzle/schema");
-        const { eq, and, desc } = await import("drizzle-orm");
 
         return db.select({
           ficha: epiFicha,
@@ -1594,9 +1594,6 @@ export const appRouter = router({
         const db = await getDb();
         if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB not available" });
 
-        const { companies, companyUsers, users } = await import("../drizzle/schema");
-        const { eq, and } = await import("drizzle-orm");
-
         const consolidated = new Set<string>();
         const targetCompanyId = input.companyId || (Array.isArray(ctx.effectiveCompanyId) ? ctx.effectiveCompanyId[0] : ctx.effectiveCompanyId);
         if (!targetCompanyId) throw new TRPCError({ code: "BAD_REQUEST", message: "Company ID required" });
@@ -1649,8 +1646,6 @@ export const appRouter = router({
         let fileName = "documento.pdf";
 
         try {
-          const { inspections, inspectionItems, checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems, pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha, nrs, companies, obras, users, employees } = await import("../drizzle/schema");
-          const { eq, and } = await import("drizzle-orm");
           const { format } = await import("date-fns");
           const { ptBR } = await import("date-fns/locale");
 

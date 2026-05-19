@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { companyProcedure, protectedProcedure, router } from "../_core/trpc";
-import { checklistTemplateItems } from "../drizzle/schema";
+import { checklistTemplateItems } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
 import {
   getAllChecklistTemplates,
