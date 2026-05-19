@@ -383,15 +383,25 @@ export const appRouter = router({
         obraIds: z.array(z.number()).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        requireAdm(ctx.user?.ehsRole);
+        const isAdmin = ctx.user?.ehsRole === "adm_ehs";
+        if (!isAdmin && ctx.user?.id !== input.id) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Apenas ADM EHS pode editar outros usuários" });
+        }
+        
         const { id, password, companyIds, obraIds, ...rest } = input;
         const updateData: Record<string, unknown> = { ...rest };
+        
+        if (!isAdmin) {
+          delete updateData.ehsRole;
+          delete updateData.isActive;
+        }
+
         if (password) {
           updateData.passwordHash = await bcrypt.hash(password, 10);
         }
         await updateUser(id, updateData);
-        if (companyIds !== undefined) await setUserLinkedCompanies(id, companyIds);
-        if (obraIds !== undefined) await setUserLinkedObras(id, obraIds);
+        if (isAdmin && companyIds !== undefined) await setUserLinkedCompanies(id, companyIds);
+        if (isAdmin && obraIds !== undefined) await setUserLinkedObras(id, obraIds);
         return { success: true };
       }),
     delete: protectedProcedure

@@ -1,10 +1,14 @@
-Filtragem do Painel: Os clientes agora visualizam apenas as estatísticas de suas empresas autorizadas.
+preciso que o admin consiga alterar a senha ou o proprio usuario consiga alterar o cadastro dele
 
-Restrição de Navegação: O menu "Empresas" agora está oculto para clientes (somente para administradores).
+lista de empresas: todos os usuarios, estão ficando como tecnicos de todas as empresas 
 
-Reativação de Usuário: Adicionado um botão "Reativar" à lista de usuários para usuários excluídos temporariamente.
+pesquisar relatorio, quando for resolvido ser atualizado item por item, caso tenha um item em aberto ainda continua como atenção
 
-Correção do Formulário de Usuário: Implementado um estado de carregamento para garantir que os dados sejam preenchidos corretamente ao editar usuários.
-Visibilidade de Modelos: Os modelos estáticos de todo o sistema agora estão visíveis para todos os clientes, conforme o esperado.
-Persistência de Imagens: O processo de upload de imagens de modelos foi simplificado, removendo o campo de link manual para evitar erros.
-Imagens de Verificação: Imagens de referência do modelo agora são exibidas durante a execução da lista de verificação para orientar o usuário.
+bug da furadeira, itens de verificação estão aparecendo no relatorio de atenção e não está adicionando novos itens e a foto n está atualizando
+
+está dando esse erro Failed query: delete from "obra_users" where "obra_users"."userId" = $1 params: 6755
+quando vão mexer com os usuarios,
+
+e o servidor está meio pesado e demorando para carregar, optimize para ser mais rapida a navegação e o carregamento do site, e conserte os bugs apontados acima.
+
+não estou conseguindo criar mais usuarios, está aparecendo esse erro:

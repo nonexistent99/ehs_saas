@@ -210,7 +210,6 @@ export async function getCompanyObras(companyId: number, userId?: number, role?:
   if (role === 'adm_ehs' || !userId) {
     return db.select().from(obras).where(and(eq(obras.companyId, companyId), eq(obras.isActive, true)));
   }
-  const { obraUsers } = await import("../drizzle/schema");
   const rows = await db
     .select()
     .from(obras)
@@ -265,18 +264,25 @@ export async function setUserLinkedCompanies(userId: number, companyIds: number[
 export async function getUserLinkedObras(userId: number) {
   const db = await getDb();
   if (!db) return [];
-  const { obraUsers } = await import("../drizzle/schema");
-  const rows = await db.select().from(obraUsers).where(eq(obraUsers.userId, userId));
-  return rows.map(r => r.obraId);
+  try {
+    const rows = await db.select().from(obraUsers).where(eq(obraUsers.userId, userId));
+    return rows.map(r => r.obraId);
+  } catch (err) {
+    console.warn("[DB] obra_users table may not exist, skipping getUserLinkedObras:", (err as any)?.message);
+    return [];
+  }
 }
 
 export async function setUserLinkedObras(userId: number, obraIds: number[]) {
   const db = await getDb();
   if (!db) return;
-  const { obraUsers } = await import("../drizzle/schema");
-  await db.delete(obraUsers).where(eq(obraUsers.userId, userId));
-  if (obraIds.length > 0) {
-    await db.insert(obraUsers).values(obraIds.map(oId => ({ obraId: oId, userId })));
+  try {
+    await db.delete(obraUsers).where(eq(obraUsers.userId, userId));
+    if (obraIds.length > 0) {
+      await db.insert(obraUsers).values(obraIds.map(oId => ({ obraId: oId, userId })));
+    }
+  } catch (err) {
+    console.warn("[DB] obra_users table may not exist, skipping setUserLinkedObras:", (err as any)?.message);
   }
 }
 
@@ -400,23 +406,29 @@ export async function getAllInspections(filters?: { companyId?: number | number[
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(inspections.createdAt));
 
-  // For each inspection, get the first NR associated
-  const result = await Promise.all(rows.map(async (row) => {
-    const nrRow = await db
-      .select({ nr: nrs })
-      .from(inspectionNrs)
-      .leftJoin(nrs, eq(inspectionNrs.nrId, nrs.id))
-      .where(eq(inspectionNrs.inspectionId, row.inspection.id))
-      .limit(1);
+  if (rows.length === 0) return [];
 
-    return {
-      inspection: row.inspection,
-      company: row.company,
-      nr: nrRow[0]?.nr ?? null,
-    };
+  // Batch NR lookup — single query instead of N queries
+  const inspectionIds = rows.map(r => r.inspection.id);
+  const nrRows = await db
+    .select({ inspectionId: inspectionNrs.inspectionId, nr: nrs })
+    .from(inspectionNrs)
+    .leftJoin(nrs, eq(inspectionNrs.nrId, nrs.id))
+    .where(inArray(inspectionNrs.inspectionId, inspectionIds));
+
+  // Map: first NR per inspection
+  const nrByInspection = new Map<number, typeof nrs.$inferSelect | null>();
+  for (const row of nrRows) {
+    if (!nrByInspection.has(row.inspectionId)) {
+      nrByInspection.set(row.inspectionId, row.nr ?? null);
+    }
+  }
+
+  return rows.map(row => ({
+    inspection: row.inspection,
+    company: row.company,
+    nr: nrByInspection.get(row.inspection.id) ?? null,
   }));
-
-  return result;
 }
 
 export async function getInspectionById(id: number) {
@@ -466,6 +478,22 @@ export async function updateInspectionItem(id: number, data: Partial<typeof insp
   const db = await getDb();
   if (!db) return;
   await db.update(inspectionItems).set({ ...data, updatedAt: new Date() }).where(eq(inspectionItems.id, id));
+
+  const itemRows = await db.select().from(inspectionItems).where(eq(inspectionItems.id, id)).limit(1);
+  if (itemRows.length > 0) {
+    const inspectionId = itemRows[0].inspectionId;
+    const allItems = await db.select().from(inspectionItems).where(eq(inspectionItems.inspectionId, inspectionId));
+    
+    let hasOpen = false;
+    for (const item of allItems) {
+      if (item.status === "atencao" || item.status === "pendente") {
+        hasOpen = true;
+      }
+    }
+    
+    let newStatus = hasOpen ? "atencao" : "resolvida";
+    await db.update(inspections).set({ status: newStatus as any }).where(eq(inspections.id, inspectionId));
+  }
 }
 
 export async function deleteInspectionItem(id: number) {
@@ -975,8 +1003,6 @@ export async function deleteEpiFicha(id: number, companyId?: number | number[]) 
 export async function getAllAdvertencias(filters?: { companyId?: number | number[]; obraId?: number; employeeId?: number; type?: string; date?: string; search?: string }) {
   const db = await getDb();
   if (!db) return [];
-  const { advertencias, users, employees, obras } = await import("../drizzle/schema");
-  const { eq, and, desc, like } = await import("drizzle-orm");
   const conditions = [];
   const compCond = getCompanyCondition(advertencias.companyId, filters?.companyId);
   if (compCond) conditions.push(compCond);

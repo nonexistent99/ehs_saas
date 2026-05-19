@@ -601,6 +601,16 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
                   <span className="text-sm text-muted-foreground font-medium">Cargo</span>
                   <span>{getRoleBadge((user as any)?.ehsRole)}</span>
                 </div>
+                <div className="pt-2 border-t border-border/40">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full text-xs font-bold" 
+                    onClick={() => { setSettingsOpen(false); navigate(`/usuarios/${user?.id}/editar`); }}
+                  >
+                    Editar Perfil
+                  </Button>
+                </div>
               </div>
             </div>
 

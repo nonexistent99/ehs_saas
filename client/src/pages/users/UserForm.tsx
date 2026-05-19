@@ -69,25 +69,44 @@ export default function UserForm() {
     onError: (err) => toast.error(err.message),
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email) {
       toast.error("Nome e email são obrigatórios");
       return;
     }
+    if (form.password && form.password.length < 6) {
+      toast.error("A senha deve ter pelo menos 6 caracteres");
+      return;
+    }
+    if (!isEditing && (!form.password || form.password.length < 6)) {
+      toast.error("Senha de no mínimo 6 caracteres é obrigatória para novos usuários");
+      return;
+    }
+
+    // Filter obraIds to ensure they belong to the selected companies
+    const validObraIds = form.obraIds.filter(oId => {
+      const obra = allObras.find((o: any) => o.id === oId);
+      return obra ? form.companyIds.includes(obra.companyId) : false;
+    });
+
+    const payload = {
+      ...form,
+      obraIds: validObraIds,
+    };
+
     if (isEditing) {
-      const { password, ...updateData } = form;
-      updateMutation.mutate({ id: Number(params.id), ...updateData });
+      const { password, ...updateData } = payload;
+      updateMutation.mutate({ id: Number(params.id), ...(password ? payload : updateData) });
     } else {
-      if (!form.password) { toast.error("Senha é obrigatória"); return; }
-      createMutation.mutate(form);
+      createMutation.mutate(payload);
     }
   };
 
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background min-h-screen">
       <PageHeader
         title={isEditing ? "Editar Usuário" : "Cadastrar Usuário"}
         subtitle={isEditing ? "Atualize os dados do usuário" : "Preencha os dados para criar um novo usuário"}
@@ -143,19 +162,17 @@ export default function UserForm() {
                   />
                 </div>
 
-                {!isEditing && (
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <Label className="text-sm text-foreground">Senha *</Label>
-                    <Input
-                      type="password"
-                      placeholder="Senha de acesso"
-                      value={form.password}
-                      onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
-                      className="bg-secondary border-border"
-                      required={!isEditing}
-                    />
-                  </div>
-                )}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-sm text-foreground">{isEditing ? "Nova Senha (deixe em branco para manter)" : "Senha *"}</Label>
+                  <Input
+                    type="password"
+                    placeholder={isEditing ? "Nova senha" : "Senha de acesso"}
+                    value={form.password}
+                    onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="bg-secondary border-border"
+                    required={!isEditing}
+                  />
+                </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-sm text-foreground">Telefone</Label>

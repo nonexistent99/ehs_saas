@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { companyProcedure, protectedProcedure, router } from "../_core/trpc";
+import { checklistTemplateItems } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 import {
   getAllChecklistTemplates,
   getChecklistTemplateById,
@@ -103,8 +105,6 @@ export const checklistRouter = router({
         // If items are provided, replace the existing ones
         if (items) {
           const db = await import("../db").then(m => m.getDb());
-          const { checklistTemplateItems } = await import("../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
           
           if (db) {
             // Delete old items

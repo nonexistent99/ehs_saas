@@ -28,6 +28,21 @@ async function applyUpdates() {
     console.error("Error creating 'risks' table:", error);
   }
 
+  console.log("1b. Creating 'obra_users' table...");
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS "obra_users" (
+        "id"        serial PRIMARY KEY NOT NULL,
+        "obraId"    integer NOT NULL,
+        "userId"    integer NOT NULL,
+        "createdAt" timestamp DEFAULT now() NOT NULL
+      );
+    `);
+    console.log("Table 'obra_users' created or already exists.");
+  } catch (error) {
+    console.error("Error creating 'obra_users' table:", error);
+  }
+
   console.log("2. Updating 'checklist_execution_items' labels...");
   try {
     const updateOk = await db.execute(sql`
