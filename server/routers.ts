@@ -105,8 +105,6 @@ import {
   findOrCreateEmployee,
   getEmployeesByCompany,
   upsertInspectionItems,
-  recomputeInspectionStatus,
-  hardDeleteUser,
 } from "./db";
 import { storagePut } from "./storage";
 import { nanoid } from "nanoid";
@@ -2024,4 +2022,28 @@ export const appRouter = router({
             auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
           });
 
-          for (const e of inpu
+          for (const e of input.emails) {
+            try {
+              await transporter.sendMail({
+                from: `"EHS Platform" <${process.env.SMTP_USER}>`,
+                to: e,
+                subject: `Documento Compartilhado: ${fileName}`,
+                text: input.message || "Segue o documento anexo.",
+                attachments: [{ filename: fileName, content: pdfBuffer }]
+              });
+              successCount++;
+            } catch (err) {
+              console.error("Email API failed:", err);
+            }
+          }
+        }
+
+        if (successCount === 0 && (allPhones.length > 0 || (input.emails && input.emails.length > 0))) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar documento." });
+        }
+        return { success: true, count: successCount };
+      }),
+  }),
+});
+
+export type AppRouter = typeof appRouter;
