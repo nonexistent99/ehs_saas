@@ -159,14 +159,40 @@ const navItems: NavItem[] = [
   },
 ];
 
+function collectLeafHrefs(items: NavItem[]): string[] {
+  const out: string[] = [];
+  for (const it of items) {
+    if (it.href) out.push(it.href);
+    if (it.children) out.push(...collectLeafHrefs(it.children));
+  }
+  return out;
+}
+
+/**
+ * Pick the leaf href that best matches `location` — exact match wins; otherwise
+ * the longest prefix-match (so /relatorios/editar beats /relatorios when both
+ * are sidebar entries and the user is at /relatorios/editar).
+ */
+function pickActiveHref(location: string, hrefs: string[]): string | null {
+  let best: string | null = null;
+  for (const h of hrefs) {
+    if (location === h || location.startsWith(h + "/")) {
+      if (!best || h.length > best.length) best = h;
+    }
+  }
+  return best;
+}
+
 function NavItemComponent({
   item,
   depth = 0,
   collapsed,
+  activeHref,
 }: {
   item: NavItem;
   depth?: number;
   collapsed: boolean;
+  activeHref: string | null;
 }) {
   const [location] = useLocation();
   const [open, setOpen] = useState(() => {
@@ -176,10 +202,9 @@ function NavItemComponent({
     return false;
   });
 
-  const isActive = item.href ? location === item.href || location.startsWith(item.href + "/") : false;
-  const isParentActive = item.children?.some(
-    (c) => c.href && (location === c.href || location.startsWith(c.href + "/"))
-  );
+  // Use the globally-picked activeHref so only ONE leaf can be highlighted at a time.
+  const isActive = !!item.href && item.href === activeHref;
+  const isParentActive = !!item.children?.some((c) => c.href === activeHref);
 
   if (item.href && !item.children) {
     return (
@@ -232,7 +257,7 @@ function NavItemComponent({
       {!collapsed && open && item.children && (
         <div className="mt-0.5 space-y-0.5">
           {item.children.map((child) => (
-            <NavItemComponent key={child.href} item={child} depth={depth + 1} collapsed={collapsed} />
+            <NavItemComponent key={child.href} item={child} depth={depth + 1} collapsed={collapsed} activeHref={activeHref} />
           ))}
         </div>
       )}
@@ -249,6 +274,10 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [geoCity, setGeoCity] = useState<string>("São Paulo, SP");
+
+  // Pick the single best-matching sidebar entry for the current location so
+  // sibling routes like /relatorios vs /relatorios/editar don't both light up.
+  const activeHref = pickActiveHref(location, collectLeafHrefs(navItems));
 
   useEffect(() => {
     // Update clock once per second so seconds tick; keep the work tiny — just setState
@@ -346,7 +375,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
         {navItems
           .filter(item => !item.roles || (user && item.roles.includes((user as any).ehsRole)))
           .map((item) => (
-            <NavItemComponent key={item.label} item={item} collapsed={sidebarCollapsed} />
+            <NavItemComponent key={item.label} item={item} collapsed={sidebarCollapsed} activeHref={activeHref} />
           ))}
       </div>
 
