@@ -6,6 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Eye, EyeOff, Lock, Mail, ShieldCheck, Zap } from "lucide-react";
 import { useLocation } from "wouter";
+import LogoMark from "@/components/LogoMark";
 
 export default function Login() {
   const [, navigate] = useLocation();
@@ -46,7 +47,13 @@ export default function Login() {
           
           <div className="relative z-10">
             <div className="flex items-center gap-2.5 mb-12">
-              <img src="/logo-dark.png" alt="TACT Logo" className="h-20 object-contain drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" />
+              <LogoMark
+                src="/logo-dark.png"
+                alt="TACT Logo"
+                variant="full"
+                width={140}
+                height={80}
+              />
             </div>
 
             <div className="space-y-6">
@@ -79,7 +86,13 @@ export default function Login() {
           <div className="max-w-sm mx-auto w-full">
             <div className="mb-10 text-center lg:text-left">
               <div className="lg:hidden flex justify-center mb-6">
-                 <img src="/logo-dark.png" alt="TACT Logo" className="h-16 object-contain drop-shadow-[0_0_20px_rgba(255,107,0,0.5)]" />
+                <LogoMark
+                  src="/logo-dark.png"
+                  alt="TACT Logo"
+                  variant="full"
+                  width={120}
+                  height={64}
+                />
               </div>
               <h2 className="text-3xl font-black text-white tracking-tight">Bem-vindo</h2>
               <p className="text-muted-foreground mt-2 font-medium">Acesse o painel administrativo</p>

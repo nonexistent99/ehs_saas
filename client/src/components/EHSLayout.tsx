@@ -51,6 +51,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "./ui/dialog";
+import LogoMark from "./LogoMark";
 import { trpc } from "@/lib/trpc";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -315,30 +316,27 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full">
       {/* Logo area with animated glow */}
       <div className={cn(
-        "relative flex items-center justify-center border-b border-sidebar-border px-4 transition-all duration-300",
-        sidebarCollapsed ? "h-20" : "h-36"
+        "relative flex items-center justify-center border-b border-sidebar-border px-4 transition-all duration-300 overflow-hidden",
+        sidebarCollapsed ? "h-20" : "h-40"
       )}>
-        {/* Animated glow background */}
-        {!sidebarCollapsed && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="absolute w-32 h-32 logo-glow rounded-full blur-2xl animate-pulse" />
-            <div className="absolute w-24 h-24 logo-glow rounded-full blur-xl opacity-50" />
-            <div className="absolute w-16 h-16 bg-primary/20 rounded-full blur-lg animate-logo-breathe" />
-          </div>
-        )}
+        {/* Subtle radial backdrop */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-32 bg-[radial-gradient(ellipse_at_center,hsla(24,100%,50%,0.12)_0%,transparent_70%)]" />
+        </div>
 
         <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
-          <img
+          <LogoMark
             src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
             alt="TACT Logo"
-            className={cn(
-              "object-contain drop-shadow-[0_0_12px_rgba(255,107,0,0.4)] transition-all duration-300",
-              sidebarCollapsed ? "w-10 h-10" : "w-44 h-28"
-            )}
+            variant={sidebarCollapsed ? "soft" : "full"}
+            width={sidebarCollapsed ? 40 : 168}
+            height={sidebarCollapsed ? 40 : 96}
           />
           {!sidebarCollapsed && (
             <div className="flex flex-col items-center gap-0.5">
-              <div className="text-[10px] uppercase tracking-widest text-primary font-bold opacity-80">EHS Intelligence</div>
+              <div className="text-[10px] uppercase tracking-[0.25em] text-primary font-black opacity-80 drop-shadow-[0_0_4px_rgba(255,107,0,0.5)]">
+                EHS Intelligence
+              </div>
             </div>
           )}
         </div>

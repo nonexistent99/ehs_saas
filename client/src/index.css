@@ -62,6 +62,30 @@
   --animate-fade-in-up: fadeInUp 0.5s ease-out forwards;
   --animate-chart-grow: chartGrow 0.8s ease-out forwards;
   --animate-shimmer: shimmer 2s infinite;
+  --animate-rotate-slow: rotate-slow 12s linear infinite;
+  --animate-rotate-reverse: rotate-reverse 18s linear infinite;
+  --animate-orbit: orbit 6s linear infinite;
+  --animate-halo-pulse: halo-pulse 4s ease-in-out infinite;
+
+  @keyframes rotate-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes rotate-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+
+  @keyframes orbit {
+    0%   { transform: rotate(0deg) translateX(var(--orbit-radius, 60px)) rotate(0deg); }
+    100% { transform: rotate(360deg) translateX(var(--orbit-radius, 60px)) rotate(-360deg); }
+  }
+
+  @keyframes halo-pulse {
+    0%, 100% { opacity: 0.55; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.08); }
+  }
 
   @keyframes neon-pulse {
     0%, 100% {
@@ -440,6 +464,76 @@
   /* Chart animation */
   .chart-animate {
     animation: chartGrow 0.8s ease-out forwards;
+  }
+
+  /* === LogoMark: glow envelope around the brand logo === */
+  .logo-mark {
+    @apply relative inline-flex items-center justify-center;
+  }
+
+  /* Outer conic-gradient ring (rotates slowly) */
+  .logo-mark__halo {
+    position: absolute;
+    inset: -14%;
+    border-radius: 9999px;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      hsla(24, 100%, 50%, 0.55) 60deg,
+      hsla(38, 100%, 60%, 0.85) 120deg,
+      hsla(24, 100%, 50%, 0.55) 180deg,
+      transparent 240deg,
+      hsla(28, 100%, 55%, 0.45) 300deg,
+      transparent 360deg
+    );
+    filter: blur(14px);
+    animation: rotate-slow 12s linear infinite, halo-pulse 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* Inner counter-rotating soft halo */
+  .logo-mark__halo-inner {
+    position: absolute;
+    inset: -2%;
+    border-radius: 9999px;
+    background: radial-gradient(circle at 30% 30%, hsla(28, 100%, 60%, 0.45) 0%, transparent 60%);
+    filter: blur(8px);
+    animation: rotate-reverse 18s linear infinite;
+    pointer-events: none;
+  }
+
+  /* Center soft glow (no animation, just depth) */
+  .logo-mark__glow {
+    position: absolute;
+    inset: 12%;
+    border-radius: 9999px;
+    background: radial-gradient(circle, hsla(24, 100%, 50%, 0.5) 0%, hsla(24, 100%, 50%, 0.15) 50%, transparent 80%);
+    filter: blur(10px);
+    pointer-events: none;
+  }
+
+  /* Thin orange outline ring */
+  .logo-mark__ring {
+    position: absolute;
+    inset: -4%;
+    border-radius: 9999px;
+    border: 1px solid hsla(24, 100%, 50%, 0.25);
+    box-shadow: inset 0 0 24px hsla(24, 100%, 50%, 0.2), 0 0 24px hsla(24, 100%, 50%, 0.15);
+    pointer-events: none;
+  }
+
+  /* Orbiting dot */
+  .logo-mark__orbit {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 9999px;
+    background: hsl(28, 100%, 60%);
+    box-shadow: 0 0 10px hsla(28, 100%, 60%, 0.9), 0 0 20px hsla(24, 100%, 50%, 0.6);
+    animation: orbit 6s linear infinite;
+    pointer-events: none;
   }
 }
 
