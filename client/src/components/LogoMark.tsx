@@ -49,7 +49,6 @@ export function LogoMark({
   return (
     <div className={cn("logo-mark", className)} style={style}>
       {variant === "full" && <span className="logo-mark__halo" aria-hidden />}
-      <span className="logo-mark__halo-inner" aria-hidden />
       <span className="logo-mark__glow" aria-hidden />
       <span className="logo-mark__ring" aria-hidden />
       <img

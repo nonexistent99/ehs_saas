@@ -471,13 +471,13 @@
     @apply relative inline-flex items-center justify-center;
   }
 
-  /* Outer conic-gradient ring (rotates slowly) */
+  /* Outer conic-gradient halo (STATIC — blur is cached, no rotation = no per-frame repaint) */
   .logo-mark__halo {
     position: absolute;
     inset: -14%;
     border-radius: 9999px;
     background: conic-gradient(
-      from 0deg,
+      from 45deg,
       transparent 0deg,
       hsla(24, 100%, 50%, 0.55) 60deg,
       hsla(38, 100%, 60%, 0.85) 120deg,
@@ -487,22 +487,11 @@
       transparent 360deg
     );
     filter: blur(14px);
-    animation: rotate-slow 12s linear infinite, halo-pulse 4s ease-in-out infinite;
+    opacity: 0.85;
     pointer-events: none;
   }
 
-  /* Inner counter-rotating soft halo */
-  .logo-mark__halo-inner {
-    position: absolute;
-    inset: -2%;
-    border-radius: 9999px;
-    background: radial-gradient(circle at 30% 30%, hsla(28, 100%, 60%, 0.45) 0%, transparent 60%);
-    filter: blur(8px);
-    animation: rotate-reverse 18s linear infinite;
-    pointer-events: none;
-  }
-
-  /* Center soft glow (no animation, just depth) */
+  /* Center soft glow (static — paints once, cached) */
   .logo-mark__glow {
     position: absolute;
     inset: 12%;
@@ -512,7 +501,7 @@
     pointer-events: none;
   }
 
-  /* Thin orange outline ring */
+  /* Thin orange outline ring (no filter, just box-shadow which is GPU-friendly) */
   .logo-mark__ring {
     position: absolute;
     inset: -4%;
@@ -522,7 +511,7 @@
     pointer-events: none;
   }
 
-  /* Orbiting dot */
+  /* Orbiting dot — only animated element. Pure transform = GPU-composited, cheap */
   .logo-mark__orbit {
     position: absolute;
     inset: 0;
@@ -532,7 +521,8 @@
     border-radius: 9999px;
     background: hsl(28, 100%, 60%);
     box-shadow: 0 0 10px hsla(28, 100%, 60%, 0.9), 0 0 20px hsla(24, 100%, 50%, 0.6);
-    animation: orbit 6s linear infinite;
+    animation: orbit 8s linear infinite;
+    will-change: transform;
     pointer-events: none;
   }
 }
