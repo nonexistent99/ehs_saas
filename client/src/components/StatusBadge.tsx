@@ -33,7 +33,13 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
   const config = STATUS_CONFIG[status] || { label: status, className: "status-nao-iniciada" };
   return (
-    <span className={cn("text-xs px-2.5 py-1 rounded-full font-medium", config.className, className)}>
+    <span
+      className={cn(
+        "inline-flex items-center text-[10px] px-2.5 py-1 rounded-md font-black uppercase tracking-widest shadow-sm",
+        config.className,
+        className
+      )}
+    >
       {config.label}
     </span>
   );

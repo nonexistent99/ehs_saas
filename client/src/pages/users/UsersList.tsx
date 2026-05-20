@@ -56,9 +56,10 @@ export default function UsersList() {
       <PageHeader
         title="Lista de Usuários"
         subtitle={`${users.length} usuário(s) cadastrado(s)`}
+        icon={<UserCheck size={20} />}
         actions={
           <Link href="/usuarios/novo">
-            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button size="sm" variant="glow" className="font-bold uppercase tracking-wider text-xs">
               <Plus size={14} className="mr-2" />
               Novo Usuário
             </Button>
@@ -68,13 +69,13 @@ export default function UsersList() {
 
       <div className="p-6 space-y-4">
         {/* Search */}
-        <div className="relative max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative max-w-sm group">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
           <Input
             placeholder="Buscar por nome ou email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-card border-border"
+            className="pl-9 glass border-border/40 focus:border-primary/50 focus:ring-primary/20"
           />
         </div>
 
@@ -86,36 +87,36 @@ export default function UsersList() {
             ))}
           </div>
         ) : users.length === 0 ? (
-          <Card className="bg-card border-border">
+          <Card className="glass border-border/40">
             <CardContent className="py-16 text-center">
-              <UserCheck size={40} className="mx-auto mb-3 text-muted-foreground opacity-40" />
-              <p className="text-muted-foreground">Nenhum usuário encontrado</p>
+              <UserCheck size={40} className="mx-auto mb-3 text-muted-foreground opacity-30" />
+              <p className="text-muted-foreground font-medium">Nenhum usuário encontrado</p>
               <Link href="/usuarios/novo">
-                <Button size="sm" className="mt-4 bg-primary text-primary-foreground">
+                <Button size="sm" variant="glow" className="mt-4 font-bold uppercase tracking-wider text-xs">
                   Cadastrar primeiro usuário
                 </Button>
               </Link>
             </CardContent>
           </Card>
         ) : (
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="glass border border-border/40 rounded-2xl overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">Usuário</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden md:table-cell">Perfil</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">WhatsApp</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3 hidden lg:table-cell">Último Acesso</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">Status</th>
-                  <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider px-4 py-3">Ações</th>
+                <tr className="border-b border-border/40 bg-muted/30">
+                  <th className="text-left text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] px-4 py-3">Usuário</th>
+                  <th className="text-left text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] px-4 py-3 hidden md:table-cell">Perfil</th>
+                  <th className="text-left text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] px-4 py-3 hidden lg:table-cell">WhatsApp</th>
+                  <th className="text-left text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] px-4 py-3 hidden lg:table-cell">Último Acesso</th>
+                  <th className="text-left text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] px-4 py-3">Status</th>
+                  <th className="text-right text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] px-4 py-3">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border/30">
                 {users.map((user: any) => {
                   const roleConfig = ROLE_CONFIG[(user.ehsRole as string) || "tecnico"] || ROLE_CONFIG.tecnico;
                   const isInactive = (user as any).isActive === false;
                   return (
-                    <tr key={user.id} className={`hover:bg-secondary/20 transition-colors ${isInactive ? "opacity-60" : ""}`}>
+                    <tr key={user.id} className={`table-row-hover ${isInactive ? "opacity-60" : ""}`}>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar className="w-8 h-8">

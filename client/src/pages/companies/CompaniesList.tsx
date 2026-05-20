@@ -33,9 +33,10 @@ export default function CompaniesList() {
       <PageHeader
         title="Lista de Empresas"
         subtitle={`${companies.length} empresa(s) cadastrada(s)`}
+        icon={<Building2 size={20} />}
         actions={
           <Link href="/empresas/nova">
-            <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button size="sm" variant="glow" className="font-bold uppercase tracking-wider text-xs">
               <Plus size={14} className="mr-2" />
               Nova Empresa
             </Button>
@@ -44,13 +45,13 @@ export default function CompaniesList() {
       />
 
       <div className="p-6 space-y-4">
-        <div className="relative max-w-sm">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <div className="relative max-w-sm group">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
           <Input
             placeholder="Buscar por nome ou CNPJ..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9 bg-card border-border"
+            className="pl-9 glass border-border/40 focus:border-primary/50 focus:ring-primary/20"
           />
         </div>
 
@@ -61,12 +62,12 @@ export default function CompaniesList() {
             ))}
           </div>
         ) : companies.length === 0 ? (
-          <Card className="bg-card border-border">
+          <Card className="glass border-border/40">
             <CardContent className="py-16 text-center">
-              <Building2 size={40} className="mx-auto mb-3 text-muted-foreground opacity-40" />
-              <p className="text-muted-foreground">Nenhuma empresa cadastrada</p>
+              <Building2 size={40} className="mx-auto mb-3 text-muted-foreground opacity-30" />
+              <p className="text-muted-foreground font-medium">Nenhuma empresa cadastrada</p>
               <Link href="/empresas/nova">
-                <Button size="sm" className="mt-4 bg-primary text-primary-foreground">
+                <Button size="sm" variant="glow" className="mt-4 font-bold uppercase tracking-wider text-xs">
                   Cadastrar primeira empresa
                 </Button>
               </Link>
@@ -75,7 +76,7 @@ export default function CompaniesList() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {companies.map((company: any) => (
-              <Card key={company.id} className="bg-card border-border hover:border-primary/30 transition-all duration-200">
+              <Card key={company.id} className="glass border-border/40 hover:border-primary/50 transition-all duration-300 card-hover stat-card">
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
