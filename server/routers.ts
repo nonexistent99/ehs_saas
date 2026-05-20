@@ -2024,4 +2024,26 @@ export const appRouter = router({
 
           for (const e of input.emails) {
             try {
-              awa
+              await transporter.sendMail({
+                from: `"EHS Platform" <${process.env.SMTP_USER}>`,
+                to: e,
+                subject: `Documento Compartilhado: ${fileName}`,
+                text: input.message || "Segue o documento anexo.",
+                attachments: [{ filename: fileName, content: pdfBuffer }]
+              });
+              successCount++;
+            } catch (err) {
+              console.error("Email API failed:", err);
+            }
+          }
+        }
+
+        if (successCount === 0 && (allPhones.length > 0 || (input.emails && input.emails.length > 0))) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Falha ao enviar documento." });
+        }
+        return { success: true, count: successCount };
+      }),
+  }),
+});
+
+export type AppRouter = typeof appRouter;
