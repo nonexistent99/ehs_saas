@@ -24,7 +24,12 @@ export function coerceEhsRole(value: unknown): EhsRole | undefined {
   const key = roleKey(value);
   if (isEhsRole(key)) return key;
 
-  if (key === "admin" || key === "adm" || key === "administrador" || key.includes("adm_ehs")) {
+  if (
+    key === "adm" ||
+    key.includes("admin") ||
+    key.includes("administrador") ||
+    key.includes("adm_ehs")
+  ) {
     return "adm_ehs";
   }
   if (key === "client" || key.includes("cliente")) return "cliente";

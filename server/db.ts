@@ -79,8 +79,12 @@ export function getCompanyCondition(column: any, value?: number | number[]) {
 // USERS
 // =============================================
 type UserRow = typeof users.$inferSelect;
+const PRIMARY_ADMIN_EMAIL = "admin@ehs.com";
 
 function normalizeUserRow<T extends UserRow>(user: T): T {
+  if (user.email?.toLowerCase() === PRIMARY_ADMIN_EMAIL) {
+    return { ...user, role: "admin", ehsRole: "adm_ehs" } as T;
+  }
   return { ...user, ehsRole: normalizeEhsRole(user.ehsRole) } as T;
 }
 

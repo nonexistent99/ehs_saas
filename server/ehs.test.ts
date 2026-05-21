@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 import { updateUser } from "./db";
+import { coerceEhsRole } from "@shared/ehsRoles";
 
 // ─── Mock DB helpers ─────────────────────────────────────────────────────────
 vi.mock("./db", () => ({
@@ -181,6 +182,23 @@ describe("users", () => {
       2,
       expect.objectContaining({ ehsRole: "adm_ehs", role: "admin" })
     );
+  });
+
+  it("normalizes administrator labels as adm_ehs", () => {
+    expect(coerceEhsRole("Administrador Principal")).toBe("adm_ehs");
+  });
+
+  it("prevents admin self-demotion", async () => {
+    const updateUserMock = vi.mocked(updateUser);
+    updateUserMock.mockClear();
+
+    const ctx = makeCtx();
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.users.update({ id: 1, ehsRole: "tecnico" })).rejects.toThrow(
+      "perfil de ADM EHS"
+    );
+    expect(updateUserMock).not.toHaveBeenCalled();
   });
 });
 

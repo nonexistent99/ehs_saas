@@ -421,6 +421,10 @@ export const appRouter = router({
           throw new TRPCError({ code: "BAD_REQUEST", message: "Você não pode desativar sua própria conta" });
         }
 
+        if (isAdmin && isSelf && input.ehsRole !== undefined && input.ehsRole !== "adm_ehs") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "VocÃª nÃ£o pode alterar seu prÃ³prio perfil de ADM EHS" });
+        }
+
         const { id, password, companyIds, obraIds, ...rest } = input;
         const updateData: Record<string, unknown> = { ...rest };
 
