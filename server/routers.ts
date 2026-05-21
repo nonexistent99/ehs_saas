@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
+import { EHS_ROLES, coerceEhsRole } from "@shared/ehsRoles";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { companyProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
@@ -119,6 +120,8 @@ import { eq, and, or, count, desc, gte, lte, like, sql } from "drizzle-orm";
 // =============================================
 // HELPERS
 // =============================================
+const ehsRoleInputSchema = z.preprocess((value) => coerceEhsRole(value) ?? value, z.enum(EHS_ROLES));
+
 function requireAdmOrTecnico(role?: string | null) {
   if (role !== "adm_ehs" && role !== "tecnico" && role !== "apoio") {
     throw new TRPCError({ code: "FORBIDDEN", message: "Acesso não autorizado" });
@@ -336,7 +339,7 @@ export const appRouter = router({
         name: z.string().min(1, "Nome obrigatório"),
         email: z.string().email("Email inválido"),
         password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
-        ehsRole: z.enum(["adm_ehs", "cliente", "tecnico", "apoio"]).default("tecnico"),
+        ehsRole: ehsRoleInputSchema.default("tecnico"),
         phone: z.string().optional(),
         whatsapp: z.string().optional(),
         companyIds: z.array(z.number()).optional(),
@@ -398,7 +401,7 @@ export const appRouter = router({
         id: z.number(),
         name: z.string().optional(),
         email: z.string().email().optional(),
-        ehsRole: z.enum(["adm_ehs", "cliente", "tecnico", "apoio"]).optional(),
+        ehsRole: ehsRoleInputSchema.optional(),
         phone: z.string().optional(),
         whatsapp: z.string().optional(),
         isActive: z.boolean().optional(),
@@ -430,6 +433,9 @@ export const appRouter = router({
 
         if (password) {
           updateData.passwordHash = await bcrypt.hash(password, 10);
+        }
+        if (isAdmin && updateData.ehsRole !== undefined) {
+          updateData.role = updateData.ehsRole === "adm_ehs" ? "admin" : "user";
         }
         await updateUser(id, updateData);
         if (isAdmin && companyIds !== undefined) await setUserLinkedCompanies(id, companyIds);

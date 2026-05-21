@@ -37,6 +37,7 @@ import {
   trainings,
   users,
 } from "../drizzle/schema";
+import { normalizeEhsRole } from "@shared/ehsRoles";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -77,6 +78,16 @@ export function getCompanyCondition(column: any, value?: number | number[]) {
 // =============================================
 // USERS
 // =============================================
+type UserRow = typeof users.$inferSelect;
+
+function normalizeUserRow<T extends UserRow>(user: T): T {
+  return { ...user, ehsRole: normalizeEhsRole(user.ehsRole) } as T;
+}
+
+function normalizeUserRows<T extends UserRow>(rows: T[]): T[] {
+  return rows.map(normalizeUserRow);
+}
+
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
   const db = await getDb();
@@ -121,7 +132,7 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return result.length > 0 ? normalizeUserRow(result[0]) : undefined;
 }
 
 export async function getAllUsers(search?: string, ehsRole?: string) {
@@ -139,16 +150,18 @@ export async function getAllUsers(search?: string, ehsRole?: string) {
   // For now, routers should handle this with requireAdm if it's a global list.
 
   if (conditions.length > 0) {
-    return query.where(and(...conditions)).orderBy(desc(users.createdAt));
+    const rows = await query.where(and(...conditions)).orderBy(desc(users.createdAt));
+    return normalizeUserRows(rows);
   }
-  return query.orderBy(desc(users.createdAt));
+  const rows = await query.orderBy(desc(users.createdAt));
+  return normalizeUserRows(rows);
 }
 
 export async function getUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-  return result[0];
+  return result[0] ? normalizeUserRow(result[0]) : undefined;
 }
 
 export async function updateUser(id: number, data: Partial<typeof users.$inferInsert>) {
@@ -1231,7 +1244,7 @@ export async function getUserByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
   const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-  return result.length > 0 ? result[0] : undefined;
+  return result.length > 0 ? normalizeUserRow(result[0]) : undefined;
 }
 
 export async function createUserWithPassword(data: typeof users.$inferInsert) {

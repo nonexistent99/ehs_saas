@@ -9,6 +9,7 @@ import { useLocation, useParams } from "wouter";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Save, User } from "lucide-react";
+import { type EhsRole, normalizeEhsRole } from "@shared/ehsRoles";
 
 export default function UserForm() {
   const [, navigate] = useLocation();
@@ -22,7 +23,7 @@ export default function UserForm() {
     password: "",
     phone: "",
     whatsapp: "",
-    ehsRole: "tecnico" as "adm_ehs" | "cliente" | "tecnico" | "apoio",
+    ehsRole: "tecnico" as EhsRole,
     companyIds: [] as number[],
     obraIds: [] as number[],
   });
@@ -44,7 +45,7 @@ export default function UserForm() {
         password: "",
         phone: (existingUser as any).phone || "",
         whatsapp: (existingUser as any).whatsapp || "",
-        ehsRole: (existingUser as any).ehsRole || "tecnico",
+        ehsRole: normalizeEhsRole((existingUser as any).ehsRole),
         companyIds: (existingUser as any).companyIds || [],
         obraIds: (existingUser as any).obraIds || [],
       });
@@ -198,7 +199,7 @@ export default function UserForm() {
                   <Label className="text-sm text-foreground">Perfil de Acesso *</Label>
                   <Select
                     value={form.ehsRole}
-                    onValueChange={(v) => setForm(f => ({ ...f, ehsRole: v as any }))}
+                    onValueChange={(v) => setForm(f => ({ ...f, ehsRole: normalizeEhsRole(v) }))}
                   >
                     <SelectTrigger className="bg-secondary border-border">
                       <SelectValue />

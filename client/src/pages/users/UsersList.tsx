@@ -14,6 +14,7 @@ import { Edit, Plus, Search, Trash2, UserCheck, UserX } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
+import { normalizeEhsRole } from "@shared/ehsRoles";
 
 const ROLE_CONFIG: Record<string, { label: string; color: string }> = {
   adm_ehs: { label: "ADM EHS", color: "bg-primary/15 text-primary" },
@@ -113,7 +114,7 @@ export default function UsersList() {
               </thead>
               <tbody className="divide-y divide-border/30">
                 {users.map((user: any) => {
-                  const roleConfig = ROLE_CONFIG[(user.ehsRole as string) || "tecnico"] || ROLE_CONFIG.tecnico;
+                  const roleConfig = ROLE_CONFIG[normalizeEhsRole(user.ehsRole)];
                   const isInactive = (user as any).isActive === false;
                   return (
                     <tr key={user.id} className={`table-row-hover ${isInactive ? "opacity-60" : ""}`}>

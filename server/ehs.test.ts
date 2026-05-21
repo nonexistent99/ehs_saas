@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
+import { updateUser } from "./db";
 
 // ─── Mock DB helpers ─────────────────────────────────────────────────────────
 vi.mock("./db", () => ({
@@ -20,6 +21,7 @@ vi.mock("./db", () => ({
   createCompany: vi.fn().mockResolvedValue(1),
   updateCompany: vi.fn().mockResolvedValue(undefined),
   deleteCompany: vi.fn().mockResolvedValue(undefined),
+  addCompanyUser: vi.fn().mockResolvedValue(undefined),
   getAllNRs: vi.fn().mockResolvedValue([]),
   getAllCheckLists: vi.fn().mockResolvedValue([]),
   createCheckList: vi.fn().mockResolvedValue(1),
@@ -75,9 +77,9 @@ vi.mock("./db", () => ({
   getDb: vi.fn().mockResolvedValue({
     select: vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
-        where: vi.fn().mockReturnValue({
+        where: vi.fn().mockImplementation(() => Object.assign(Promise.resolve([]), {
           orderBy: vi.fn().mockResolvedValue([]),
-        }),
+        })),
       }),
     }),
   }),
@@ -164,6 +166,21 @@ describe("users", () => {
       password: "password123",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("update normalizes legacy ehsRole values", async () => {
+    const updateUserMock = vi.mocked(updateUser);
+    updateUserMock.mockClear();
+
+    const ctx = makeCtx();
+    const caller = appRouter.createCaller(ctx);
+
+    await caller.users.update({ id: 2, ehsRole: "admin" as any });
+
+    expect(updateUserMock).toHaveBeenCalledWith(
+      2,
+      expect.objectContaining({ ehsRole: "adm_ehs", role: "admin" })
+    );
   });
 });
 
