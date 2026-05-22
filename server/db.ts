@@ -657,11 +657,8 @@ export async function upsertInspectionItems(
 // DASHBOARD STATS
 // =============================================
 export async function getDashboardStats(companyId?: number | number[]) {
-  const db = await getDb();
-  if (!db) return null;
-
-  const whereClause = getCompanyCondition(inspections.companyId, companyId);
-  const whereExec = getCompanyCondition(checklistExecutions.companyId, companyId);
+  await getDb();
+  if (!queryClient) return null;
 
   // Compute weekly window first (used in parallel query below)
   const now = new Date();
@@ -669,58 +666,133 @@ export async function getDashboardStats(companyId?: number | number[]) {
   const startOfWeek = new Date(now);
   startOfWeek.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   startOfWeek.setHours(0, 0, 0, 0);
+  const startOfWeekIso = startOfWeek.toISOString();
 
-  // Single grouped query for inspection status counts (replaces 5 sequential queries)
-  const inspectionCountsP = db
-    .select({ status: inspections.status, count: count() })
-    .from(inspections)
-    .where(whereClause)
-    .groupBy(inspections.status);
+  const companyIds =
+    companyId === undefined
+      ? undefined
+      : Array.isArray(companyId)
+        ? companyId
+        : [companyId];
+  const hasNoAuthorizedCompanies = Array.isArray(companyIds) && companyIds.length === 0;
+  const singleCompanyId = companyIds?.length === 1 ? companyIds[0] : undefined;
 
-  // Single grouped query for notification status counts
-  const notificationCountsP = db
-    .select({ status: notifications.status, count: count() })
-    .from(notifications)
-    .groupBy(notifications.status);
+  const notificationCounts = await queryClient`
+    select status, count(*)::int as count
+    from notifications
+    group by status
+  `;
+  const [totalUsers] = await queryClient`
+    select count(*)::int as count
+    from users
+    where "isActive" = true
+  `;
+  const [totalCompanies] = await queryClient`
+    select count(*)::int as count
+    from companies
+    where "isActive" = true
+  `;
 
-  const totalUsersP = db.select({ count: count() }).from(users).where(eq(users.isActive, true));
-  const totalCompaniesP = db.select({ count: count() }).from(companies).where(eq(companies.isActive, true));
-  const weeklyInspectionsP = db.select({ createdAt: inspections.createdAt }).from(inspections)
-    .where(and(whereClause, gte(inspections.createdAt, startOfWeek)));
-  const recentInspectionsP = db
-    .select({ inspection: inspections, company: companies })
-    .from(inspections)
-    .leftJoin(companies, eq(inspections.companyId, companies.id))
-    .where(whereClause)
-    .orderBy(desc(inspections.createdAt))
-    .limit(5);
-  const pendingExecsP = db.select({ date: checklistExecutions.date }).from(checklistExecutions)
-    .where(and(whereExec, eq(checklistExecutions.status, "pendente" as any)));
-  const scoreAggP = db
-    .select({ count: count(), totalScore: sql<string>`COALESCE(SUM(${checklistExecutions.score}), 0)` })
-    .from(checklistExecutions)
-    .where(and(whereExec, eq(checklistExecutions.status, "concluida" as any)));
+  let inspectionCounts: { status: string; count: number }[] = [];
+  let weeklyInspections: { createdAt: Date }[] = [];
+  let recentInspections: any[] = [];
+  let pendingExecs: { date: Date | string }[] = [];
+  let scoreAgg: { count: number; totalScore: string } = { count: 0, totalScore: "0" };
 
-  // Run all queries concurrently
-  const [
-    inspectionCounts,
-    notificationCounts,
-    [totalUsers],
-    [totalCompanies],
-    weeklyInspections,
-    recentInspections,
-    pendingExecs,
-    [scoreAgg],
-  ] = await Promise.all([
-    inspectionCountsP,
-    notificationCountsP,
-    totalUsersP,
-    totalCompaniesP,
-    weeklyInspectionsP,
-    recentInspectionsP,
-    pendingExecsP,
-    scoreAggP,
-  ]);
+  if (!hasNoAuthorizedCompanies) {
+    if (singleCompanyId !== undefined) {
+      inspectionCounts = await queryClient`
+        select status, count(*)::int as count
+        from inspections
+        where "companyId" = ${singleCompanyId}
+        group by status
+      `;
+      weeklyInspections = await queryClient`
+        select "createdAt"
+        from inspections
+        where "companyId" = ${singleCompanyId} and "createdAt" >= ${startOfWeekIso}::timestamp
+      `;
+      recentInspections = await queryClient`
+        select i.*, c.name as "companyName"
+        from inspections i
+        left join companies c on i."companyId" = c.id
+        where i."companyId" = ${singleCompanyId}
+        order by i."createdAt" desc
+        limit 5
+      `;
+      pendingExecs = await queryClient`
+        select date
+        from checklist_executions
+        where "companyId" = ${singleCompanyId} and status = 'pendente'
+      `;
+      const [companyScoreAgg] = await queryClient`
+        select count(*)::int as count, coalesce(sum(score), 0)::text as "totalScore"
+        from checklist_executions
+        where "companyId" = ${singleCompanyId} and status = 'concluida'
+      `;
+      scoreAgg = companyScoreAgg as { count: number; totalScore: string };
+    } else if (companyIds && companyIds.length > 1) {
+      inspectionCounts = await queryClient`
+        select status, count(*)::int as count
+        from inspections
+        where "companyId" = any(${companyIds})
+        group by status
+      `;
+      weeklyInspections = await queryClient`
+        select "createdAt"
+        from inspections
+        where "companyId" = any(${companyIds}) and "createdAt" >= ${startOfWeekIso}::timestamp
+      `;
+      recentInspections = await queryClient`
+        select i.*, c.name as "companyName"
+        from inspections i
+        left join companies c on i."companyId" = c.id
+        where i."companyId" = any(${companyIds})
+        order by i."createdAt" desc
+        limit 5
+      `;
+      pendingExecs = await queryClient`
+        select date
+        from checklist_executions
+        where "companyId" = any(${companyIds}) and status = 'pendente'
+      `;
+      const [companyScoreAgg] = await queryClient`
+        select count(*)::int as count, coalesce(sum(score), 0)::text as "totalScore"
+        from checklist_executions
+        where "companyId" = any(${companyIds}) and status = 'concluida'
+      `;
+      scoreAgg = companyScoreAgg as { count: number; totalScore: string };
+    } else {
+      inspectionCounts = await queryClient`
+        select status, count(*)::int as count
+        from inspections
+        group by status
+      `;
+      weeklyInspections = await queryClient`
+        select "createdAt"
+        from inspections
+        where "createdAt" >= ${startOfWeekIso}::timestamp
+      `;
+      recentInspections = await queryClient`
+        select i.*, c.name as "companyName"
+        from inspections i
+        left join companies c on i."companyId" = c.id
+        order by i."createdAt" desc
+        limit 5
+      `;
+      pendingExecs = await queryClient`
+        select date
+        from checklist_executions
+        where status = 'pendente'
+      `;
+      const [globalScoreAgg] = await queryClient`
+        select count(*)::int as count, coalesce(sum(score), 0)::text as "totalScore"
+        from checklist_executions
+        where status = 'concluida'
+      `;
+      scoreAgg = globalScoreAgg as { count: number; totalScore: string };
+    }
+  }
 
   // Sum inspection statuses
   const statusCount = (s: string) => inspectionCounts.find(r => r.status === s)?.count ?? 0;
@@ -763,14 +835,14 @@ export async function getDashboardStats(companyId?: number | number[]) {
     pending: statusCount("pendente"),
     attention: statusCount("atencao"),
     resolved: statusCount("resolvida"),
-    totalUsers: totalUsers.count,
-    totalCompanies: totalCompanies.count,
+    totalUsers: totalUsers?.count ?? 0,
+    totalCompanies: totalCompanies?.count ?? 0,
     weeklyData,
     sentNotifications: sentCount,
     readNotifications: readCount,
     recentInspections: recentInspections.map((row: any) => ({
-      ...row.inspection,
-      companyName: row.company?.name || "Empresa Removida",
+      ...row,
+      companyName: row.companyName || "Empresa Removida",
     })),
     pendingChecklists: pendingExecs.length,
     overdueChecklists,
