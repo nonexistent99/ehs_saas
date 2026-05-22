@@ -67,7 +67,7 @@ export default function Dashboard() {
 
   const { data: companies = [] } = trpc.companies.list.useQuery(undefined, { enabled: isAdmin });
   // Pass the admin-selected companyId so the dashboard data reflects the filter
-  const { data: stats, isLoading } = trpc.dashboard.stats.useQuery(
+  const { data: stats, isLoading, error } = trpc.dashboard.stats.useQuery(
     selectedCompanyId ? { companyId: selectedCompanyId } : undefined
   );
   const { data: expiringDocs = [] } = trpc.tactDrive.documents.expiring.useQuery({ daysAhead: 30 });
@@ -90,16 +90,6 @@ export default function Dashboard() {
     { name: "Dom", inspeções: 0 },
   ];
 
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-4">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-24 bg-card rounded-lg animate-pulse" />
-        ))}
-      </div>
-    );
-  }
-
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
@@ -114,6 +104,16 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex gap-3 items-center">
+          {isLoading && (
+            <Badge variant="glow" className="h-8 text-[10px] font-black uppercase tracking-widest">
+              Atualizando...
+            </Badge>
+          )}
+          {error && (
+            <Badge variant="destructive" className="h-8 text-[10px] font-black uppercase tracking-widest">
+              Erro nos dados
+            </Badge>
+          )}
           {/* Admin Multi-Tenant Company Selector */}
           {isAdmin && companies.length > 0 && (
             <Select
@@ -323,6 +323,10 @@ export default function Dashboard() {
                   />
                 </PieChart>
               </ResponsiveContainer>
+            ) : isLoading ? (
+              <div className="h-[240px] flex items-center justify-center text-muted-foreground text-sm font-medium opacity-70">
+                Atualizando dados...
+              </div>
             ) : (
               <div className="h-[240px] flex items-center justify-center text-muted-foreground text-sm font-medium opacity-50">
                 Nenhum dado disponível
@@ -380,7 +384,12 @@ export default function Dashboard() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {stats?.recentInspections && stats.recentInspections.length > 0 ? (
+          {isLoading && !stats ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <FileText size={48} className="mx-auto mb-3 opacity-10" />
+              <p className="text-sm font-medium">Atualizando dados...</p>
+            </div>
+          ) : stats?.recentInspections && stats.recentInspections.length > 0 ? (
             <div className="divide-y divide-border/30">
               {stats.recentInspections.map((item: any) => (
                 <Link key={item.id} href={`/relatorios/${item.id}`}>
