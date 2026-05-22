@@ -37,7 +37,6 @@ export default function Login() {
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] animate-pulse" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-orange-600/10 rounded-full blur-[100px]" />
-        <div className="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
       </div>
 
       <div className="w-full max-w-[1100px] grid lg:grid-cols-2 gap-0 relative z-10 glass rounded-[32px] overflow-hidden border-white/5 shadow-2xl">
