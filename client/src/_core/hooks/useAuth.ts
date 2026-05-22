@@ -7,12 +7,25 @@ type UseAuthOptions = {
   redirectPath?: string;
 };
 
+function getCachedUser() {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = localStorage.getItem("manus-runtime-user-info");
+    if (!raw || raw === "null") return undefined;
+    return JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+}
+
 export function useAuth(options?: UseAuthOptions) {
   const { redirectOnUnauthenticated = false, redirectPath = "/login" } =
     options ?? {};
   const utils = trpc.useUtils();
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
+    initialData: getCachedUser,
+    initialDataUpdatedAt: 0,
     retry: false,
     refetchOnWindowFocus: false,
   });

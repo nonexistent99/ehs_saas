@@ -31,41 +31,49 @@ export const companyProcedure = t.procedure.use(requireUser).use(
   t.middleware(async (opts) => {
     const { ctx, next, input } = opts;
     if (!ctx.user) throw new TRPCError({ code: "UNAUTHORIZED" });
-    
+
     const inputCompanyId = (input as any)?.companyId;
-    
-    // adm_ehs bypasses company checks and uses input if provided, else undefined (all)
+
+    // ADM EHS can access all companies; skip the extra company link query.
     if (ctx.user.ehsRole === "adm_ehs") {
       return next({
-        ctx: { 
-          ...ctx, 
-          effectiveCompanyId: inputCompanyId 
-        }
+        ctx: {
+          ...ctx,
+          effectiveCompanyId: inputCompanyId,
+        },
       });
     }
-    
-    // For non-admins, if companyId is in input, validate it
+
+    const userId = ctx.user.id;
+    const authorizedCompanyIds: number[] = ctx.authorizedCompanyIds.length
+      ? ctx.authorizedCompanyIds
+      : await ((ctx as any).__authorizedCompanyIdsPromise ??=
+          import("../db").then(({ getUserLinkedCompanies }) =>
+            getUserLinkedCompanies(userId)
+          ));
+
     if (inputCompanyId) {
-      if (!ctx.authorizedCompanyIds.includes(inputCompanyId)) {
-        throw new TRPCError({ 
-          code: "FORBIDDEN", 
-          message: "Acesso a esta empresa não autorizado para seu perfil" 
+      if (!authorizedCompanyIds.includes(inputCompanyId)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Acesso a esta empresa nao autorizado para seu perfil",
         });
       }
       return next({
-        ctx: { 
-          ...ctx, 
-          effectiveCompanyId: inputCompanyId 
-        }
+        ctx: {
+          ...ctx,
+          authorizedCompanyIds,
+          effectiveCompanyId: inputCompanyId,
+        },
       });
     }
-    
-    // If companyId is missing, default to all authorized companies
+
     return next({
-      ctx: { 
-        ...ctx, 
-        effectiveCompanyId: ctx.authorizedCompanyIds 
-      }
+      ctx: {
+        ...ctx,
+        authorizedCompanyIds,
+        effectiveCompanyId: authorizedCompanyIds,
+      },
     });
   })
 );

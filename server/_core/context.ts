@@ -17,25 +17,15 @@ export async function createContext(
 
   try {
     user = await sdk.authenticateRequest(opts.req);
-    console.log("[AuthDebug] Context created with user:", user?.openId);
   } catch (error) {
-    if (error instanceof Error) {
-      console.log("[AuthDebug] Context creation failed auth:", error.message);
-    }
     // Authentication is optional for public procedures.
     user = null;
-  }
-
-  let authorizedCompanyIds: number[] = [];
-  if (user) {
-    const { getUserLinkedCompanies } = await import("../db");
-    authorizedCompanyIds = await getUserLinkedCompanies(user.id);
   }
 
   return {
     req: opts.req,
     res: opts.res,
     user,
-    authorizedCompanyIds,
+    authorizedCompanyIds: [],
   };
 }

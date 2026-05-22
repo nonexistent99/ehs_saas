@@ -261,24 +261,13 @@ class SDKServer {
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
 
-    if (!sessionCookie) {
-      console.log("[AuthDebug] No session cookie found in request headers");
-    }
-
     const session = await this.verifySession(sessionCookie);
 
     if (!session) {
-      console.log("[AuthDebug] Invalid session cookie. Failed to verify.");
       throw ForbiddenError("Invalid session cookie");
     }
 
     const sessionUserId = session.openId;
-    const signedInAt = new Date();
-
-    console.log("[AuthDebug] Decoded Session OpenID:", sessionUserId);
-
-
-
     let user = await db.getUserByOpenId(sessionUserId);
 
     // If user not in DB, sync from OAuth server automatically
@@ -290,7 +279,7 @@ class SDKServer {
           name: userInfo.name || null,
           email: userInfo.email ?? null,
           loginMethod: userInfo.loginMethod ?? userInfo.platform ?? null,
-          lastSignedIn: signedInAt,
+          lastSignedIn: new Date(),
         });
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
@@ -302,11 +291,6 @@ class SDKServer {
     if (!user) {
       throw ForbiddenError("User not found");
     }
-
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
 
     return user;
   }
