@@ -7,33 +7,46 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import EHSLayout from "./components/EHSLayout";
 import { useAuth } from "./_core/hooks/useAuth";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 
 // Pages
-import Dashboard from "./pages/Dashboard";
-import UsersList from "./pages/users/UsersList";
-import UserForm from "./pages/users/UserForm";
-import CompaniesList from "./pages/companies/CompaniesList";
-import CompanyForm from "./pages/companies/CompanyForm";
-import CompanyDetail from "./pages/companies/CompanyDetail";
-import ChecklistExecutionsList from "./pages/checklists/ChecklistExecutionsList";
-import ChecklistExecutionForm from "./pages/checklists/ChecklistExecutionForm";
-import ChecklistTemplatesList from "./pages/checklists/ChecklistTemplatesList";
-import ChecklistTemplateForm from "./pages/checklists/ChecklistTemplateForm";
-import InspectionsList from "./pages/inspections/InspectionsList";
-import InspectionForm from "./pages/inspections/InspectionForm";
-import InspectionDetail from "./pages/inspections/InspectionDetail";
-import PGRPage from "./pages/pgr/PGRPage";
-import AdvertenciasPage from "./pages/seguranca/AdvertenciasPage";
-import APRPage from "./pages/seguranca/APRPage";
-import EPIPage from "./pages/seguranca/EPIPage";
-import ITSPage from "./pages/seguranca/ITSPage";
-import PTPage from "./pages/seguranca/PTPage";
-import TactdriverPage from "./pages/seguranca/TactdriverPage";
-import TreinamentosPage from "./pages/seguranca/TreinamentosPage";
-import NotificacoesPage from "./pages/NotificacoesPage";
-import ChatPage from "./pages/ChatPage";
-import NRsPage from "./pages/nrs/NRsPage";
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UsersList = lazy(() => import("./pages/users/UsersList"));
+const UserForm = lazy(() => import("./pages/users/UserForm"));
+const CompaniesList = lazy(() => import("./pages/companies/CompaniesList"));
+const CompanyForm = lazy(() => import("./pages/companies/CompanyForm"));
+const CompanyDetail = lazy(() => import("./pages/companies/CompanyDetail"));
+const ChecklistExecutionsList = lazy(() => import("./pages/checklists/ChecklistExecutionsList"));
+const ChecklistExecutionForm = lazy(() => import("./pages/checklists/ChecklistExecutionForm"));
+const ChecklistTemplatesList = lazy(() => import("./pages/checklists/ChecklistTemplatesList"));
+const ChecklistTemplateForm = lazy(() => import("./pages/checklists/ChecklistTemplateForm"));
+const InspectionsList = lazy(() => import("./pages/inspections/InspectionsList"));
+const InspectionForm = lazy(() => import("./pages/inspections/InspectionForm"));
+const InspectionDetail = lazy(() => import("./pages/inspections/InspectionDetail"));
+const PGRPage = lazy(() => import("./pages/pgr/PGRPage"));
+const AdvertenciasPage = lazy(() => import("./pages/seguranca/AdvertenciasPage"));
+const APRPage = lazy(() => import("./pages/seguranca/APRPage"));
+const EPIPage = lazy(() => import("./pages/seguranca/EPIPage"));
+const ITSPage = lazy(() => import("./pages/seguranca/ITSPage"));
+const PTPage = lazy(() => import("./pages/seguranca/PTPage"));
+const TactdriverPage = lazy(() => import("./pages/seguranca/TactdriverPage"));
+const TreinamentosPage = lazy(() => import("./pages/seguranca/TreinamentosPage"));
+const NotificacoesPage = lazy(() => import("./pages/NotificacoesPage"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const NRsPage = lazy(() => import("./pages/nrs/NRsPage"));
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center animate-pulse">
+          <div className="w-6 h-6 bg-primary rounded-md" />
+        </div>
+        <p className="text-muted-foreground text-sm">Carregando...</p>
+      </div>
+    </div>
+  );
+}
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, loading } = useAuth();
@@ -45,21 +58,14 @@ function ProtectedRoute({ component: Component }: { component: React.ComponentTy
   }, [loading, isAuthenticated]);
 
   if (loading || !isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center animate-pulse">
-            <div className="w-6 h-6 bg-primary rounded-md" />
-          </div>
-          <p className="text-muted-foreground text-sm">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
     <EHSLayout>
-      <Component />
+      <Suspense fallback={<LoadingScreen />}>
+        <Component />
+      </Suspense>
     </EHSLayout>
   );
 }
