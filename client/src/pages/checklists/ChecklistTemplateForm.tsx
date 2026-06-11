@@ -11,6 +11,7 @@ import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
 import { CheckSquare, Plus, Save, Trash2, GripVertical, Upload, X } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { resolveMediaUrl } from "@/lib/media";
 
 interface TemplateItem {
   id?: number;
@@ -356,8 +357,12 @@ export default function ChecklistTemplateForm() {
                           <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Imagem de Referência (Opcional)</Label>
                           <div className="flex gap-2 items-center">
                             {item.referenceImgUrl ? (
-                              <div className="relative w-16 h-16 shrink-0">
-                                <img src={item.referenceImgUrl} alt="ref" className="w-full h-full object-cover rounded-md border border-border" />
+                              <div className="relative w-24 h-20 shrink-0 rounded-md border border-border bg-background overflow-hidden">
+                                <img
+                                  src={resolveMediaUrl(item.referenceImgUrl)}
+                                  alt="Imagem de referencia"
+                                  className="w-full h-full object-contain"
+                                />
                                 <button
                                   type="button"
                                   onClick={() => updateItem(i, "referenceImgUrl", "")}

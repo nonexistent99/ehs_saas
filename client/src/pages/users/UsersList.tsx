@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { normalizeEhsRole } from "@shared/ehsRoles";
 
 const ROLE_CONFIG: Record<string, { label: string; color: string }> = {
-  adm_ehs: { label: "ADM EHS", color: "bg-primary/15 text-primary" },
+  adm_ehs: { label: "ADM TACT", color: "bg-primary/15 text-primary" },
   cliente: { label: "Cliente", color: "bg-blue-500/15 text-blue-400" },
   tecnico: { label: "Técnico", color: "bg-green-500/15 text-green-400" },
   apoio: { label: "Apoio", color: "bg-purple-500/15 text-purple-400" },

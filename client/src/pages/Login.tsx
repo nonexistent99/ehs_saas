@@ -47,11 +47,11 @@ export default function Login() {
           <div className="relative z-10">
             <div className="flex items-center gap-2.5 mb-12">
               <LogoMark
-                src="/logo-dark.png"
+                src="/logo-dark.svg"
                 alt="TACT Logo"
                 variant="full"
                 width={140}
-                height={80}
+                height={62}
               />
             </div>
 
@@ -62,7 +62,7 @@ export default function Login() {
                 em tempo real.
               </h1>
               <p className="text-muted-foreground text-lg max-w-sm leading-relaxed">
-                A nova era da gestão EHS. Potencialize sua conformidade com tecnologia de ponta.
+                A nova era da gestão de segurança. Potencialize sua conformidade com tecnologia de ponta.
               </p>
             </div>
           </div>
@@ -86,11 +86,11 @@ export default function Login() {
             <div className="mb-10 text-center lg:text-left">
               <div className="lg:hidden flex justify-center mb-6">
                 <LogoMark
-                  src="/logo-dark.png"
+                  src="/logo-dark.svg"
                   alt="TACT Logo"
                   variant="full"
                   width={120}
-                  height={64}
+                  height={54}
                 />
               </div>
               <h2 className="text-3xl font-black text-white tracking-tight">Bem-vindo</h2>
@@ -156,7 +156,7 @@ export default function Login() {
 
             <div className="mt-12 text-center">
               <p className="text-[11px] font-bold text-muted-foreground/40 uppercase tracking-widest">
-                TACT Drive v4.0 • EHS Global Standard
+                TACT Drive v4.0 • Safety Intelligence
               </p>
             </div>
           </div>

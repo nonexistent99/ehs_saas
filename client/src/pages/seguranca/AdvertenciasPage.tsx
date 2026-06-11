@@ -46,7 +46,7 @@ export default function AdvertenciasPage() {
   const [form, setForm] = useState({ 
     companyId: "", 
     obraId: "", 
-    employeeId: "", 
+    employeeName: "", 
     type: "escrita" as any, 
     reason: "", 
     description: "", 
@@ -64,7 +64,7 @@ export default function AdvertenciasPage() {
     setForm({ 
       companyId: "", 
       obraId: "", 
-      employeeId: "", 
+      employeeName: "", 
       type: "escrita", 
       reason: "", 
       description: "", 
@@ -89,10 +89,6 @@ export default function AdvertenciasPage() {
     { companyId: Number(form.companyId) },
     { enabled: !!form.companyId }
   );
-  const { data: formEmployees = [] } = trpc.epiFicha.employees.useQuery(
-    { companyId: Number(form.companyId), obraId: Number(form.obraId) },
-    { enabled: !!form.companyId && !!form.obraId }
-  );
 
   const exportPdf = (id: number) => {
     window.open(`/api/export/advertencia/${id}`, "_blank");
@@ -103,7 +99,7 @@ export default function AdvertenciasPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Empresa *</Label>
-          <Select value={form.companyId} onValueChange={v => setForm(f => ({ ...f, companyId: v, obraId: "", employeeId: "" }))}>
+          <Select value={form.companyId} onValueChange={v => setForm(f => ({ ...f, companyId: v, obraId: "", employeeName: "" }))}>
             <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
             <SelectContent className="bg-card border-border">
               {companies.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
@@ -114,7 +110,7 @@ export default function AdvertenciasPage() {
           <Label>Obra *</Label>
           <Select 
             value={form.obraId} 
-            onValueChange={v => setForm(f => ({ ...f, obraId: v, employeeId: "" }))}
+            onValueChange={v => setForm(f => ({ ...f, obraId: v }))}
             disabled={!form.companyId}
           >
             <SelectTrigger className="bg-secondary border-border">
@@ -130,18 +126,12 @@ export default function AdvertenciasPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label>Colaborador *</Label>
-          <Select 
-             value={form.employeeId} 
-             onValueChange={v => setForm(f => ({ ...f, employeeId: v }))}
-             disabled={!form.obraId}
-          >
-            <SelectTrigger className="bg-secondary border-border">
-              <SelectValue placeholder={form.obraId ? "Selecione" : "Selecione a obra"} />
-            </SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              {formEmployees.map((e: any) => <SelectItem key={e.id} value={String(e.id)}>{e.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Input
+            value={form.employeeName}
+            onChange={e => setForm(f => ({ ...f, employeeName: e.target.value }))}
+            placeholder="Digite o nome completo"
+            className="bg-secondary border-border"
+          />
         </div>
         <div className="space-y-1.5">
           <Label>Tipo</Label>
@@ -206,7 +196,7 @@ export default function AdvertenciasPage() {
 
       <Button className="w-full bg-primary text-primary-foreground" disabled={createMutation.isPending}
         onClick={() => {
-          if (!form.companyId || !form.obraId || !form.employeeId || !form.reason || !form.date) { 
+          if (!form.companyId || !form.obraId || !form.employeeName.trim() || !form.reason || !form.date) { 
             toast.error("Preencha todos os campos obrigatórios"); 
             return; 
           }
@@ -219,7 +209,7 @@ export default function AdvertenciasPage() {
           createMutation.mutate({ 
             companyId: Number(form.companyId), 
             obraId: Number(form.obraId),
-            employeeId: Number(form.employeeId),
+            employeeName: form.employeeName.trim(),
             type: form.type, 
             reason: form.reason, 
             description: form.description || undefined, 
@@ -311,8 +301,8 @@ export default function AdvertenciasPage() {
         columns={[
           { key: "employee", label: "Colaborador", render: (i) => (
             <div className="flex flex-col">
-              <span className="text-sm font-medium">{i.employee?.name || "—"}</span>
-              <span className="text-[10px] text-muted-foreground uppercase">{i.employee?.role || "Operacional"}</span>
+              <span className="text-sm font-medium">{i.advertencia.employeeName || i.employee?.name || "—"}</span>
+              <span className="text-[10px] text-muted-foreground uppercase">{i.employee ? "Cadastro interno" : "Nome informado"}</span>
             </div>
           )},
           { key: "reason", label: "Motivo", render: (i) => <span className="text-xs text-foreground mt-1 block max-w-[200px] truncate">{i.advertencia.reason}</span> },
@@ -326,7 +316,7 @@ export default function AdvertenciasPage() {
         actions={(i) => (
           <div className="flex justify-end gap-1">
             <ShareWhatsappDialog
-              title={`Advertência - ${i.employee?.name || "Sem Nome"}`}
+              title={`Advertência - ${i.advertencia.employeeName || i.employee?.name || "Sem Nome"}`}
               documentUrl={`${window.location.origin}/api/export/advertencia/${i.advertencia.id}`}
               documentType="advertencia"
               documentId={i.advertencia.id}

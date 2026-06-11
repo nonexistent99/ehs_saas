@@ -205,7 +205,7 @@ export default function UserForm() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="bg-card border-border">
-                      <SelectItem value="adm_ehs">ADM EHS — Acesso total, gerencia licenças</SelectItem>
+                      <SelectItem value="adm_ehs">ADM TACT — Acesso total, gerencia licenças</SelectItem>
                       <SelectItem value="cliente">Cliente — Visualiza apenas seus dados</SelectItem>
                       <SelectItem value="tecnico">Técnico — Ferramenta de trabalho operacional</SelectItem>
                       <SelectItem value="apoio">Apoio — Acesso de suporte</SelectItem>

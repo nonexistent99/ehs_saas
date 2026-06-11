@@ -1,0 +1,29 @@
+<svg width="160" height="160" viewBox="0 0 160 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="TACT">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="58%">
+      <stop stop-color="#1F2937"/>
+      <stop offset="1" stop-color="#050506"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="97" y1="37" x2="127" y2="127" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset=".45" stop-color="#FF6B00"/>
+      <stop offset="1" stop-color="#E83A00"/>
+    </linearGradient>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 .98 0 1 0 0 .34 0 0 1 0 0 0 0 0 .75 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <circle cx="80" cy="80" r="72" fill="url(#bg)" stroke="#FF6B00" stroke-opacity=".35" stroke-width="2"/>
+  <path d="M61 47c4-7 14-7 18 0l35 59H91L70 69l-22 37H25l36-59Z" fill="#F8FAFC"/>
+  <path d="M70 80 80 98H60l10-18Z" fill="#050506"/>
+  <g filter="url(#glow)">
+    <path d="M118 34c9 3 13 12 10 21l-17 45c-3 7-10 10-17 7s-10-10-7-17l17-45c3-9 12-14 14-11Z" fill="url(#accent)"/>
+    <circle cx="94" cy="119" r="13" fill="url(#accent)"/>
+    <path d="M116 41c5 2 7 6 5 11l-15 41" stroke="#FFD49A" stroke-width="4" stroke-linecap="round" opacity=".72"/>
+  </g>
+</svg>

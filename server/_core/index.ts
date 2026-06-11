@@ -1,7 +1,9 @@
 import "dotenv/config";
 import express from "express";
+import fs from "fs";
 import { createServer } from "http";
 import net from "net";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -39,6 +41,19 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use(
+    "/uploads",
+    express.static(uploadsDir, {
+      setHeaders(res) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
+    })
+  );
 
   // PDF Engine 3-Block Test Route
   app.get("/api/test/pdf-engine", async (req, res) => {
@@ -532,16 +547,20 @@ async function startServer() {
     try {
       const db = await import("../db").then(m => m.getDb());
       if (!db) return res.status(500).end();
-      const { advertencias, companies, users } = await import("../../drizzle/schema");
+      const { advertencias, companies, employees, obras, users } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       
       const id = parseInt(req.params.id);
       const rows = await db.select({
         advertencia: advertencias,
         company: companies,
+        employee: employees,
+        obra: obras,
         user: users
       }).from(advertencias)
         .leftJoin(companies, eq(advertencias.companyId, companies.id))
+        .leftJoin(employees, eq(advertencias.employeeId, employees.id))
+        .leftJoin(obras, eq(advertencias.obraId, obras.id))
         .leftJoin(users, eq(advertencias.userId, users.id))
         .where(eq(advertencias.id, id)).limit(1);
 
@@ -557,13 +576,13 @@ async function startServer() {
       const pdfBuffer = await generateWarningPdf({
         warningNumber: id,
         type: record.advertencia.type,
-        employeeName: record.user?.name || "Empregado N/A",
-        role: record.user?.ehsRole || "N/A",
+        employeeName: record.advertencia.employeeName || record.employee?.name || record.user?.name || "Empregado N/A",
+        role: record.employee ? "Operacional" : record.user?.ehsRole || "N/A",
         companyName: record.company?.name || "N/A",
         reason: record.advertencia.reason,
         description: record.advertencia.description || "N/A",
         date: record.advertencia.date,
-        location: record.company?.city || "Sede",
+        location: record.obra?.name || record.company?.city || "Sede",
         issuerName: "Departamento de Segurança ou RH",
         witnessName,
         clientLogoUrl: record.company?.logoUrl || undefined

@@ -1252,7 +1252,12 @@ export async function getAllAdvertencias(filters?: { companyId?: number | number
   if (filters?.employeeId) conditions.push(eq(advertencias.employeeId, filters.employeeId));
   if (filters?.type && filters.type !== 'all') conditions.push(eq(advertencias.type, filters.type as any));
   if (filters?.date) conditions.push(eq(advertencias.date, filters.date));
-  if (filters?.search) conditions.push(like(advertencias.reason, `%${filters.search}%`));
+  if (filters?.search) {
+    conditions.push(or(
+      like(advertencias.reason, `%${filters.search}%`),
+      like(advertencias.employeeName, `%${filters.search}%`)
+    ));
+  }
 
   return db.select({
     advertencia: advertencias,

@@ -332,7 +332,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
 
   const getRoleBadge = (role?: string | null) => {
     const map: Record<string, { label: string; color: string }> = {
-      adm_ehs: { label: "ADM EHS", color: "bg-primary/20 text-primary" },
+      adm_ehs: { label: "ADM TACT", color: "bg-primary/20 text-primary" },
       cliente: { label: "Cliente", color: "bg-blue-500/20 text-blue-400" },
       tecnico: { label: "Técnico", color: "bg-green-500/20 text-green-400" },
       apoio: { label: "Apoio", color: "bg-purple-500/20 text-purple-400" },
@@ -355,19 +355,12 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
 
         <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
           <LogoMark
-            src={theme === "dark" ? "/logo-dark.png" : "/logo-light.png"}
+            src={sidebarCollapsed ? "/logo-mark.svg" : theme === "dark" ? "/logo-dark.svg" : "/logo-light.svg"}
             alt="TACT Logo"
             variant={sidebarCollapsed ? "soft" : "full"}
-            width={sidebarCollapsed ? 40 : 168}
-            height={sidebarCollapsed ? 40 : 96}
+            width={sidebarCollapsed ? 40 : 170}
+            height={sidebarCollapsed ? 40 : 70}
           />
-          {!sidebarCollapsed && (
-            <div className="flex flex-col items-center gap-0.5">
-              <div className="text-[10px] uppercase tracking-[0.25em] text-primary font-black opacity-80 drop-shadow-[0_0_4px_rgba(255,107,0,0.5)]">
-                EHS Intelligence
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

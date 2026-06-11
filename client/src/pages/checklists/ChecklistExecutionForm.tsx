@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { ClipboardCheck, Check, Save, Camera, X, Eraser, Image as ImageIcon, Building2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import SignatureCanvas from "react-signature-canvas";
+import { resolveMediaUrl } from "@/lib/media";
 
 interface ItemImage {
   url: string;
@@ -328,14 +329,14 @@ export default function ChecklistExecutionForm() {
                           {item.norma && <span className="inline-block mt-1.5 text-xs bg-red-500/10 text-red-600 px-2 py-0.5 rounded-full font-medium">{item.norma}</span>}
                           {item.description && <p className="text-sm text-muted-foreground mt-2">{item.description}</p>}
                           {item.referenceImgUrl && (
-                            <div className="mt-3 p-2 bg-blue-500/5 border border-blue-500/20 rounded-lg">
-                              <p className="text-[10px] uppercase tracking-wider text-blue-500 font-bold mb-1.5 flex items-center gap-1">
-                                📷 Imagem de Referência
+                            <div className="mt-3 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                              <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-2 flex items-center gap-1">
+                                Imagem de Referência
                               </p>
                               <img
-                                src={item.referenceImgUrl}
+                                src={resolveMediaUrl(item.referenceImgUrl)}
                                 alt="Referência do modelo"
-                                className="max-h-40 w-auto rounded-md border border-border/50 object-contain"
+                                className="max-h-72 w-full rounded-md border border-border/50 object-contain bg-background"
                               />
                             </div>
                           )}
@@ -417,7 +418,7 @@ export default function ChecklistExecutionForm() {
                             {item.imagens.map((img: ItemImage, imgIdx: number) => (
                               <div key={imgIdx} className="relative group rounded-md overflow-hidden bg-secondary border border-border shrink-0 w-24 h-24 sm:w-32 sm:h-32">
                                 <img
-                                  src={img.preview || img.url}
+                                  src={img.preview || resolveMediaUrl(img.url)}
                                   alt="Evidência"
                                   className="w-full h-full object-cover"
                                 />

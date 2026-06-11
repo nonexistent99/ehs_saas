@@ -1495,6 +1495,7 @@ export const appRouter = router({
         companyId: z.number(),
         obraId: z.number().optional(),
         employeeId: z.number().optional(),
+        employeeName: z.string().trim().min(1).optional(),
         userId: z.number().optional(),
         type: z.enum(["verbal", "escrita", "suspensao", "demissao"]).default("escrita"),
         reason: z.string().min(1),
@@ -1506,6 +1507,9 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
+        if (!input.employeeId && !input.employeeName) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Informe o nome do colaborador" });
+        }
         const { date, ...rest } = input;
         return createAdvertencia({ ...rest, date, createdById: ctx.user!.id });
       }),
@@ -1933,7 +1937,7 @@ export const appRouter = router({
             pdfBuffer = await generateWarningPdf({
               warningNumber: input.documentId,
               type: record.advertencia.type,
-              employeeName: record.employee?.name || record.responsible?.name || "Empregado N/A",
+              employeeName: record.advertencia.employeeName || record.employee?.name || record.responsible?.name || "Empregado N/A",
               role: (record.employee as any)?.role || record.responsible?.ehsRole || "N/A",
               companyName: record.company?.name || "N/A",
               reason: record.advertencia.reason,
