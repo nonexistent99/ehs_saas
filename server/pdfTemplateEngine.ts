@@ -137,6 +137,7 @@ export interface TechnicalReportData {
 export async function generateTechnicalReportPdf(data: TechnicalReportData): Promise<Buffer> {
   // --- 1. Resolve logo URL ---
   const resolvedLogoUrl = data.logoUrl ? await resolveImageToDataUrl(data.logoUrl) : "";
+  const brandName = data.empresa || data.empreendimento || "TACT";
 
   // --- 2. Resolve images in every item ---
   const itensResolved = await Promise.all(
@@ -157,9 +158,9 @@ export async function generateTechnicalReportPdf(data: TechnicalReportData): Pro
   const itemTemplate  = getTemplate("technical/inspection-item.html");
 
   // --- 4. Render HTML blocks ---
-  const coverHtml = coverTemplate({ ...data, logoUrl: resolvedLogoUrl });
-  const introHtml = introTemplate({});
-  const itemsHtml = itensResolved.map((item) => itemTemplate(item)).join("\n");
+  const coverHtml = coverTemplate({ ...data, logoUrl: resolvedLogoUrl, brandName });
+  const introHtml = introTemplate({ logoUrl: resolvedLogoUrl, brandName });
+  const itemsHtml = itensResolved.map((item) => itemTemplate({ ...item, logoUrl: resolvedLogoUrl, brandName })).join("\n");
 
   // --- 5. Wrap into full HTML document ---
   const fullHtml = `<!DOCTYPE html>

@@ -8,15 +8,11 @@
       <ellipse cx="290" cy="20" rx="130" ry="65" fill="#c23508" transform="rotate(-20 290 20)"/>
     </svg>
     <div style="position: relative; z-index: 1; display: flex; align-items: center; gap: 10px;">
-      <svg width="44" height="44" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="26" cy="26" r="24" fill="none" stroke="#e8420d" stroke-width="2.5"/>
-        <circle cx="26" cy="26" r="18" fill="none" stroke="#e8420d" stroke-width="1.5" opacity="0.5"/>
-        <text x="26" y="31" text-anchor="middle" font-family="Arial" font-weight="900" font-size="16" fill="white">EHS</text>
-      </svg>
-      <div>
-        <div style="color: white; font-weight: 900; font-size: 20px; letter-spacing: 2px; line-height: 1;">EHS</div>
-        <div style="color: #aab8cc; font-size: 8px; letter-spacing: 1.5px; text-transform: uppercase;">Soluções Inteligentes</div>
-      </div>
+      {{#if logoUrl}}
+        <img src="{{logoUrl}}" style="max-height: 54px; max-width: 170px; object-fit: contain;" alt="Logo" />
+      {{else}}
+        <div style="color: white; border: 1px solid rgba(255,255,255,0.35); padding: 10px 16px; font-weight: 900; font-size: 18px; letter-spacing: 1.5px; text-transform: uppercase; max-width: 250px;">{{brandName}}</div>
+      {{/if}}
     </div>
   </div>
   <!-- Linha laranja -->
@@ -83,25 +79,12 @@
 
   </div>
 
-  <!-- Rodapé fixo EHS -->
+  <!-- Rodapé fixo -->
   <div style="position: fixed; bottom: 0; left: 0; right: 0; background: #1e3a5f; padding: 0; z-index: 100;">
     <div style="height: 5px; background: #e8420d;"></div>
     <div style="padding: 8px 36px; display: flex; justify-content: space-between; align-items: center;">
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <span style="color: #e8420d; font-size: 10px;">📞</span>
-        <span style="color: #aab8cc; font-size: 8px;">55 (11) 5542-4242 / 9 8589-3388</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <span style="color: #aab8cc; font-size: 8px;">www.ehsss.com.br</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <span style="color: #aab8cc; font-size: 8px;">contato@ehsss.com.br</span>
-        <span style="color: #e8420d; font-size: 10px;">✉</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 6px;">
-        <span style="color: #aab8cc; font-size: 8px;">Rua Barão do Triunfo, 612 · Cj. 901 · Brooklin · SP · Cep: 04602-002</span>
-        <span style="color: #e8420d; font-size: 10px;">📍</span>
-      </div>
+      <div style="color: #aab8cc; font-size: 8px; letter-spacing: 0.8px; text-transform: uppercase;">Documento gerado pelo TACT</div>
+      <div style="color: #ffffff; font-size: 8px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;">{{brandName}}</div>
     </div>
   </div>
 

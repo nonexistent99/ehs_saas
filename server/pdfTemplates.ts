@@ -2,6 +2,7 @@ import puppeteer from "puppeteer";
 import Handlebars from "handlebars";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { resolveImageToDataUrl } from "./pdfTemplateEngine";
 
 // ─── Handlebars Helpers ───────────────────────────────────────────────────────
 Handlebars.registerHelper("formatDate", function (dateString: any) {
@@ -27,9 +28,11 @@ const formDocStyle = `
   .page { padding: 20px 28px; }
   .doc-header { width: 100%; border-collapse: collapse; margin-bottom: 0; }
   .doc-header td { border: 1px solid #000; padding: 6px 10px; vertical-align: middle; }
-  .doc-header .logo-cell { width: 60px; text-align: center; }
+  .doc-header .logo-cell { width: 25%; text-align: center; }
   .doc-header .title-cell { text-align: center; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
-  .doc-header .rev-cell { width: 110px; text-align: center; font-size: 9px; font-weight: 700; }
+  .doc-header .rev-cell { width: 18%; text-align: center; font-size: 9px; font-weight: 700; }
+  .pdf-logo { max-height: 50px; max-width: 130px; object-fit: contain; }
+  .pdf-logo-fallback { display: inline-flex; min-width: 86px; min-height: 42px; padding: 6px 10px; border: 1px solid #e8420d; align-items: center; justify-content: center; color: #1e3a5f; font-size: 10px; font-weight: 900; letter-spacing: 0.6px; text-transform: uppercase; text-align: center; line-height: 1.15; }
   .section-header { background: #d9d9d9; font-weight: 700; text-align: center; padding: 5px 7px; border: 1px solid #000; text-transform: uppercase; font-size: 10px; margin-top: 0; }
   .footer-bar { margin-top: 16px; text-align: center; font-size: 9px; color: #555; }
   .sig-area { display: inline-block; border-top: 1px solid #000; width: 100%; min-height: 36px; }
@@ -37,16 +40,74 @@ const formDocStyle = `
   .checkbox-item { font-size: 10px; }
 `;
 
-/** SVG do logo EHS (círculo laranja) simplificado */
-const ehsLogo = `<svg width="40" height="40" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="26" cy="26" r="24" fill="none" stroke="#e8420d" stroke-width="3"/>
-  <circle cx="26" cy="26" r="17" fill="none" stroke="#e8420d" stroke-width="1.5" opacity="0.6"/>
-  <text x="26" y="31" text-anchor="middle" font-family="Arial" font-weight="900" font-size="14" fill="#e8420d">EHS</text>
-</svg>`;
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function pdfLogo(data: any, maxWidth = 130, maxHeight = 50): string {
+  const logoUrl = data?.clientLogoUrl || data?.technicianLogoUrl || data?.logoUrl;
+  if (logoUrl) {
+    return `<img src="${escapeHtml(logoUrl)}" class="pdf-logo" style="max-height:${maxHeight}px; max-width:${maxWidth}px;" />`;
+  }
+
+  const fallbackName = data?.companyName || data?.empresa || data?.issuerName || data?.responsibleName || data?.instructorName || "TACT";
+  return `<span class="pdf-logo-fallback">${escapeHtml(fallbackName)}</span>`;
+}
+
+function documentHeader(data: any, title: string, revision: string): string {
+  return `<table class="doc-header">
+    <tr>
+      <td class="logo-cell">${pdfLogo(data)}</td>
+      <td class="title-cell">${title}</td>
+      <td class="rev-cell">${revision}</td>
+    </tr>
+  </table>`;
+}
+
+async function resolvePdfImage(value: unknown): Promise<string> {
+  if (typeof value !== "string" || value.trim() === "") return "";
+  return resolveImageToDataUrl(value);
+}
+
+async function resolvePdfDataImages<T extends Record<string, any>>(data: T): Promise<T> {
+  const next: Record<string, any> = { ...data };
+
+  for (const key of ["clientLogoUrl", "technicianLogoUrl", "logoUrl", "signatureUrl"]) {
+    if (next[key]) next[key] = await resolvePdfImage(next[key]);
+  }
+
+  if (Array.isArray(next.deliveries)) {
+    next.deliveries = await Promise.all(next.deliveries.map(async (delivery: any) => ({
+      ...delivery,
+      signature: await resolvePdfImage(delivery?.signature),
+    })));
+  }
+
+  if (Array.isArray(next.participants)) {
+    next.participants = await Promise.all(next.participants.map(async (participant: any) => ({
+      ...participant,
+      signature: await resolvePdfImage(participant?.signature),
+    })));
+  }
+
+  if (Array.isArray(next.items)) {
+    next.items = await Promise.all(next.items.map(async (item: any) => ({
+      ...item,
+      mediaUrls: (await Promise.all((item?.mediaUrls || []).map((url: string) => resolvePdfImage(url)))).filter(Boolean),
+    })));
+  }
+
+  return next as T;
+}
 
 /** Rodapé padrão de página */
 const pageFooter = (page: string) =>
-  `<div class="footer-bar">Página ${page} &nbsp;|&nbsp; EHS — Sistema de Gestão de Segurança e Saúde Ocupacional</div>`;
+  `<div class="footer-bar">Página ${page} &nbsp;|&nbsp; Documento gerado pelo TACT</div>`;
 
 async function renderPdf(html: string): Promise<Buffer> {
   const browser = await puppeteer.launch({
@@ -70,6 +131,7 @@ async function renderPdf(html: string): Promise<Buffer> {
 
 // ─── APR ─────────────────────────────────────────────────────────────────────
 export async function generateAprPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const genDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR });
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocStyle}</style></head><body>
@@ -78,7 +140,7 @@ export async function generateAprPdf(data: any): Promise<Buffer> {
   <!-- Cabeçalho do documento -->
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
+      <td class="logo-cell">${pdfLogo(data)}</td>
       <td class="title-cell">APR – ANÁLISE PRELIMINAR DE RISCO</td>
       <td class="rev-cell">APR_REV_00</td>
     </tr>
@@ -192,26 +254,15 @@ export async function generateAprPdf(data: any): Promise<Buffer> {
 
   return renderPdf(html);
 }
-
 // ─── FICHA DE EPI ─────────────────────────────────────────────────────────────
 export async function generateEpiPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocStyle}</style></head><body>
 <div class="page">
 
-  <!-- Cabeçalho com logos -->
-  <table>
-    <tr>
-      <td style="width:25%; text-align:center; border:1px solid #000; padding:8px;">
-        ${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:120px;" />` : `<span style="font-weight:900; font-size:14px;">${data.companyName || "EMPRESA"}</span>`}
-      </td>
-      <td style="text-align:center; border:1px solid #000; padding:8px; font-weight:900; font-size:13px; text-transform:uppercase;">
-        FICHA DE CONTROLE DE ENTREGA DE E.P.I.
-      </td>
-      <td style="width:15%; text-align:center; border:1px solid #000; padding:8px;">${ehsLogo}</td>
-    </tr>
-  </table>
+  ${documentHeader(data, "FICHA DE CONTROLE DE ENTREGA DE E.P.I.", "EPI_REV_00")}
 
   <!-- Dados da empresa -->
   <table style="margin-top:-1px;">
@@ -282,6 +333,7 @@ export async function generateEpiPdf(data: any): Promise<Buffer> {
 
 // ─── PERMISSÃO DE TRABALHO (PT) ───────────────────────────────────────────────
 export async function generatePtPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const existingRevs = data.revalidations?.length || 0;
   const emptyRevRows = Math.max(0, 6 - existingRevs);
 
@@ -290,7 +342,7 @@ export async function generatePtPdf(data: any): Promise<Buffer> {
 
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
+      <td class="logo-cell">${pdfLogo(data)}</td>
       <td class="title-cell">PERMISSÃO DE TRABALHO (PT) — Nº ${data.ptNumber || "____"}</td>
       <td class="rev-cell">PT_REV_00</td>
     </tr>
@@ -413,29 +465,15 @@ export async function generatePtPdf(data: any): Promise<Buffer> {
 
 // ─── LISTA DE TREINAMENTO ─────────────────────────────────────────────────────
 export async function generateTrainingPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocStyle}
-  .univ-logo { display:flex; align-items:center; gap:6px; }
-  .univ-logo svg { width:40px; height:40px; }
-  .univ-text { font-weight:900; font-size:11px; color:#1e3a5f; line-height:1.2; }
-  .univ-text span { display:block; font-size:8px; color:#e8420d; letter-spacing:1px; text-transform:uppercase; }
   </style></head><body>
 <div class="page">
 
-  <!-- Cabeçalho estilo EHS UNIVERSIDADE -->
+  <!-- Cabecalho padrao do documento -->
   <table class="doc-header">
     <tr>
-      <td style="width:160px; border:1px solid #000; padding:6px 10px; text-align: center;">
-        ${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:120px;" />` : `
-        <div class="univ-logo">
-          <svg viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-            <polygon points="26,4 48,40 4,40" fill="none" stroke="#e8420d" stroke-width="2.5"/>
-            <circle cx="26" cy="26" r="8" fill="none" stroke="#1e3a5f" stroke-width="2"/>
-            <line x1="26" y1="4" x2="26" y2="18" stroke="#1e3a5f" stroke-width="1.5"/>
-            <line x1="18" y1="38" x2="34" y2="38" stroke="#1e3a5f" stroke-width="1.5"/>
-          </svg>
-          <div class="univ-text">EHS<span>Universidade</span></div>
-        </div>`}
-      </td>
+      <td class="logo-cell">${pdfLogo(data)}</td>
       <td class="title-cell" style="font-size:13px;">LISTA DE PRESENÇA DE TREINAMENTO</td>
       <td style="width:120px; border:1px solid #000; padding:6px 10px; font-size:10px;">
         <div><strong>DATA:</strong> ${data.date ? format(new Date(data.date), "dd/MM/yyyy", { locale: ptBR }) : "__/__/____"}</div>
@@ -514,6 +552,7 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
 
 // ─── ADVERTÊNCIA DISCIPLINAR ──────────────────────────────────────────────────
 export async function generateWarningPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const typesMap: Record<string, string> = {
     verbal: "Verbal (Registro Formal)",
     escrita: "Escrita",
@@ -531,7 +570,7 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
 
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
+      <td class="logo-cell">${pdfLogo(data)}</td>
       <td class="title-cell">AVISO DE ADVERTÊNCIA ${typeStr.toUpperCase()}</td>
       <td class="rev-cell" style="font-size:9px;">
         Nº ADV-${String(data.warningNumber || "0000").padStart(4, '0')}<br>
@@ -596,6 +635,7 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
 
 // ─── GRO ─────────────────────────────────────────────────────────────────────
 export async function generateGroPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const levelColors: Record<string, string> = {
     "Muito Baixo": "#00ABF0",
     "Baixo": "#00B050",
@@ -611,7 +651,7 @@ export async function generateGroPdf(data: any): Promise<Buffer> {
 
   <table class="doc-header">
     <tr>
-      <td class="logo-cell">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
+      <td class="logo-cell">${pdfLogo(data)}</td>
       <td class="title-cell">GRO — GERENCIAMENTO DE RISCO OCUPACIONAL</td>
       <td class="rev-cell">GRO_REV_00</td>
     </tr>
@@ -739,6 +779,7 @@ export async function generateGroPdf(data: any): Promise<Buffer> {
 
 // ─── CHECKLIST (V2) ─────────────────────────────────────────────────────────────
 export async function generateChecklistPdf(data: any): Promise<Buffer> {
+  data = await resolvePdfDataImages(data);
   const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
   
   // Format score
@@ -763,7 +804,7 @@ const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocS
 <div class="page">
   <table class="doc-header">
     <tr>
-      <td class="logo-cell" style="width: 25%;">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:50px; max-width:80px;" />` : ehsLogo}</td>
+      <td class="logo-cell" style="width: 25%;">${pdfLogo(data)}</td>
       <td class="title-cell" style="width: 50%;">
         <div style="font-size: 16px;">CHECKLIST DE INSPEÇÃO</div>
         ${scoreHtml}
@@ -873,6 +914,7 @@ export interface ItsData {
 }
 
 export async function generateItsPdf(data: ItsData): Promise<Buffer> {
+  data = await resolvePdfDataImages(data as any) as ItsData;
   // Parse structured content JSON
   let parsed: Record<string, string> = {};
   if (data.content) {
@@ -887,14 +929,6 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   const notes       = parsed.notes       || data.description || "";
 
   const empresa = [data.companyName, data.obraName].filter(Boolean).join(" - ");
-
-  // EHS orange logo SVG (matches the model circular logo)
-  const logoSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="44" height="44">
-    <circle cx="30" cy="30" r="28" fill="#e85c0d" stroke="#c44a00" stroke-width="1"/>
-    <text x="30" y="24" text-anchor="middle" font-family="Arial" font-weight="900" font-size="14" fill="#fff">EHS</text>
-    <text x="30" y="36" text-anchor="middle" font-family="Arial" font-size="6" fill="#fff">SOLUCOES</text>
-    <text x="30" y="43" text-anchor="middle" font-family="Arial" font-size="6" fill="#fff">INTELIGENTES</text>
-  </svg>`;
 
   // Ruled lines helper - produces N thin horizontal lines for handwriting
   const ruledLines = (n: number, height: number) => {
@@ -924,7 +958,7 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   <table>
     <!-- HEADER -->
     <tr>
-      <td class="header-logo">${data.clientLogoUrl ? `<img src="${data.clientLogoUrl}" style="max-height:44px; max-width:60px;" />` : logoSvg}</td>
+      <td class="header-logo">${pdfLogo(data, 120, 44)}</td>
       <td class="header-title">
         <div style="font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:1px;">INSTRUÇÃO TÉCNICA</div>
       </td>

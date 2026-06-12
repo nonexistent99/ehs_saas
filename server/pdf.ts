@@ -3,6 +3,7 @@ import puppeteer from "puppeteer";
 export async function generateInspectionPdf(inspectionData: {
   title: string;
   company?: string;
+  logoUrl?: string;
   address?: string;
   status?: string;
   watermark?: string;
@@ -95,6 +96,7 @@ export async function generateInspectionPdf(inspectionData: {
         .header-logo { color: #fff; text-align: right; }
         .header-logo .logo-text { font-size: 28px; font-weight: 900; letter-spacing: 2px; }
         .header-logo .logo-sub { font-size: 10px; opacity: 0.8; letter-spacing: 1px; }
+        .header-logo img { max-height: 56px; max-width: 180px; object-fit: contain; }
         .meta-grid {
           display: grid; grid-template-columns: 1fr 1fr;
           gap: 16px; margin-bottom: 30px;
@@ -131,8 +133,8 @@ export async function generateInspectionPdf(inspectionData: {
             <p>Relatório Técnico de Inspeção de Segurança</p>
           </div>
           <div class="header-logo">
-            <div class="logo-text">EHS</div>
-            <div class="logo-sub">SOLUÇÕES INTELIGENTES</div>
+            ${inspectionData.logoUrl ? `<img src="${inspectionData.logoUrl}" alt="Logo" />` : `<div class="logo-text">${inspectionData.company || "TACT"}</div>`}
+            <div class="logo-sub">DOCUMENTO GERADO PELO TACT</div>
           </div>
         </div>
 
@@ -178,7 +180,7 @@ export async function generateInspectionPdf(inspectionData: {
         ` : ""}
 
         <div class="footer">
-          <p>EHS — Sistema de Gestão de Segurança e Saúde Ocupacional</p>
+          <p>Documento gerado pelo TACT</p>
           <p>Gerado em ${new Date().toLocaleString("pt-BR")}</p>
         </div>
       </div>
@@ -189,6 +191,7 @@ export async function generateInspectionPdf(inspectionData: {
   const browser = await puppeteer.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   });
 
   try {
@@ -209,6 +212,7 @@ export async function generatePdfFromHtml(html: string, options?: { headerTempla
   const browser = await puppeteer.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
   });
 
   try {

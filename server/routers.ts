@@ -1788,7 +1788,7 @@ export const appRouter = router({
             const { generateChecklistPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateChecklistPdf({
               companyName: record.company.name, projectName: record.obra?.name || "N/A", date: record.execution.date,
-              templateName: record.template.name, inspectorName: record.inspector?.name || "Inspetor EHS",
+              templateName: record.template.name, inspectorName: record.inspector?.name || "Inspetor/Técnico",
               score: record.execution.score, signatureUrl: record.execution.signatureUrl, items: itemsMapped,
               clientLogoUrl: record.company?.logoUrl || undefined
             });

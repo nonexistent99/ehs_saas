@@ -648,7 +648,7 @@ async function startServer() {
         projectName: record.obra?.name || "N/A",
         date: record.execution.date,
         templateName: record.template.name,
-        inspectorName: record.inspector?.name || "Inspetor EHS",
+        inspectorName: record.inspector?.name || "Inspetor/Técnico",
         score: record.execution.score,
         signatureUrl: record.execution.signatureUrl,
         items: itemsMapped,

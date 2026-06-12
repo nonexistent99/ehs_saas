@@ -1,29 +1,19 @@
 <!-- CAPA — Padrão relatoriomodelo.pdf -->
 <div style="page-break-after: always; font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; min-height: 100vh; position: relative; overflow: hidden; padding-bottom: 60px;">
 
-  <!-- Cabeçalho azul escuro com logo EHS + swoosh decorativo -->
+  <!-- Cabeçalho azul escuro com logo do cliente + swoosh decorativo -->
   <div style="background: #1e3a5f; padding: 22px 36px; display: flex; align-items: center; justify-content: space-between; position: relative; overflow: hidden;">
     <!-- Swoosh decorativo (SVG inline) -->
     <svg style="position: absolute; right: 0; top: 0; height: 100%; opacity: 0.35;" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMaxYMid meet">
       <ellipse cx="250" cy="0" rx="180" ry="90" fill="#e8420d" transform="rotate(-15 250 0)"/>
       <ellipse cx="290" cy="20" rx="130" ry="65" fill="#c23508" transform="rotate(-20 290 20)"/>
     </svg>
-    <!-- Logo EHS -->
+    <!-- Logo do cliente -->
     <div style="position: relative; z-index: 1;">
       {{#if logoUrl}}
         <img src="{{logoUrl}}" style="max-height: 60px; max-width: 180px; object-fit: contain;" alt="Logo" />
       {{else}}
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <svg width="52" height="52" viewBox="0 0 52 52" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="26" cy="26" r="24" fill="none" stroke="#e8420d" stroke-width="2.5"/>
-            <circle cx="26" cy="26" r="18" fill="none" stroke="#e8420d" stroke-width="1.5" opacity="0.5"/>
-            <text x="26" y="31" text-anchor="middle" font-family="Arial" font-weight="900" font-size="16" fill="white">EHS</text>
-          </svg>
-          <div>
-            <div style="color: white; font-weight: 900; font-size: 22px; letter-spacing: 2px; line-height: 1;">EHS</div>
-            <div style="color: #aab8cc; font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase;">Soluções Inteligentes</div>
-          </div>
-        </div>
+        <div style="color: white; border: 1px solid rgba(255,255,255,0.35); padding: 12px 18px; font-weight: 900; font-size: 20px; letter-spacing: 1.5px; text-transform: uppercase; max-width: 260px;">{{brandName}}</div>
       {{/if}}
     </div>
   </div>
@@ -85,18 +75,8 @@
   <div style="position: fixed; bottom: 0; left: 0; right: 0; background: #1e3a5f; padding: 0; z-index: 100;">
     <div style="height: 5px; background: #e8420d;"></div>
     <div style="padding: 10px 36px; display: flex; justify-content: space-between; align-items: center;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: #e8420d; font-size: 11px;">✉</span>
-        <span style="color: #aab8cc; font-size: 9px;">contato@ehsss.com.br</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: #aab8cc; font-size: 9px;">www.ehsss.com.br</span>
-        <span style="color: #e8420d; font-size: 11px;">🌐</span>
-      </div>
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="color: #aab8cc; font-size: 9px;">Rua Barão do Triunfo, 612 · Cj. 901 · Brooklin · SP</span>
-        <span style="color: #e8420d; font-size: 11px;">📍</span>
-      </div>
+      <div style="color: #aab8cc; font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase;">Documento gerado pelo TACT</div>
+      <div style="color: #ffffff; font-size: 9px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase;">{{brandName}}</div>
     </div>
   </div>
 
