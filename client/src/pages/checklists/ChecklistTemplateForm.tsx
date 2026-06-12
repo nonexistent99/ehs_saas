@@ -22,6 +22,20 @@ interface TemplateItem {
   order: number;
 }
 
+type TemplateType = "estatico" | "dinamico";
+type FrequencyType = "dias" | "semanas" | "meses";
+
+function normalizeTemplateType(value: unknown): TemplateType {
+  if (value === "dinamico" || value === "dinâmico") return "dinamico";
+  if (value === "estatico" || value === "estático") return "estatico";
+  return "estatico";
+}
+
+function normalizeFrequencyType(value: unknown): FrequencyType {
+  if (value === "dias" || value === "semanas" || value === "meses") return value;
+  return "meses";
+}
+
 export default function ChecklistTemplateForm() {
   const [, navigate] = useLocation();
   const params = useParams<{ id?: string }>();
@@ -39,8 +53,8 @@ export default function ChecklistTemplateForm() {
     name: "",
     description: "",
     frequencyValue: 1,
-    frequencyType: "meses" as "dias" | "semanas" | "meses",
-    type: "estatico" as "estatico" | "dinamico"
+    frequencyType: "meses" as FrequencyType,
+    type: "estatico" as TemplateType
   });
 
   const [items, setItems] = useState<TemplateItem[]>([
@@ -57,8 +71,8 @@ export default function ChecklistTemplateForm() {
         name: existing.template.name,
         description: existing.template.description || "",
         frequencyValue: existing.template.frequencyValue,
-        frequencyType: existing.template.frequencyType as any,
-        type: (existing.template as any).type || "estatico",
+        frequencyType: normalizeFrequencyType(existing.template.frequencyType),
+        type: normalizeTemplateType((existing.template as any).type),
       });
       if (existing.items && existing.items.length > 0) {
         setItems(existing.items.map((item: any) => ({
@@ -173,8 +187,8 @@ export default function ChecklistTemplateForm() {
     const payload = {
       name: form.name,
       description: form.description || undefined,
-      type: form.type,
-      frequencyType: form.frequencyType,
+      type: normalizeTemplateType(form.type),
+      frequencyType: normalizeFrequencyType(form.frequencyType),
       frequencyValue: form.frequencyValue,
       items: validItems,
       ...(isEditing ? {} : { companyId: userCompanyId })

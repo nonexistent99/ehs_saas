@@ -27,6 +27,12 @@ const requireAdmOrTecnico = (role?: "adm_ehs" | "cliente" | "tecnico" | "apoio" 
   }
 };
 
+const checklistTypeSchema = z.preprocess((value) => {
+  if (value === "dinamico" || value === "dinâmico") return "dinamico";
+  if (value === "estatico" || value === "estático") return "estatico";
+  return "estatico";
+}, z.enum(["estatico", "dinamico"]));
+
 export const checklistRouter = router({
   templates: router({
     list: companyProcedure
@@ -46,7 +52,7 @@ export const checklistRouter = router({
         companyId: z.number(),
         name: z.string().min(1),
         description: z.string().optional(),
-        type: z.enum(["estatico", "dinamico"]).default("estatico"),
+        type: checklistTypeSchema.default("estatico"),
         isFavorite: z.boolean().default(false),
         frequencyType: z.enum(["dias", "semanas", "meses"]).default("dias"),
         frequencyValue: z.number().default(0),
@@ -84,7 +90,7 @@ export const checklistRouter = router({
         companyId: z.number().optional(),
         name: z.string().optional(),
         description: z.string().optional(),
-        type: z.enum(["estatico", "dinamico"]).optional(),
+        type: checklistTypeSchema.optional(),
         isFavorite: z.boolean().optional(),
         frequencyType: z.enum(["dias", "semanas", "meses"]).optional(),
         frequencyValue: z.number().optional(),
