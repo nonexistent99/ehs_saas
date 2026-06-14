@@ -172,16 +172,19 @@ export function SignatureBlock({ title = "Assinaturas", entries }: SignatureBloc
   return `<section class="signature-block" aria-label="${escapeHtml(title)}">
     <div class="signature-title">${escapeHtml(title)}</div>
     <div class="signature-row" style="grid-template-columns: repeat(${safeEntries.length}, minmax(0, 1fr));">
-      ${safeEntries.map((entry) => `<div class="signature-entry">
+      ${safeEntries.map((entry) => {
+        const hasSignatureImage = Boolean(entry.imageUrl);
+        return `<div class="signature-entry ${hasSignatureImage ? "has-signature-image" : "has-empty-signature"}">
         <div class="signature-image-area">
-          ${entry.imageUrl ? `<img src="${escapeHtml(entry.imageUrl)}" class="signature-image" alt="Assinatura" />` : ""}
+          ${hasSignatureImage ? `<img src="${escapeHtml(entry.imageUrl)}" class="signature-image" alt="Assinatura" />` : ""}
         </div>
-        <div class="signature-line"></div>
+        ${hasSignatureImage ? "" : `<div class="signature-line"></div>`}
         ${entry.label ? `<div class="signature-label">${escapeHtml(entry.label)}</div>` : ""}
         <div class="signature-name">${escapeHtml(entry.name || "Responsavel")}</div>
         ${entry.role ? `<div class="signature-role">${escapeHtml(entry.role)}</div>` : ""}
         ${entry.date ? `<div class="signature-date">${escapeHtml(entry.date)}</div>` : ""}
-      </div>`).join("")}
+      </div>`;
+      }).join("")}
     </div>
   </section>`;
 }
@@ -430,18 +433,33 @@ const documentLayoutCss = `
     gap: 8mm;
     align-items: end;
   }
-  .signature-entry { text-align: center; min-height: 31mm; }
+  .signature-entry {
+    text-align: center;
+    min-height: 31mm;
+    background: #fff;
+  }
   .signature-image-area {
     height: 18mm;
     display: flex;
     align-items: flex-end;
     justify-content: center;
+    background: #fff;
+    border: 0;
+  }
+  .has-signature-image .signature-image-area {
+    height: 21mm;
+    align-items: center;
+    margin-bottom: 2mm;
+  }
+  .has-empty-signature .signature-image-area {
+    height: 18mm;
   }
   .signature-image {
     max-width: 65mm;
-    max-height: 17mm;
+    max-height: 21mm;
     object-fit: contain;
     display: block;
+    background: #fff;
   }
   .signature-line {
     border-top: 1px solid #1f2933;
