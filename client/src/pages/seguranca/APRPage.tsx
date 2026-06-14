@@ -6,10 +6,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
 import { StatusBadge } from "@/components/StatusBadge";
-import { AlertTriangle, Download, Plus, Trash2, Search, MessageCircle } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, Download, Plus, Trash2, Search, MessageCircle, Edit, Eraser } from "lucide-react";
+import { useRef, useState, type RefObject } from "react";
 import { toast } from "sonner";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
+import SignatureCanvas from "react-signature-canvas";
 
 const MATERIALS_OPTIONS = ["Ferramentas Manuais","Furadeiras / Parafusadeira","Máquina de Solda","Esmeril","Compressor","Máquina de Corte","Betoneira","Andaime"];
 const EPI_OPTIONS = ["Capacete de Segurança","Bota de Segurança","Óculos de Proteção","Luva de PVC","Luva de Látex","Cinto de Segurança","Protetor Auricular","Máscara de Pó","Colete Refletivo"];
@@ -63,6 +64,57 @@ function CheckGroup({
   );
 }
 
+function SignatureField({
+  label,
+  savedSignature,
+  setSavedSignature,
+  canvasRef,
+}: {
+  label: string;
+  savedSignature: string;
+  setSavedSignature: (value: string) => void;
+  canvasRef: RefObject<SignatureCanvas | null>;
+}) {
+  const clearSignature = () => {
+    canvasRef.current?.clear();
+    setSavedSignature("");
+  };
+
+  return (
+    <div className="space-y-2 p-3 bg-secondary/30 rounded-md border border-border">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-semibold">{label}</Label>
+        <Button type="button" size="sm" variant="outline" className="h-7 text-xs border-border" onClick={clearSignature}>
+          <Eraser size={11} className="mr-1" /> Limpar
+        </Button>
+      </div>
+
+      {savedSignature ? (
+        <div className="bg-white rounded border border-border relative h-32 flex justify-center items-center">
+          <img src={savedSignature} alt={label} className="max-h-full object-contain" />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="absolute top-2 right-2 h-6 text-[10px]"
+            onClick={clearSignature}
+          >
+            Refazer
+          </Button>
+        </div>
+      ) : (
+        <div className="bg-white rounded border border-border touch-none" style={{ height: "150px" }}>
+          <SignatureCanvas
+            ref={canvasRef}
+            penColor="black"
+            canvasProps={{ className: "w-full h-full" }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function APRPage() {
   const utils = trpc.useUtils();
   
@@ -82,6 +134,7 @@ export default function APRPage() {
   const { data: companies = [] } = trpc.companies.list.useQuery();
   
   const [open, setOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState({ companyId: "", title: "", activity: "", obraId: "", date: "", status: "aberta" as any, responsibleName: "" });
   const [materials, setMaterials] = useState<string[]>([]);
   const [epis, setEpis] = useState<string[]>([]);
@@ -91,6 +144,10 @@ export default function APRPage() {
   const [otherEpis, setOtherEpis] = useState("");
   const [otherEpcs, setOtherEpcs] = useState("");
   const [otherConditions, setOtherConditions] = useState("");
+  const [technicianSignatureUrl, setTechnicianSignatureUrl] = useState("");
+  const [companySignatureUrl, setCompanySignatureUrl] = useState("");
+  const technicianSignatureRef = useRef<SignatureCanvas>(null);
+  const companySignatureRef = useRef<SignatureCanvas>(null);
   const [risks, setRisks] = useState<any[]>([]);
 
   const companyIdNum = Number(form.companyId);
@@ -103,10 +160,18 @@ export default function APRPage() {
     setForm({ companyId: "", title: "", activity: "", obraId: "", date: "", status: "aberta", responsibleName: "" });
     setMaterials([]); setEpis([]); setEpcs([]); setConditions([]); setRisks([]);
     setOtherMaterials(""); setOtherEpis(""); setOtherEpcs(""); setOtherConditions("");
+    setTechnicianSignatureUrl(""); setCompanySignatureUrl(""); setEditItem(null);
+    technicianSignatureRef.current?.clear();
+    companySignatureRef.current?.clear();
   };
 
   const createMutation = trpc.apr.create.useMutation({
     onSuccess: () => { toast.success("APR criada!"); utils.apr.list.invalidate(); setOpen(false); resetForm(); },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateMutation = trpc.apr.update.useMutation({
+    onSuccess: () => { toast.success("APR atualizada!"); utils.apr.list.invalidate(); setOpen(false); resetForm(); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -120,28 +185,83 @@ export default function APRPage() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const handleCreate = () => {
+  const getDrawnSignature = (ref: RefObject<SignatureCanvas | null>, currentValue: string) => {
+    if (ref.current && !ref.current.isEmpty()) {
+      return ref.current.toDataURL("image/png");
+    }
+    return currentValue;
+  };
+
+  const getAprContent = (item: any) => {
+    if (!item?.content) return {};
+    if (typeof item.content === "string") {
+      try { return JSON.parse(item.content); } catch { return {}; }
+    }
+    return item.content as Record<string, any>;
+  };
+
+  const handleSubmit = () => {
     if (!form.companyId || !form.title) { toast.error("Empresa e título são obrigatórios"); return; }
-    createMutation.mutate({
+    const content = {
+      materials,
+      epis,
+      epcs,
+      conditions,
+      otherMaterials: otherMaterials.trim(),
+      otherEpis: otherEpis.trim(),
+      otherEpcs: otherEpcs.trim(),
+      otherConditions: otherConditions.trim(),
+      risks,
+      responsibleName: form.responsibleName,
+      technicianSignatureUrl: getDrawnSignature(technicianSignatureRef, technicianSignatureUrl),
+      companySignatureUrl: getDrawnSignature(companySignatureRef, companySignatureUrl),
+    };
+
+    const payload = {
       companyId: Number(form.companyId),
       obraId: form.obraId ? Number(form.obraId) : undefined,
       title: form.title,
       activity: form.activity || undefined,
       date: form.date || undefined,
       status: form.status,
-      content: {
-        materials,
-        epis,
-        epcs,
-        conditions,
-        otherMaterials: otherMaterials.trim(),
-        otherEpis: otherEpis.trim(),
-        otherEpcs: otherEpcs.trim(),
-        otherConditions: otherConditions.trim(),
-        risks,
-        responsibleName: form.responsibleName,
-      },
+      content,
+    };
+
+    if (editItem) {
+      updateMutation.mutate({ id: editItem.id, ...payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  const openEdit = (item: any) => {
+    const content = getAprContent(item);
+    setEditItem(item);
+    setForm({
+      companyId: item.companyId ? String(item.companyId) : "",
+      title: item.title || "",
+      activity: item.activity || "",
+      obraId: item.obraId ? String(item.obraId) : "",
+      date: item.date ? String(item.date).slice(0, 10) : "",
+      status: item.status || "aberta",
+      responsibleName: content.responsibleName || "",
     });
+    setMaterials(Array.isArray(content.materials) ? content.materials : []);
+    setEpis(Array.isArray(content.epis) ? content.epis : []);
+    setEpcs(Array.isArray(content.epcs) ? content.epcs : []);
+    setConditions(Array.isArray(content.conditions) ? content.conditions : []);
+    setOtherMaterials(typeof content.otherMaterials === "string" ? content.otherMaterials : "");
+    setOtherEpis(typeof content.otherEpis === "string" ? content.otherEpis : "");
+    setOtherEpcs(typeof content.otherEpcs === "string" ? content.otherEpcs : "");
+    setOtherConditions(typeof content.otherConditions === "string" ? content.otherConditions : "");
+    setRisks(Array.isArray(content.risks) ? content.risks : []);
+    setTechnicianSignatureUrl(content.technicianSignatureUrl || content.responsibleSignatureUrl || content.signatureUrl || "");
+    setCompanySignatureUrl(content.companySignatureUrl || content.companyRepresentativeSignatureUrl || "");
+    setOpen(true);
+    setTimeout(() => {
+      technicianSignatureRef.current?.clear();
+      companySignatureRef.current?.clear();
+    }, 100);
   };
 
   const formContent = (
@@ -266,8 +386,21 @@ export default function APRPage() {
         {risks.length === 0 && <p className="text-xs text-muted-foreground italic py-1 text-center">Nenhuma etapa adicionada</p>}
       </div>
 
-      <Button className="w-full bg-primary text-primary-foreground" disabled={createMutation.isPending} onClick={handleCreate}>
-        {createMutation.isPending ? "Salvando..." : "Criar APR"}
+      <SignatureField
+        label="Assinatura do Técnico/Engenheiro de Segurança"
+        savedSignature={technicianSignatureUrl}
+        setSavedSignature={setTechnicianSignatureUrl}
+        canvasRef={technicianSignatureRef}
+      />
+      <SignatureField
+        label="Assinatura do Representante da Empresa"
+        savedSignature={companySignatureUrl}
+        setSavedSignature={setCompanySignatureUrl}
+        canvasRef={companySignatureRef}
+      />
+
+      <Button className="w-full bg-primary text-primary-foreground" disabled={createMutation.isPending || updateMutation.isPending} onClick={handleSubmit}>
+        {createMutation.isPending || updateMutation.isPending ? "Salvando..." : editItem ? "Atualizar APR" : "Criar APR"}
       </Button>
     </div>
   );
@@ -334,8 +467,12 @@ export default function APRPage() {
         items={items}
         isLoading={isLoading}
         formContent={formContent}
+        onOpenForm={resetForm}
         formOpen={open}
-        setFormOpen={setOpen}
+        setFormOpen={(next) => {
+          setOpen(next);
+          if (!next) resetForm();
+        }}
         columns={[
           { key: "title", label: "Título", render: (i) => <span className="text-sm font-medium text-foreground">{i.title}</span> },
           { key: "activity", label: "Atividade", render: (i) => <span className="text-sm text-muted-foreground">{i.activity || "—"}</span> },
@@ -344,6 +481,10 @@ export default function APRPage() {
         ]}
         actions={(i) => (
           <div className="flex justify-end gap-1">
+            <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-foreground"
+              title="Editar" onClick={() => openEdit(i)}>
+              <Edit size={13} />
+            </Button>
             <ShareWhatsappDialog
               title={i.title}
               documentUrl={`${window.location.origin}/api/export/apr/${i.id}`}

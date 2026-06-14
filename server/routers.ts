@@ -1844,6 +1844,8 @@ export const appRouter = router({
               otherMaterials: (record.apr.content as any)?.otherMaterials || "", otherEpis: (record.apr.content as any)?.otherEpis || "",
               otherEpcs: (record.apr.content as any)?.otherEpcs || "", otherConditions: (record.apr.content as any)?.otherConditions || "",
               risks: (record.apr.content as any)?.risks || [],
+              technicianSignatureUrl: (record.apr.content as any)?.technicianSignatureUrl || (record.apr.content as any)?.responsibleSignatureUrl || (record.apr.content as any)?.signatureUrl || record.apr.signatureUrl || "",
+              companySignatureUrl: (record.apr.content as any)?.companySignatureUrl || (record.apr.content as any)?.companyRepresentativeSignatureUrl || "",
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `APR_${input.documentId}.pdf`;
