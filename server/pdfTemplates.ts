@@ -3,6 +3,17 @@ import Handlebars from "handlebars";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
+import {
+  BaseDocumentLayout,
+  DocumentPage,
+  EvidenceImageGrid,
+  InfoGrid,
+  SignatureBlock,
+  StatusTag,
+  escapeHtml as escapeLayoutHtml,
+  resolvePdfImage as resolveLayoutPdfImage,
+  resolvePdfImages as resolveLayoutPdfImages,
+} from "./pdfLayout";
 
 // ─── Handlebars Helpers ───────────────────────────────────────────────────────
 Handlebars.registerHelper("formatDate", function (dateString: any) {
@@ -109,7 +120,10 @@ async function resolvePdfDataImages<T extends Record<string, any>>(data: T): Pro
 const pageFooter = (page: string) =>
   `<div class="footer-bar">Página ${page} &nbsp;|&nbsp; Documento gerado pelo TACT</div>`;
 
-async function renderPdf(html: string): Promise<Buffer> {
+async function renderPdf(
+  html: string,
+  options: { margin?: { top?: string; right?: string; bottom?: string; left?: string } } = {},
+): Promise<Buffer> {
   const browser = await puppeteer.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     headless: true,
@@ -121,7 +135,7 @@ async function renderPdf(html: string): Promise<Buffer> {
     const buf = await page.pdf({
       format: "A4",
       printBackground: true,
-      margin: { top: "15px", right: "0", bottom: "15px", left: "0" },
+      margin: options.margin ?? { top: "15px", right: "0", bottom: "15px", left: "0" },
     });
     return Buffer.from(buf);
   } finally {
@@ -778,7 +792,7 @@ export async function generateGroPdf(data: any): Promise<Buffer> {
 }
 
 // ─── CHECKLIST (V2) ─────────────────────────────────────────────────────────────
-export async function generateChecklistPdf(data: any): Promise<Buffer> {
+export async function generateChecklistPdfLegacy(data: any): Promise<Buffer> {
   data = await resolvePdfDataImages(data);
   const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
   
@@ -893,6 +907,338 @@ const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocS
 
   return renderPdf(html);
 }
+
+// Checklist pilot layout. Other document generators stay on the legacy renderer
+// until this base is approved in the next migration phases.
+type ChecklistPdfItem = {
+  name?: string;
+  description?: string;
+  norma?: string;
+  status?: string;
+  observation?: string;
+  mediaUrls: string[];
+};
+
+const CHECKLIST_PAGE_UNITS = 4;
+const CHECKLIST_SIGNATURE_PAGE_UNITS = 2;
+
+function formatPdfDate(value: unknown, fallback: string): string {
+  if (!value) return fallback;
+  try {
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split("-").map(Number);
+      return format(new Date(year, month - 1, day), "dd/MM/yyyy", { locale: ptBR });
+    }
+
+    const date = new Date(value as any);
+    if (Number.isNaN(date.getTime())) return fallback;
+    return format(date, "dd/MM/yyyy", { locale: ptBR });
+  } catch {
+    return String(value);
+  }
+}
+
+function checklistItemWeight(item: ChecklistPdfItem): number {
+  const textSize = `${item.name || ""}${item.description || ""}${item.observation || ""}${item.norma || ""}`.length;
+  const evidenceWeight = item.mediaUrls.length > 0 ? 2 : 1;
+  const textWeight = textSize > 380 ? 1 : 0;
+  return Math.min(evidenceWeight + textWeight, CHECKLIST_PAGE_UNITS);
+}
+
+function paginateChecklistItems(items: ChecklistPdfItem[]): ChecklistPdfItem[][] {
+  const pages: ChecklistPdfItem[][] = [];
+  let currentPage: ChecklistPdfItem[] = [];
+  let currentUnits = 0;
+
+  for (const item of items) {
+    const itemUnits = checklistItemWeight(item);
+    if (currentPage.length > 0 && currentUnits + itemUnits > CHECKLIST_PAGE_UNITS) {
+      pages.push(currentPage);
+      currentPage = [];
+      currentUnits = 0;
+    }
+
+    currentPage.push(item);
+    currentUnits += itemUnits;
+  }
+
+  if (currentPage.length > 0) pages.push(currentPage);
+  if (pages.length === 0) pages.push([]);
+
+  const lastPageUnits = pages[pages.length - 1].reduce((sum, item) => sum + checklistItemWeight(item), 0);
+  if (lastPageUnits > CHECKLIST_SIGNATURE_PAGE_UNITS) pages.push([]);
+
+  return pages;
+}
+
+function renderChecklistScore(score: unknown): string {
+  if (score === undefined || score === null || score === "") return "";
+  const scoreValue = Number(score);
+  if (!Number.isFinite(scoreValue)) return "";
+
+  const tone = scoreValue >= 80 ? "good" : scoreValue >= 50 ? "warn" : "bad";
+  const label = scoreValue >= 80 ? "Conformidade alta" : scoreValue >= 50 ? "Atencao" : "Critico";
+
+  return `<aside class="score-card score-${tone}">
+    <div class="score-label">Score</div>
+    <div class="score-value">${scoreValue.toFixed(1)}%</div>
+    <div class="score-caption">${escapeLayoutHtml(label)}</div>
+  </aside>`;
+}
+
+function renderChecklistItem(item: ChecklistPdfItem, absoluteIndex: number): string {
+  const hasEvidence = item.mediaUrls.length > 0;
+  const descriptionHtml = item.description
+    ? `<p class="item-description">${escapeLayoutHtml(item.description)}</p>`
+    : `<p class="item-description item-muted">Sem descricao adicional.</p>`;
+  const normaHtml = item.norma
+    ? `<div class="item-standard">Norma: ${escapeLayoutHtml(item.norma)}</div>`
+    : "";
+  const observationHtml = item.observation
+    ? escapeLayoutHtml(item.observation)
+    : `<span class="item-muted">Sem observacoes registradas.</span>`;
+
+  const itemCopy = `<div class="item-copy">
+    <div class="item-header">
+      <div>
+        <div class="item-kicker">Item ${absoluteIndex + 1}</div>
+        <h3>${escapeLayoutHtml(item.name || "Item de verificacao")}</h3>
+      </div>
+      ${StatusTag(item.status)}
+    </div>
+    ${descriptionHtml}
+    ${normaHtml}
+    <div class="item-observation">
+      <div class="item-observation-label">Consideracoes</div>
+      <div>${observationHtml}</div>
+    </div>
+  </div>`;
+
+  if (!hasEvidence) {
+    return `<article class="checklist-item checklist-item-compact">${itemCopy}</article>`;
+  }
+
+  return `<article class="checklist-item checklist-item-evidence">
+    ${itemCopy}
+    <div class="evidence-panel">
+      <div class="evidence-title">Evidencia visual</div>
+      ${EvidenceImageGrid(item.mediaUrls, { maxImages: 4 })}
+    </div>
+  </article>`;
+}
+
+export async function buildChecklistPdfHtml(data: any): Promise<string> {
+  const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+  const documentDate = formatPdfDate(data.date, genDate);
+  const clientLogoUrl = await resolveLayoutPdfImage(data.clientLogoUrl || data.technicianLogoUrl || data.logoUrl);
+  const signatureUrl = await resolveLayoutPdfImage(data.signatureUrl);
+  const items: ChecklistPdfItem[] = await Promise.all((data.items || []).map(async (item: any) => ({
+    name: item?.name,
+    description: item?.description,
+    norma: item?.norma,
+    status: item?.status,
+    observation: item?.observation,
+    mediaUrls: await resolveLayoutPdfImages(item?.mediaUrls || []),
+  })));
+
+  const pageItems = paginateChecklistItems(items);
+  const scoreHtml = renderChecklistScore(data.score);
+  const pageCount = pageItems.length;
+
+  const pages = pageItems.map((itemsOnPage, pageIndex) => {
+    const includeSignature = pageIndex === pageCount - 1;
+    const pageStartIndex = pageItems
+      .slice(0, pageIndex)
+      .reduce((sum, page) => sum + page.length, 0);
+
+    const itemsHtml = itemsOnPage.length > 0
+      ? itemsOnPage.map((item, index) => renderChecklistItem(item, pageStartIndex + index)).join("")
+      : `<div class="checklist-empty">Nenhum item adicional nesta pagina. Assinatura preservada em area segura.</div>`;
+
+    return DocumentPage({
+      title: "CheckList",
+      logoUrl: clientLogoUrl,
+      logoFallback: data.companyName || "TACT",
+      footerText: `Pagina ${pageIndex + 1} de ${pageCount} | Documento gerado pelo TACT`,
+      className: includeSignature ? "checklist-page checklist-page-final" : "checklist-page",
+      children: `
+        <section class="checklist-summary ${scoreHtml ? "has-score" : "no-score"}">
+          ${InfoGrid([
+            { label: "Empresa", value: data.companyName, wide: true },
+            { label: "Projeto / Obra", value: data.projectName || "N/A" },
+            { label: "Data", value: documentDate },
+            { label: "Tema CheckList", value: data.templateName, wide: true },
+            { label: "Tecnico", value: data.inspectorName || "Inspetor/Tecnico", wide: true },
+          ])}
+          ${scoreHtml}
+        </section>
+        <section class="checklist-items">${itemsHtml}</section>
+        ${includeSignature ? SignatureBlock({
+          title: "Responsavel pela inspecao",
+          entries: [{
+            imageUrl: signatureUrl,
+            name: data.inspectorName || "Inspetor/Tecnico",
+            role: "Tecnico Responsavel pela Inspecao",
+            date: documentDate,
+          }],
+        }) : ""}
+      `,
+    });
+  });
+
+  return BaseDocumentLayout({
+    title: `Checklist - ${data.templateName || data.companyName || "TACT"}`,
+    pages,
+    extraCss: checklistPilotCss,
+  });
+}
+
+export async function generateChecklistPdf(data: any): Promise<Buffer> {
+  const html = await buildChecklistPdfHtml(data);
+  return renderPdf(html, { margin: { top: "0", right: "0", bottom: "0", left: "0" } });
+}
+
+const checklistPilotCss = `
+  .checklist-summary {
+    display: grid;
+    grid-template-columns: 1fr 38mm;
+    gap: 4mm;
+    align-items: stretch;
+  }
+  .checklist-summary.no-score { grid-template-columns: 1fr; }
+  .checklist-summary .info-grid { min-height: 35mm; }
+  .score-card {
+    border: 1px solid #cfd8df;
+    padding: 4mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    background: #fff;
+  }
+  .score-card.score-good { border-color: #86efac; background: #f0fdf4; color: #166534; }
+  .score-card.score-warn { border-color: #fde047; background: #fefce8; color: #854d0e; }
+  .score-card.score-bad { border-color: #fca5a5; background: #fef2f2; color: #991b1b; }
+  .score-label,
+  .score-caption {
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .score-value {
+    font-size: 22px;
+    font-weight: 900;
+    line-height: 1.1;
+    margin: 1.5mm 0;
+  }
+  .checklist-items {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4mm;
+  }
+  .checklist-empty {
+    min-height: 45mm;
+    border: 1px dashed #cfd8df;
+    background: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6b7280;
+    font-weight: 800;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .checklist-item {
+    border: 1px solid #cfd8df;
+    background: #fff;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .checklist-item-compact {
+    min-height: 40mm;
+    padding: 4mm;
+  }
+  .checklist-item-evidence {
+    min-height: 72mm;
+    display: grid;
+    grid-template-columns: 75mm 1fr;
+    gap: 4mm;
+    padding: 4mm;
+  }
+  .item-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 3mm;
+  }
+  .item-kicker {
+    color: #d64a00;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .item-header h3 {
+    color: #1f2933;
+    font-size: 12.5px;
+    line-height: 1.2;
+    margin: 1mm 0 0;
+    overflow-wrap: anywhere;
+  }
+  .item-description {
+    color: #53616f;
+    font-size: 9.5px;
+    margin: 2.5mm 0 0;
+    overflow-wrap: anywhere;
+  }
+  .item-standard {
+    color: #d64a00;
+    font-size: 8.5px;
+    font-weight: 800;
+    margin-top: 2mm;
+    text-transform: uppercase;
+    overflow-wrap: anywhere;
+  }
+  .item-observation {
+    margin-top: auto;
+    border-left: 2px solid #d64a00;
+    background: #f8fafc;
+    padding: 2.5mm 3mm;
+    color: #1f2933;
+    font-size: 9.5px;
+    overflow-wrap: anywhere;
+  }
+  .item-observation-label {
+    color: #53616f;
+    font-size: 8px;
+    font-weight: 900;
+    margin-bottom: 1mm;
+    text-transform: uppercase;
+  }
+  .item-muted {
+    color: #7b8794;
+    font-style: italic;
+  }
+  .evidence-panel {
+    min-height: 62mm;
+    display: flex;
+    flex-direction: column;
+    gap: 2mm;
+  }
+  .evidence-title {
+    color: #53616f;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .evidence-panel .evidence-grid { flex: 1; min-height: 55mm; }
+`;
 // =============================================================================
 // ITS - Instrucao Tecnica de Seguranca
 // Layout: one compact card per page matching the official ITS.pdf model
