@@ -18,21 +18,82 @@ const EPC_OPTIONS = ["Avisos, Sinalizações","Biombo","Extintores","Guarda-Corp
 const CONDITION_OPTIONS = ["Falta de Avisos, Sinalizações","Falta de Treinamentos","Risco iminente","Condições Climáticas (Chuvas, Raios)","Equipamentos danificados","Área não isolada"];
 const RISK_TYPES = ["Físico","Químico","Biológico","Ergonômico","Acidente","Mecânico"];
 
+function normalizeTextItems(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return Array.from(new Set(value.map(item => String(item ?? "").trim()).filter(Boolean)));
+  }
+
+  if (typeof value === "string") {
+    return Array.from(new Set(value.split(/[,;\n]/).map(item => item.trim()).filter(Boolean)));
+  }
+
+  return [];
+}
+
+function TagList({ label, items, onChange, placeholder }: {
+  label: string;
+  items: string[];
+  onChange: (v: string[]) => void;
+  placeholder: string;
+}) {
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const value = draft.trim();
+    if (!value || items.includes(value)) return;
+    onChange([...items, value]);
+    setDraft("");
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{label}</Label>
+      <div className="flex flex-wrap gap-1.5 min-h-[36px] p-2 bg-card rounded-md border border-border">
+        {items.map(item => (
+          <span key={item} className="flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-xs text-primary border border-primary/20">
+            {item}
+            <button
+              type="button"
+              aria-label={`Remover ${item}`}
+              onClick={() => onChange(items.filter(i => i !== item))}
+              className="ml-0.5 hover:text-destructive"
+            >
+              x
+            </button>
+          </span>
+        ))}
+        {items.length === 0 && <span className="text-xs text-muted-foreground italic self-center">Nenhum item</span>}
+      </div>
+      <div className="flex gap-2">
+        <Input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+          placeholder={placeholder}
+          className="bg-card border-border text-xs h-8 flex-1"
+        />
+        <Button type="button" size="sm" variant="outline" className="h-8 text-xs border-border" onClick={add}>
+          <Plus size={12} className="mr-1" /> Adicionar
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function CheckGroup({
   label,
   options,
   selected,
   onChange,
-  otherValue,
-  onOtherChange,
+  otherItems,
+  onOtherItemsChange,
   otherPlaceholder = "Descreva outros itens",
 }: {
   label: string;
   options: string[];
   selected: string[];
   onChange: (v: string[]) => void;
-  otherValue?: string;
-  onOtherChange?: (value: string) => void;
+  otherItems?: string[];
+  onOtherItemsChange?: (value: string[]) => void;
   otherPlaceholder?: string;
 }) {
   const toggle = (opt: string) => onChange(selected.includes(opt) ? selected.filter(o => o !== opt) : [...selected, opt]);
@@ -48,16 +109,13 @@ function CheckGroup({
             </label>
           ))}
         </div>
-        {onOtherChange && (
-          <div className="space-y-1">
-            <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Outros</Label>
-            <Input
-              value={otherValue || ""}
-              onChange={e => onOtherChange(e.target.value)}
-              placeholder={otherPlaceholder}
-              className="bg-card border-border text-xs h-8"
-            />
-          </div>
+        {onOtherItemsChange && (
+          <TagList
+            label="Outros"
+            items={otherItems || []}
+            onChange={onOtherItemsChange}
+            placeholder={otherPlaceholder}
+          />
         )}
       </div>
     </div>
@@ -140,10 +198,10 @@ export default function APRPage() {
   const [epis, setEpis] = useState<string[]>([]);
   const [epcs, setEpcs] = useState<string[]>([]);
   const [conditions, setConditions] = useState<string[]>([]);
-  const [otherMaterials, setOtherMaterials] = useState("");
-  const [otherEpis, setOtherEpis] = useState("");
-  const [otherEpcs, setOtherEpcs] = useState("");
-  const [otherConditions, setOtherConditions] = useState("");
+  const [otherMaterials, setOtherMaterials] = useState<string[]>([]);
+  const [otherEpis, setOtherEpis] = useState<string[]>([]);
+  const [otherEpcs, setOtherEpcs] = useState<string[]>([]);
+  const [otherConditions, setOtherConditions] = useState<string[]>([]);
   const [technicianSignatureUrl, setTechnicianSignatureUrl] = useState("");
   const [companySignatureUrl, setCompanySignatureUrl] = useState("");
   const technicianSignatureRef = useRef<SignatureCanvas>(null);
@@ -159,7 +217,7 @@ export default function APRPage() {
   const resetForm = () => {
     setForm({ companyId: "", title: "", activity: "", obraId: "", date: "", status: "aberta", responsibleName: "" });
     setMaterials([]); setEpis([]); setEpcs([]); setConditions([]); setRisks([]);
-    setOtherMaterials(""); setOtherEpis(""); setOtherEpcs(""); setOtherConditions("");
+    setOtherMaterials([]); setOtherEpis([]); setOtherEpcs([]); setOtherConditions([]);
     setTechnicianSignatureUrl(""); setCompanySignatureUrl(""); setEditItem(null);
     technicianSignatureRef.current?.clear();
     companySignatureRef.current?.clear();
@@ -207,10 +265,10 @@ export default function APRPage() {
       epis,
       epcs,
       conditions,
-      otherMaterials: otherMaterials.trim(),
-      otherEpis: otherEpis.trim(),
-      otherEpcs: otherEpcs.trim(),
-      otherConditions: otherConditions.trim(),
+      otherMaterials,
+      otherEpis,
+      otherEpcs,
+      otherConditions,
       risks,
       responsibleName: form.responsibleName,
       technicianSignatureUrl: getDrawnSignature(technicianSignatureRef, technicianSignatureUrl),
@@ -250,10 +308,10 @@ export default function APRPage() {
     setEpis(Array.isArray(content.epis) ? content.epis : []);
     setEpcs(Array.isArray(content.epcs) ? content.epcs : []);
     setConditions(Array.isArray(content.conditions) ? content.conditions : []);
-    setOtherMaterials(typeof content.otherMaterials === "string" ? content.otherMaterials : "");
-    setOtherEpis(typeof content.otherEpis === "string" ? content.otherEpis : "");
-    setOtherEpcs(typeof content.otherEpcs === "string" ? content.otherEpcs : "");
-    setOtherConditions(typeof content.otherConditions === "string" ? content.otherConditions : "");
+    setOtherMaterials(normalizeTextItems(content.otherMaterials));
+    setOtherEpis(normalizeTextItems(content.otherEpis));
+    setOtherEpcs(normalizeTextItems(content.otherEpcs));
+    setOtherConditions(normalizeTextItems(content.otherConditions));
     setRisks(Array.isArray(content.risks) ? content.risks : []);
     setTechnicianSignatureUrl(content.technicianSignatureUrl || content.responsibleSignatureUrl || content.signatureUrl || "");
     setCompanySignatureUrl(content.companySignatureUrl || content.companyRepresentativeSignatureUrl || "");
@@ -321,8 +379,8 @@ export default function APRPage() {
         options={MATERIALS_OPTIONS}
         selected={materials}
         onChange={setMaterials}
-        otherValue={otherMaterials}
-        onOtherChange={setOtherMaterials}
+        otherItems={otherMaterials}
+        onOtherItemsChange={setOtherMaterials}
         otherPlaceholder="Ex: martelete, linha de vida temporária"
       />
       <CheckGroup
@@ -330,8 +388,8 @@ export default function APRPage() {
         options={EPI_OPTIONS}
         selected={epis}
         onChange={setEpis}
-        otherValue={otherEpis}
-        onOtherChange={setOtherEpis}
+        otherItems={otherEpis}
+        onOtherItemsChange={setOtherEpis}
         otherPlaceholder="Ex: respirador semifacial, perneira"
       />
       <CheckGroup
@@ -339,8 +397,8 @@ export default function APRPage() {
         options={EPC_OPTIONS}
         selected={epcs}
         onChange={setEpcs}
-        otherValue={otherEpcs}
-        onOtherChange={setOtherEpcs}
+        otherItems={otherEpcs}
+        onOtherItemsChange={setOtherEpcs}
         otherPlaceholder="Ex: linha de vida, bandeja de proteção"
       />
       <CheckGroup
@@ -348,8 +406,8 @@ export default function APRPage() {
         options={CONDITION_OPTIONS}
         selected={conditions}
         onChange={setConditions}
-        otherValue={otherConditions}
-        onOtherChange={setOtherConditions}
+        otherItems={otherConditions}
+        onOtherItemsChange={setOtherConditions}
         otherPlaceholder="Ex: vento forte, iluminação insuficiente"
       />
 
