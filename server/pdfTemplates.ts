@@ -144,7 +144,7 @@ async function renderPdf(
 }
 
 // ─── APR ─────────────────────────────────────────────────────────────────────
-export async function generateAprPdf(data: any): Promise<Buffer> {
+export async function generateAprPdfLegacy(data: any): Promise<Buffer> {
   data = await resolvePdfDataImages(data);
   const genDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR });
 
@@ -269,6 +269,362 @@ export async function generateAprPdf(data: any): Promise<Buffer> {
   return renderPdf(html);
 }
 // ─── FICHA DE EPI ─────────────────────────────────────────────────────────────
+type AprRiskItem = {
+  step?: unknown;
+  riskType?: unknown;
+  type?: unknown;
+  danger?: unknown;
+  risk?: unknown;
+  damage?: unknown;
+  recommendation?: unknown;
+  mitigation?: unknown;
+};
+
+const APR_RISK_ROWS_PER_PAGE = 4;
+const APR_RISK_ROWS_WITH_SIGNATURE = 3;
+
+function asTextArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    return value.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
+function chunkItems<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks.length ? chunks : [[]];
+}
+
+function renderAprListCard(title: string, values: string[]): string {
+  const items = values.length
+    ? values.map((value) => `<span class="apr-chip">${escapeLayoutHtml(value)}</span>`).join("")
+    : `<span class="apr-empty">Não informado</span>`;
+
+  return `<section class="apr-card">
+    <h2>${escapeLayoutHtml(title)}</h2>
+    <div class="apr-chip-list">${items}</div>
+  </section>`;
+}
+
+function normalizeAprRisk(risk: AprRiskItem) {
+  return {
+    step: risk.step || "",
+    type: risk.riskType || risk.type || "",
+    danger: risk.danger || risk.risk || "",
+    damage: risk.damage || "",
+    recommendation: risk.recommendation || risk.mitigation || "",
+  };
+}
+
+function renderAprRiskTable(risks: AprRiskItem[], pageOffset: number): string {
+  if (risks.length === 0) {
+    return `<div class="apr-empty-risk">Nenhuma etapa de risco cadastrada.</div>`;
+  }
+
+  return `<table class="apr-risk-table">
+    <thead>
+      <tr>
+        <th class="col-number">#</th>
+        <th>Etapa da atividade</th>
+        <th>Tipo de risco</th>
+        <th>Perigos/riscos verificados</th>
+        <th>Possíveis danos</th>
+        <th>Recomendações de segurança</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${risks.map((risk, index) => {
+        const normalized = normalizeAprRisk(risk);
+        return `<tr>
+          <td class="col-number">${pageOffset + index + 1}</td>
+          <td>${escapeLayoutHtml(normalized.step)}</td>
+          <td>${escapeLayoutHtml(normalized.type)}</td>
+          <td>${escapeLayoutHtml(normalized.danger)}</td>
+          <td>${escapeLayoutHtml(normalized.damage)}</td>
+          <td>${escapeLayoutHtml(normalized.recommendation)}</td>
+        </tr>`;
+      }).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderAprSignatureBlock(data: any, documentDate: string, signatures: { technician?: string; company?: string }) {
+  return SignatureBlock({
+    title: "Assinaturas",
+    entries: [
+      {
+        imageUrl: signatures.technician,
+        name: data.responsibleName || "Técnico/Engenheiro de Segurança",
+        role: "Técnico/Engenheiro de Segurança",
+        date: documentDate,
+      },
+      {
+        imageUrl: signatures.company,
+        name: data.companyRepresentativeName || "Representante da Empresa",
+        role: data.companyName || "Empresa",
+        date: documentDate,
+      },
+    ],
+  });
+}
+
+export async function buildAprPdfHtml(data: any): Promise<string> {
+  const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+  const documentDate = formatPdfDate(data.date, genDate);
+  const clientLogoUrl = await resolveLayoutPdfImage(data.clientLogoUrl || data.technicianLogoUrl || data.logoUrl);
+  const technicianSignatureUrl = await resolveLayoutPdfImage(data.technicianSignatureUrl || data.responsibleSignatureUrl || data.signatureUrl);
+  const companySignatureUrl = await resolveLayoutPdfImage(data.companySignatureUrl || data.companyRepresentativeSignatureUrl);
+
+  const materials = asTextArray(data.materials);
+  const epis = asTextArray(data.epis);
+  const epcs = asTextArray(data.epcs);
+  const conditions = asTextArray(data.conditions);
+  const risks: AprRiskItem[] = Array.isArray(data.risks) ? data.risks : [];
+  const riskChunks = chunkItems(risks, APR_RISK_ROWS_PER_PAGE);
+  const lastRiskChunk = riskChunks[riskChunks.length - 1];
+  const signatureFitsLastRiskPage = lastRiskChunk.length <= APR_RISK_ROWS_WITH_SIGNATURE;
+  const pageCount = 1 + riskChunks.length + (signatureFitsLastRiskPage ? 0 : 1);
+  let pageNumber = 1;
+
+  const pages: string[] = [];
+  pages.push(DocumentPage({
+    title: "APR – ANÁLISE PRELIMINAR DE RISCO",
+    logoUrl: clientLogoUrl,
+    logoFallback: data.companyName || "TACT",
+    footerText: `Página ${pageNumber++} de ${pageCount} | Documento gerado pelo TACT`,
+    className: "apr-page apr-summary-page",
+    children: `
+      <section class="apr-summary">
+        ${InfoGrid([
+          { label: "Empresa", value: data.companyName, wide: true },
+          { label: "CNPJ", value: data.cnpj || "N/A" },
+          { label: "Data de elaboração", value: documentDate },
+          { label: "Atividade", value: data.activity || "N/A", wide: true },
+          { label: "Local de trabalho", value: data.obraName || "N/A" },
+          { label: "Responsável", value: data.responsibleName || "Técnico de Segurança" },
+        ])}
+      </section>
+      <section class="apr-section-grid">
+        ${renderAprListCard("Recursos materiais", materials)}
+        ${renderAprListCard("Equipamentos de Proteção Individual", epis)}
+        ${renderAprListCard("Equipamentos de Proteção Coletiva", epcs)}
+        ${renderAprListCard("Condições impeditivas", conditions)}
+      </section>
+    `,
+  }));
+
+  riskChunks.forEach((chunk, chunkIndex) => {
+    const includeSignature = chunkIndex === riskChunks.length - 1 && signatureFitsLastRiskPage;
+    const pageOffset = riskChunks
+      .slice(0, chunkIndex)
+      .reduce((sum, page) => sum + page.length, 0);
+
+    pages.push(DocumentPage({
+      title: "APR – ANÁLISE PRELIMINAR DE RISCO",
+      logoUrl: clientLogoUrl,
+      logoFallback: data.companyName || "TACT",
+      footerText: `Página ${pageNumber++} de ${pageCount} | Documento gerado pelo TACT`,
+      className: includeSignature ? "apr-page apr-risk-page apr-final-page" : "apr-page apr-risk-page",
+      children: `
+        <section class="apr-risk-section">
+          <div class="apr-section-heading">
+            <span>Análise de riscos por etapa</span>
+            <small>${escapeLayoutHtml(data.activity || "APR")}</small>
+          </div>
+          ${renderAprRiskTable(chunk, pageOffset)}
+        </section>
+        ${includeSignature ? renderAprSignatureBlock(data, documentDate, {
+          technician: technicianSignatureUrl,
+          company: companySignatureUrl,
+        }) : ""}
+      `,
+    }));
+  });
+
+  if (!signatureFitsLastRiskPage) {
+    pages.push(DocumentPage({
+      title: "APR – ANÁLISE PRELIMINAR DE RISCO",
+      logoUrl: clientLogoUrl,
+      logoFallback: data.companyName || "TACT",
+      footerText: `Página ${pageNumber++} de ${pageCount} | Documento gerado pelo TACT`,
+      className: "apr-page apr-final-page",
+      children: `
+        <section class="apr-final-note">
+          <div class="apr-section-heading">
+            <span>Encerramento da APR</span>
+            <small>Assinaturas preservadas em área segura</small>
+          </div>
+          <p>As etapas da atividade, perigos, danos e recomendações foram apresentados nas páginas anteriores.</p>
+        </section>
+        ${renderAprSignatureBlock(data, documentDate, {
+          technician: technicianSignatureUrl,
+          company: companySignatureUrl,
+        })}
+      `,
+    }));
+  }
+
+  return BaseDocumentLayout({
+    title: `APR - ${data.activity || data.companyName || "TACT"}`,
+    pages,
+    extraCss: aprPilotCss,
+  });
+}
+
+export async function generateAprPdf(data: any): Promise<Buffer> {
+  const html = await buildAprPdfHtml(data);
+  return renderPdf(html, { margin: { top: "0", right: "0", bottom: "0", left: "0" } });
+}
+
+const aprPilotCss = `
+  .apr-page .document-content { gap: 5mm; }
+  .apr-summary .info-grid { min-height: 43mm; }
+  .apr-section-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4mm;
+    flex: 1;
+    min-height: 0;
+  }
+  .apr-card {
+    border: 1px solid #cfd8df;
+    background: #fff;
+    padding: 4mm;
+    min-height: 72mm;
+    display: flex;
+    flex-direction: column;
+    gap: 3mm;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .apr-card h2 {
+    color: #293f4d;
+    font-size: 11px;
+    line-height: 1.2;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .apr-chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 2mm;
+  }
+  .apr-chip {
+    border: 1px solid #cfd8df;
+    border-left: 2px solid #d64a00;
+    background: #f8fafc;
+    color: #1f2933;
+    display: inline-flex;
+    align-items: center;
+    min-height: 8mm;
+    padding: 1.5mm 2.2mm;
+    font-size: 9.2px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .apr-empty {
+    color: #7b8794;
+    font-size: 10px;
+    font-style: italic;
+  }
+  .apr-risk-section {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3mm;
+  }
+  .apr-section-heading {
+    border-left: 3px solid #d64a00;
+    padding-left: 3mm;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 4mm;
+  }
+  .apr-section-heading span {
+    color: #293f4d;
+    font-size: 13px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .apr-section-heading small {
+    color: #53616f;
+    font-size: 8.5px;
+    font-weight: 800;
+    text-align: right;
+    text-transform: uppercase;
+  }
+  .apr-risk-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border: 1px solid #cfd8df;
+    background: #fff;
+  }
+  .apr-risk-table th,
+  .apr-risk-table td {
+    border: 1px solid #d9e0e6;
+    padding: 2.5mm;
+    vertical-align: top;
+    overflow-wrap: anywhere;
+  }
+  .apr-risk-table th {
+    background: #293f4d;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 900;
+    line-height: 1.15;
+    text-transform: uppercase;
+  }
+  .apr-risk-table td {
+    color: #1f2933;
+    font-size: 8.8px;
+    line-height: 1.28;
+  }
+  .apr-risk-table tr { page-break-inside: avoid; break-inside: avoid; }
+  .apr-risk-table .col-number {
+    width: 8mm;
+    text-align: center;
+    font-weight: 900;
+  }
+  .apr-empty-risk,
+  .apr-final-note {
+    border: 1px dashed #cfd8df;
+    background: #f8fafc;
+    color: #53616f;
+    font-weight: 800;
+    padding: 8mm;
+  }
+  .apr-empty-risk {
+    min-height: 45mm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+  }
+  .apr-final-note {
+    min-height: 55mm;
+    display: flex;
+    flex-direction: column;
+    gap: 5mm;
+  }
+  .apr-final-note p {
+    margin: 0;
+    font-size: 10.5px;
+    line-height: 1.5;
+  }
+`;
+
 export async function generateEpiPdf(data: any): Promise<Buffer> {
   data = await resolvePdfDataImages(data);
   const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });

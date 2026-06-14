@@ -75,6 +75,7 @@ export function BaseDocumentLayout({ title, pages, extraCss = "" }: BaseDocument
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
   <title>${escapeHtml(title)}</title>
   <style>${documentLayoutCss}${extraCss}</style>
 </head>
@@ -391,7 +392,7 @@ const documentLayoutCss = `
   .evidence-image {
     width: 100%;
     height: 100%;
-    object-fit: contain;
+    object-fit: cover;
     display: block;
     background: #fff;
   }
