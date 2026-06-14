@@ -1744,6 +1744,7 @@ export const appRouter = router({
             const itens = items.map((item: any) => ({
               titulo: item.title || "Ocorrência",
               status: item.status || "pendente",
+              data: item.createdAt ? format(new Date(item.createdAt), "dd/MM/yyyy", { locale: ptBR }) : dataFormatada,
               descricao: item.situacao || item.observacoes || "—",
               plano_acao: item.planoAcao || "A definir.",
               prazo: item.resolvedAt ? format(new Date(item.resolvedAt), "dd/MM/yyyy", { locale: ptBR }) : undefined,
