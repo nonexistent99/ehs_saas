@@ -331,6 +331,10 @@ async function startServer() {
         epis: (record.apr.content as any)?.epis || [],
         epcs: (record.apr.content as any)?.epcs || [],
         conditions: (record.apr.content as any)?.conditions || [],
+        otherMaterials: (record.apr.content as any)?.otherMaterials || "",
+        otherEpis: (record.apr.content as any)?.otherEpis || "",
+        otherEpcs: (record.apr.content as any)?.otherEpcs || "",
+        otherConditions: (record.apr.content as any)?.otherConditions || "",
         risks: (record.apr.content as any)?.risks || [],
         clientLogoUrl: record.company?.logoUrl || undefined
       });

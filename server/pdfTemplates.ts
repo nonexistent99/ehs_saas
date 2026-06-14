@@ -295,6 +295,11 @@ function asTextArray(value: unknown): string[] {
   return [];
 }
 
+function withOtherItems(values: string[], otherValue: unknown): string[] {
+  const otherItems = asTextArray(otherValue).map((item) => `Outros: ${item}`);
+  return [...values, ...otherItems];
+}
+
 function chunkItems<T>(items: T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < items.length; index += size) {
@@ -383,10 +388,10 @@ export async function buildAprPdfHtml(data: any): Promise<string> {
   const technicianSignatureUrl = await resolveLayoutPdfImage(data.technicianSignatureUrl || data.responsibleSignatureUrl || data.signatureUrl);
   const companySignatureUrl = await resolveLayoutPdfImage(data.companySignatureUrl || data.companyRepresentativeSignatureUrl);
 
-  const materials = asTextArray(data.materials);
-  const epis = asTextArray(data.epis);
-  const epcs = asTextArray(data.epcs);
-  const conditions = asTextArray(data.conditions);
+  const materials = withOtherItems(asTextArray(data.materials), data.otherMaterials);
+  const epis = withOtherItems(asTextArray(data.epis), data.otherEpis);
+  const epcs = withOtherItems(asTextArray(data.epcs), data.otherEpcs);
+  const conditions = withOtherItems(asTextArray(data.conditions), data.otherConditions);
   const risks: AprRiskItem[] = Array.isArray(data.risks) ? data.risks : [];
   const riskChunks = chunkItems(risks, APR_RISK_ROWS_PER_PAGE);
   const lastRiskChunk = riskChunks[riskChunks.length - 1];

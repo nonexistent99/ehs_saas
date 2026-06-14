@@ -17,18 +17,47 @@ const EPC_OPTIONS = ["Avisos, Sinalizações","Biombo","Extintores","Guarda-Corp
 const CONDITION_OPTIONS = ["Falta de Avisos, Sinalizações","Falta de Treinamentos","Risco iminente","Condições Climáticas (Chuvas, Raios)","Equipamentos danificados","Área não isolada"];
 const RISK_TYPES = ["Físico","Químico","Biológico","Ergonômico","Acidente","Mecânico"];
 
-function CheckGroup({ label, options, selected, onChange }: { label: string; options: string[]; selected: string[]; onChange: (v: string[]) => void }) {
+function CheckGroup({
+  label,
+  options,
+  selected,
+  onChange,
+  otherValue,
+  onOtherChange,
+  otherPlaceholder = "Descreva outros itens",
+}: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+  otherValue?: string;
+  onOtherChange?: (value: string) => void;
+  otherPlaceholder?: string;
+}) {
   const toggle = (opt: string) => onChange(selected.includes(opt) ? selected.filter(o => o !== opt) : [...selected, opt]);
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</Label>
-      <div className="flex flex-wrap gap-2 p-3 bg-secondary/40 rounded-md border border-border">
-        {options.map(opt => (
-          <label key={opt} className="flex items-center gap-1.5 cursor-pointer text-xs">
-            <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} className="rounded" />
-            {opt}
-          </label>
-        ))}
+      <div className="space-y-3 p-3 bg-secondary/40 rounded-md border border-border">
+        <div className="flex flex-wrap gap-2">
+          {options.map(opt => (
+            <label key={opt} className="flex items-center gap-1.5 cursor-pointer text-xs">
+              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} className="rounded" />
+              {opt}
+            </label>
+          ))}
+        </div>
+        {onOtherChange && (
+          <div className="space-y-1">
+            <Label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Outros</Label>
+            <Input
+              value={otherValue || ""}
+              onChange={e => onOtherChange(e.target.value)}
+              placeholder={otherPlaceholder}
+              className="bg-card border-border text-xs h-8"
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -58,6 +87,10 @@ export default function APRPage() {
   const [epis, setEpis] = useState<string[]>([]);
   const [epcs, setEpcs] = useState<string[]>([]);
   const [conditions, setConditions] = useState<string[]>([]);
+  const [otherMaterials, setOtherMaterials] = useState("");
+  const [otherEpis, setOtherEpis] = useState("");
+  const [otherEpcs, setOtherEpcs] = useState("");
+  const [otherConditions, setOtherConditions] = useState("");
   const [risks, setRisks] = useState<any[]>([]);
 
   const companyIdNum = Number(form.companyId);
@@ -69,6 +102,7 @@ export default function APRPage() {
   const resetForm = () => {
     setForm({ companyId: "", title: "", activity: "", obraId: "", date: "", status: "aberta", responsibleName: "" });
     setMaterials([]); setEpis([]); setEpcs([]); setConditions([]); setRisks([]);
+    setOtherMaterials(""); setOtherEpis(""); setOtherEpcs(""); setOtherConditions("");
   };
 
   const createMutation = trpc.apr.create.useMutation({
@@ -95,7 +129,18 @@ export default function APRPage() {
       activity: form.activity || undefined,
       date: form.date || undefined,
       status: form.status,
-      content: { materials, epis, epcs, conditions, risks, responsibleName: form.responsibleName },
+      content: {
+        materials,
+        epis,
+        epcs,
+        conditions,
+        otherMaterials: otherMaterials.trim(),
+        otherEpis: otherEpis.trim(),
+        otherEpcs: otherEpcs.trim(),
+        otherConditions: otherConditions.trim(),
+        risks,
+        responsibleName: form.responsibleName,
+      },
     });
   };
 
@@ -151,10 +196,42 @@ export default function APRPage() {
         </Select>
       </div>
 
-      <CheckGroup label="Recursos Materiais" options={MATERIALS_OPTIONS} selected={materials} onChange={setMaterials} />
-      <CheckGroup label="Equipamentos de Proteção Individual (EPI)" options={EPI_OPTIONS} selected={epis} onChange={setEpis} />
-      <CheckGroup label="Equipamentos de Proteção Coletiva (EPC)" options={EPC_OPTIONS} selected={epcs} onChange={setEpcs} />
-      <CheckGroup label="Condições Impeditivas para Realização" options={CONDITION_OPTIONS} selected={conditions} onChange={setConditions} />
+      <CheckGroup
+        label="Recursos Materiais"
+        options={MATERIALS_OPTIONS}
+        selected={materials}
+        onChange={setMaterials}
+        otherValue={otherMaterials}
+        onOtherChange={setOtherMaterials}
+        otherPlaceholder="Ex: martelete, linha de vida temporária"
+      />
+      <CheckGroup
+        label="Equipamentos de Proteção Individual (EPI)"
+        options={EPI_OPTIONS}
+        selected={epis}
+        onChange={setEpis}
+        otherValue={otherEpis}
+        onOtherChange={setOtherEpis}
+        otherPlaceholder="Ex: respirador semifacial, perneira"
+      />
+      <CheckGroup
+        label="Equipamentos de Proteção Coletiva (EPC)"
+        options={EPC_OPTIONS}
+        selected={epcs}
+        onChange={setEpcs}
+        otherValue={otherEpcs}
+        onOtherChange={setOtherEpcs}
+        otherPlaceholder="Ex: linha de vida, bandeja de proteção"
+      />
+      <CheckGroup
+        label="Condições Impeditivas para Realização"
+        options={CONDITION_OPTIONS}
+        selected={conditions}
+        onChange={setConditions}
+        otherValue={otherConditions}
+        onOtherChange={setOtherConditions}
+        otherPlaceholder="Ex: vento forte, iluminação insuficiente"
+      />
 
       {/* Tabela de Riscos */}
       <div className="space-y-2">
