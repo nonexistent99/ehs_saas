@@ -1,4 +1,5 @@
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
+import { repairPdfHtml } from "./pdfText";
 
 export interface DocumentPageOptions {
   title: string;
@@ -71,7 +72,7 @@ export async function resolvePdfImages(values: unknown): Promise<string[]> {
 }
 
 export function BaseDocumentLayout({ title, pages, extraCss = "" }: BaseDocumentLayoutOptions): string {
-  return `<!DOCTYPE html>
+  return repairPdfHtml(`<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
@@ -82,7 +83,7 @@ export function BaseDocumentLayout({ title, pages, extraCss = "" }: BaseDocument
 <body>
   <div class="pdf-document">${pages.join("")}</div>
 </body>
-</html>`;
+</html>`);
 }
 
 export function DocumentPage({
@@ -152,7 +153,7 @@ export function StatusTag(status: unknown): string {
 export function EvidenceImageGrid(urls: string[], options: EvidenceImageGridOptions = {}): string {
   const maxImages = options.maxImages ?? 4;
   const images = urls.filter(Boolean).slice(0, maxImages);
-  const emptyLabel = options.emptyLabel || "Sem evidencia visual";
+  const emptyLabel = options.emptyLabel || "Sem evidência visual";
 
   if (images.length === 0) {
     return `<div class="evidence-grid evidence-grid-empty">
@@ -162,7 +163,7 @@ export function EvidenceImageGrid(urls: string[], options: EvidenceImageGridOpti
 
   return `<div class="evidence-grid evidence-count-${images.length}">
     ${images.map((url, index) => `<figure class="evidence-frame">
-      <img src="${escapeHtml(url)}" class="evidence-image" alt="Evidencia ${index + 1}" />
+      <img src="${escapeHtml(url)}" class="evidence-image" alt="Evidência ${index + 1}" />
     </figure>`).join("")}
   </div>`;
 }
@@ -180,7 +181,7 @@ export function SignatureBlock({ title = "Assinaturas", entries }: SignatureBloc
         </div>
         ${hasSignatureImage ? "" : `<div class="signature-line"></div>`}
         ${entry.label ? `<div class="signature-label">${escapeHtml(entry.label)}</div>` : ""}
-        <div class="signature-name">${escapeHtml(entry.name || "Responsavel")}</div>
+        <div class="signature-name">${escapeHtml(entry.name || "Responsável")}</div>
         ${entry.role ? `<div class="signature-role">${escapeHtml(entry.role)}</div>` : ""}
         ${entry.date ? `<div class="signature-date">${escapeHtml(entry.date)}</div>` : ""}
       </div>`;

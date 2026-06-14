@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer";
+import { repairPdfHtml } from "./pdfText";
 
 export async function generateInspectionPdf(inspectionData: {
   title: string;
@@ -196,7 +197,7 @@ export async function generateInspectionPdf(inspectionData: {
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 60000 });
+    await page.setContent(repairPdfHtml(html), { waitUntil: "load", timeout: 60000 });
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -218,7 +219,7 @@ export async function generatePdfFromHtml(html: string, options?: { headerTempla
   try {
     const page = await browser.newPage();
     // Set content waiting for rendering, but avoid networkidle0 which timeouts with large base64
-    await page.setContent(html, { waitUntil: "load", timeout: 60000 });
+    await page.setContent(repairPdfHtml(html), { waitUntil: "load", timeout: 60000 });
     
     // Calculate display header/footers 
     const displayHeaderFooter = !!(options?.headerTemplate || options?.footerTemplate);

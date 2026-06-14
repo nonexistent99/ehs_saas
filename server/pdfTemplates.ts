@@ -3,6 +3,7 @@ import Handlebars from "handlebars";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
+import { repairPdfHtml } from "./pdfText";
 import {
   BaseDocumentLayout,
   DocumentPage,
@@ -131,7 +132,7 @@ async function renderPdf(
   });
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load", timeout: 60000 });
+    await page.setContent(repairPdfHtml(html), { waitUntil: "load", timeout: 60000 });
     const buf = await page.pdf({
       format: "A4",
       printBackground: true,
@@ -1968,7 +1969,7 @@ function renderChecklistItem(item: ChecklistPdfItem, absoluteIndex: number): str
     <div class="item-header">
       <div>
         <div class="item-kicker">Item ${absoluteIndex + 1}</div>
-        <h3>${escapeLayoutHtml(item.name || "Item de verificacao")}</h3>
+        <h3>${escapeLayoutHtml(item.name || "Item de verificação")}</h3>
       </div>
       ${StatusTag(item.status)}
     </div>
@@ -1987,7 +1988,7 @@ function renderChecklistItem(item: ChecklistPdfItem, absoluteIndex: number): str
   return `<article class="checklist-item checklist-item-evidence">
     ${itemCopy}
     <div class="evidence-panel">
-      <div class="evidence-title">Evidencia visual</div>
+      <div class="evidence-title">Evidência visual</div>
       ${EvidenceImageGrid(item.mediaUrls, { maxImages: 4 })}
     </div>
   </article>`;
@@ -2040,11 +2041,11 @@ export async function buildChecklistPdfHtml(data: any): Promise<string> {
         </section>
         <section class="checklist-items">${itemsHtml}</section>
         ${includeSignature ? SignatureBlock({
-          title: "Responsavel pela inspecao",
+          title: "Responsável pela inspeção",
           entries: [{
             imageUrl: signatureUrl,
             name: data.inspectorName || "Inspetor/Tecnico",
-            role: "Tecnico Responsavel pela Inspecao",
+            role: "Técnico Responsável pela Inspeção",
             date: documentDate,
           }],
         }) : ""}
