@@ -1810,17 +1810,38 @@ export const appRouter = router({
             const stages = await db.select().from(pgrStages).where(eq(pgrStages.pgrId, input.documentId)).orderBy(pgrStages.order);
 
             const { generateGroPdf } = await import("./pdfTemplates");
+            const obraAddress = [
+              record.obra?.address,
+              [record.obra?.city, record.obra?.state].filter(Boolean).join("/"),
+            ].filter(Boolean).join(" - ");
+            const companyAddress = [
+              record.company?.address,
+              [record.company?.city, record.company?.state].filter(Boolean).join("/"),
+            ].filter(Boolean).join(" - ");
+
             pdfBuffer = await generateGroPdf({
-              title: record.pgr.title, companyName: record.company?.name || "N/A", obraName: record.obra?.name || "Matriz",
-              version: record.pgr.version, validFrom: record.pgr.validFrom,
+              title: record.pgr.title,
+              companyName: record.company?.name || "N/A",
+              cnpj: record.company?.cnpj || "",
+              obraName: record.obra?.name || "Matriz",
+              obraAddress,
+              companyAddress,
+              version: record.pgr.version,
+              validFrom: record.pgr.validFrom,
+              validUntil: record.pgr.validUntil,
+              status: record.pgr.status,
               riskMatrix: parsedContent.risks || [],
               actionPlan: parsedContent.actionPlan || [],
+              observations: parsedContent.rawContent || "",
+              nr24Workers: parsedContent.nr24Workers,
+              signatureUrl: parsedContent.signatureUrl || "",
               responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
               clientLogoUrl: record.company?.logoUrl || undefined,
-              stages: stages.map(s => ({
+              stages: stages.length ? stages.map(s => ({
                 name: s.name,
+                description: s.description,
                 subcontractorInfo: s.subcontractorInfo
-              }))
+              })) : (Array.isArray(parsedContent.stages) ? parsedContent.stages : [])
             });
             fileName = `PGR_${input.documentId}.pdf`;
           }

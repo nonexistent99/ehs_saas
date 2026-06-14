@@ -1008,149 +1008,754 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
   return renderPdf(html);
 }
 
-// ─── GRO ─────────────────────────────────────────────────────────────────────
-export async function generateGroPdf(data: any): Promise<Buffer> {
-  data = await resolvePdfDataImages(data);
-  const levelColors: Record<string, string> = {
-    "Muito Baixo": "#00ABF0",
-    "Baixo": "#00B050",
-    "Médio": "#FFFF00",
-    "Alto": "#FF0000",
-    "Grave": "#FF0000",
-    "Severo": "#7030A0",
-    "Extremo": "#000000",
+// ─── GRO / PGR ────────────────────────────────────────────────────────────────
+type PgrRiskItem = {
+  agent?: unknown;
+  name?: unknown;
+  description?: unknown;
+  type?: unknown;
+  category?: unknown;
+  source?: unknown;
+  healthEffect?: unknown;
+  probability?: unknown;
+  severity?: unknown;
+  consequence?: unknown;
+  riskLevel?: unknown;
+  level?: unknown;
+};
+
+type PgrActionItem = {
+  riskRef?: unknown;
+  action?: unknown;
+  deadline?: unknown;
+  status?: unknown;
+};
+
+type PgrStageItem = {
+  name?: unknown;
+  description?: unknown;
+  subcontractorInfo?: {
+    isSubcontracted?: boolean;
+    teams?: Array<{ companyName?: unknown; cnpj?: unknown; activity?: unknown }>;
   };
+};
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocStyle}</style></head><body>
-<div class="page">
+const PGR_RISKS_PER_PAGE = 5;
+const PGR_ACTIONS_PER_PAGE = 7;
+const PGR_STAGES_PER_PAGE = 5;
 
-  <table class="doc-header">
-    <tr>
-      <td class="logo-cell">${pdfLogo(data)}</td>
-      <td class="title-cell">GRO — GERENCIAMENTO DE RISCO OCUPACIONAL</td>
-      <td class="rev-cell">GRO_REV_00</td>
-    </tr>
-  </table>
-
-  <table style="margin-top:-1px;">
-    <tr>
-      <td colspan="4" class="section-header">${data.title || "Gerenciamento de Risco Ocupacional"}</td>
-    </tr>
-    <tr>
-      <td style="font-weight:700; width:80px;">EMPRESA:</td>
-      <td>${data.companyName || ""}</td>
-      <td style="font-weight:700; width:80px;">OBRA/LOCAL:</td>
-      <td>${data.obraName || ""}</td>
-    </tr>
-    <tr>
-      <td style="font-weight:700;">VERSÃO:</td>
-      <td>${data.version || "00"}</td>
-      <td style="font-weight:700;">DATA DE EMISSÃO:</td>
-      <td>${data.validFrom ? format(new Date(data.validFrom), "dd/MM/yyyy", { locale: ptBR }) : ""}</td>
-    </tr>
-  </table>
-
-  <!-- Atividades e Equipes (NOVO) -->
-  <table style="margin-top:-1px;">
-    <tr><th colspan="3" class="section-header">ATIVIDADES E EQUIPES TERCEIRIZADAS</th></tr>
-    <tr>
-      <th style="width:40%;">ETAPA / ATIVIDADE</th>
-      <th style="width:20%;">TERCEIRIZADA?</th>
-      <th style="width:40%;">EMPRESAS E CNPJ</th>
-    </tr>
-    ${(data.stages || []).map((s: any) => `
-    <tr>
-      <td style="font-weight:700;">${s.name || "—"}</td>
-      <td style="text-align:center;">${s.subcontractorInfo?.isSubcontracted ? "SIM" : "NÃO"}</td>
-      <td>
-        ${s.subcontractorInfo?.isSubcontracted ? (s.subcontractorInfo.teams || []).map((t: any) => `
-          <div style="font-size:9px;">• <strong>${t.companyName}</strong> (${t.cnpj || "S/ CNPJ"})</div>
-        `).join("") : "Execução Própria"}
-      </td>
-    </tr>`).join("")}
-    ${(!data.stages || data.stages.length === 0) ? `<tr><td colspan="3" style="text-align:center; height:30px; color:#555; vertical-align:middle;">Nenhuma etapa detalhada com equipes identificada.</td></tr>` : ""}
-  </table>
-
-  <!-- Matriz de Riscos -->
-  <table style="margin-top:-1px;">
-    <tr><th colspan="7" class="section-header">1. MATRIZ DE RISCOS AVALIADOS</th></tr>
-    <tr>
-      <th style="width:12%;">AGENTE DE RISCO</th>
-      <th style="width:10%;">TIPO</th>
-      <th style="width:22%;">FONTE GERADORA</th>
-      <th style="width:24%;">POSSÍVEIS DANOS À SAÚDE</th>
-      <th style="width:8%;">P (1-5)</th>
-      <th style="width:8%;">C (1-5)</th>
-      <th style="width:16%;">NÍVEL / R</th>
-    </tr>
-    ${(data.riskMatrix || []).map((r: any) => {
-      const bgColor = levelColors[r.riskLevel] || "#fff";
-      const textColor = ["Extremo", "Alto", "Grave"].includes(r.riskLevel) && r.riskLevel === "Extremo" ? "#fff" : "#000";
-      return `
-    <tr>
-      <td><strong>${r.agent || ""}</strong></td>
-      <td style="text-align:center;">${r.type || ""}</td>
-      <td>${r.source || ""}</td>
-      <td>${r.healthEffect || ""}</td>
-      <td style="text-align:center;">${r.probability || ""}</td>
-      <td style="text-align:center;">${r.severity || ""}</td>
-      <td style="text-align:center; background:${bgColor}; color:${textColor}; font-weight:700;">${r.riskLevel || ""}</td>
-    </tr>`;
-    }).join("")}
-    ${Array.from({ length: Math.max(0, 5 - (data.riskMatrix?.length || 0)) }).map(() =>
-      `<tr><td style="height:24px;">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`
-    ).join("")}
-  </table>
-
-  <div style="font-size:8px; color:#555; margin: 4px 0 8px 0;">
-    * P = Probabilidade &nbsp;|&nbsp; C = Consequência &nbsp;|&nbsp; R = Risco &nbsp;|&nbsp;
-    <span style="background:#00ABF0; padding:1px 6px;">Muito Baixo</span>&nbsp;
-    <span style="background:#00B050; padding:1px 6px;">Baixo</span>&nbsp;
-    <span style="background:#FFFF00; padding:1px 6px;">Médio</span>&nbsp;
-    <span style="background:#FF0000; color:#fff; padding:1px 6px;">Alto/Grave</span>&nbsp;
-    <span style="background:#7030A0; color:#fff; padding:1px 6px;">Severo</span>&nbsp;
-    <span style="background:#000; color:#fff; padding:1px 6px;">Extremo</span>
-  </div>
-
-  <!-- Plano de Ação -->
-  <table style="margin-top:4px;">
-    <tr><th colspan="4" class="section-header">2. PLANO DE AÇÃO (ESPM)</th></tr>
-    <tr>
-      <th style="width:28%;">RISCO REFERÊNCIA</th>
-      <th style="width:44%;">AÇÃO PROPOSTA (CONTROLE)</th>
-      <th style="width:14%;">PRAZO</th>
-      <th style="width:14%;">STATUS</th>
-    </tr>
-    ${(data.actionPlan || []).map((a: any) => `
-    <tr>
-      <td>${a.riskRef || ""}</td>
-      <td>${a.action || ""}</td>
-      <td style="text-align:center;">${a.deadline ? format(new Date(a.deadline), "dd/MM/yyyy", { locale: ptBR }) : ""}</td>
-      <td style="text-align:center; text-transform:capitalize;">${a.status || ""}</td>
-    </tr>`).join("")}
-    ${Array.from({ length: Math.max(0, 4 - (data.actionPlan?.length || 0)) }).map(() =>
-      `<tr><td style="height:24px;">&nbsp;</td><td></td><td></td><td></td></tr>`
-    ).join("")}
-  </table>
-
-  <!-- Assinatura -->
-  <table style="margin-top:-1px;">
-    <tr>
-      <td style="text-align:center; padding:28px 20px 8px; width:50%;">
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px;">${data.responsibleName || "Engenheiro(a) de Segurança"}</div>
-        <div style="font-size:9px; color:#555;">Engenheiro(a) de Segurança do Trabalho</div>
-      </td>
-      <td style="width:50%; border:none;"></td>
-    </tr>
-  </table>
-
-  ${pageFooter("1 de 1")}
-</div>
-</body></html>`;
-
-  return renderPdf(html);
+function cleanText(value: unknown, fallback = ""): string {
+  const text = String(value ?? "").trim();
+  return text || fallback;
 }
+
+function pgrStatusLabel(status: unknown): string {
+  const value = cleanText(status).toLowerCase();
+  const labels: Record<string, string> = {
+    em_elaboracao: "Em elaboração",
+    vigente: "Vigente",
+    revisao: "Revisão",
+    cancelado: "Cancelado",
+  };
+  return labels[value] || cleanText(status, "N/A");
+}
+
+function pgrActionStatusLabel(status: unknown): string {
+  const value = cleanText(status).toLowerCase();
+  const labels: Record<string, string> = {
+    pendente: "Pendente",
+    em_andamento: "Em andamento",
+    concluido: "Concluído",
+  };
+  return labels[value] || cleanText(status, "N/A");
+}
+
+function pgrLevelFromScore(score: number): string {
+  if (score <= 2) return "Muito Baixo";
+  if (score <= 5) return "Baixo";
+  if (score <= 10) return "Médio";
+  if (score <= 16) return "Alto";
+  if (score <= 20) return "Muito Alto";
+  return "Extremo";
+}
+
+function normalizePgrLevel(level: unknown, probability?: unknown, severity?: unknown): string {
+  const raw = cleanText(level);
+  if (raw) {
+    const normalized = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (normalized === "severo") return "Muito Alto";
+    if (normalized === "grave") return "Alto";
+    if (normalized === "medio") return "Médio";
+    if (normalized === "muito baixo") return "Muito Baixo";
+    if (normalized === "baixo") return "Baixo";
+    if (normalized === "alto") return "Alto";
+    if (normalized === "muito alto") return "Muito Alto";
+    if (normalized === "extremo") return "Extremo";
+    return raw;
+  }
+
+  const p = Number(probability);
+  const c = Number(severity);
+  if (Number.isFinite(p) && Number.isFinite(c) && p > 0 && c > 0) {
+    return pgrLevelFromScore(p * c);
+  }
+
+  return "N/A";
+}
+
+function pgrLevelClass(level: unknown): string {
+  const normalized = cleanText(level)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+  return `risk-level-${normalized || "na"}`;
+}
+
+function normalizePgrRisk(risk: PgrRiskItem) {
+  const probability = cleanText(risk.probability);
+  const consequence = cleanText(risk.severity ?? risk.consequence);
+  return {
+    agent: cleanText(risk.agent ?? risk.name ?? risk.description, "N/A"),
+    type: cleanText(risk.type ?? risk.category, "N/A"),
+    source: cleanText(risk.source, "N/A"),
+    healthEffect: cleanText(risk.healthEffect, "N/A"),
+    probability: probability || "N/A",
+    consequence: consequence || "N/A",
+    riskLevel: normalizePgrLevel(risk.riskLevel ?? risk.level, probability, consequence),
+  };
+}
+
+function normalizePgrAction(action: PgrActionItem) {
+  return {
+    riskRef: cleanText(action.riskRef, "N/A"),
+    action: cleanText(action.action, "N/A"),
+    deadline: formatPdfDate(action.deadline, "N/A"),
+    status: pgrActionStatusLabel(action.status),
+  };
+}
+
+function normalizePgrStage(stage: PgrStageItem) {
+  const info = stage.subcontractorInfo || {};
+  const teams = Array.isArray(info.teams) ? info.teams : [];
+  return {
+    name: cleanText(stage.name, "Etapa não informada"),
+    activity: cleanText(stage.description, "N/A"),
+    isSubcontracted: Boolean(info.isSubcontracted),
+    teams: teams.map((team) => ({
+      companyName: cleanText(team.companyName, "Empresa não informada"),
+      cnpj: cleanText(team.cnpj, "S/CNPJ"),
+      activity: cleanText(team.activity, "Atividade não informada"),
+    })),
+  };
+}
+
+function calcPgrSanitaryInstallations(workers: unknown) {
+  const total = Number(workers);
+  if (!Number.isFinite(total) || total <= 0) return null;
+  const toiletsAndSinks = Math.ceil(total / 20);
+  return {
+    workers: total,
+    toilets: toiletsAndSinks,
+    sinks: toiletsAndSinks,
+    urinals: toiletsAndSinks,
+    showers: Math.ceil(total / 10),
+  };
+}
+
+function renderRiskMatrixLegend(): string {
+  const rows = Array.from({ length: 5 }, (_, probabilityIndex) => {
+    const probability = 5 - probabilityIndex;
+    const cells = Array.from({ length: 5 }, (_, consequenceIndex) => {
+      const consequence = consequenceIndex + 1;
+      const level = pgrLevelFromScore(probability * consequence);
+      return `<td class="${pgrLevelClass(level)}">
+        <strong>${probability * consequence}</strong>
+        <span>${escapeLayoutHtml(level)}</span>
+      </td>`;
+    }).join("");
+    return `<tr><th>${probability}</th>${cells}</tr>`;
+  }).join("");
+
+  return `<table class="pgr-risk-matrix">
+    <thead>
+      <tr><th class="corner">P/C</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderRiskClassificationTable(): string {
+  const rows = [
+    ["Muito Baixo", "1 a 2", "Acompanhamento de rotina e manutenção dos controles existentes."],
+    ["Baixo", "3 a 5", "Controle preventivo com verificação periódica."],
+    ["Médio", "6 a 10", "Plano de ação definido e monitoramento do responsável técnico."],
+    ["Alto", "11 a 16", "Ação prioritária, controle operacional e bloqueios quando aplicável."],
+    ["Muito Alto", "17 a 20", "Intervenção imediata e reavaliação antes da continuidade da atividade."],
+    ["Extremo", "21 a 25", "Interrupção da atividade até implantação de controle eficaz."],
+  ];
+
+  return `<table class="pgr-classification-table">
+    <thead><tr><th>Classificação</th><th>Faixa</th><th>Critério de controle</th></tr></thead>
+    <tbody>
+      ${rows.map(([level, range, criteria]) => `<tr>
+        <td><span class="pgr-level-badge ${pgrLevelClass(level)}">${escapeLayoutHtml(level)}</span></td>
+        <td>${escapeLayoutHtml(range)}</td>
+        <td>${escapeLayoutHtml(criteria)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderPgrRiskTable(risks: PgrRiskItem[]): string {
+  const normalized = risks.map(normalizePgrRisk);
+  if (normalized.length === 0) {
+    return `<div class="pgr-empty">Nenhum risco cadastrado para este PGR.</div>`;
+  }
+
+  return `<table class="pgr-data-table pgr-risk-table">
+    <thead>
+      <tr>
+        <th>Risco</th>
+        <th>Tipo</th>
+        <th>Fonte geradora</th>
+        <th>Possíveis danos à saúde</th>
+        <th>P</th>
+        <th>C</th>
+        <th>Nível do risco</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${normalized.map((risk) => `<tr>
+        <td>${escapeLayoutHtml(risk.agent)}</td>
+        <td>${escapeLayoutHtml(risk.type)}</td>
+        <td>${escapeLayoutHtml(risk.source)}</td>
+        <td>${escapeLayoutHtml(risk.healthEffect)}</td>
+        <td class="pgr-center">${escapeLayoutHtml(risk.probability)}</td>
+        <td class="pgr-center">${escapeLayoutHtml(risk.consequence)}</td>
+        <td class="pgr-center"><span class="pgr-level-badge ${pgrLevelClass(risk.riskLevel)}">${escapeLayoutHtml(risk.riskLevel)}</span></td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderPgrActionTable(actions: PgrActionItem[]): string {
+  const normalized = actions.map(normalizePgrAction);
+  if (normalized.length === 0) {
+    return `<div class="pgr-empty">Nenhuma ação cadastrada para este PGR.</div>`;
+  }
+
+  return `<table class="pgr-data-table pgr-action-table">
+    <thead>
+      <tr>
+        <th>Risco referência</th>
+        <th>Ação proposta</th>
+        <th>Prazo</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${normalized.map((action) => `<tr>
+        <td>${escapeLayoutHtml(action.riskRef)}</td>
+        <td>${escapeLayoutHtml(action.action)}</td>
+        <td class="pgr-center">${escapeLayoutHtml(action.deadline)}</td>
+        <td class="pgr-center">${escapeLayoutHtml(action.status)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderPgrStagesTable(stages: PgrStageItem[]): string {
+  const normalized = stages.map(normalizePgrStage);
+  if (normalized.length === 0) {
+    return `<div class="pgr-empty">Nenhuma etapa, atividade ou equipe cadastrada para este PGR.</div>`;
+  }
+
+  return `<table class="pgr-data-table pgr-stages-table">
+    <thead>
+      <tr>
+        <th>Etapa/equipe</th>
+        <th>Atividade</th>
+        <th>Terceirizado</th>
+        <th>Dados do terceirizado</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${normalized.map((stage) => `<tr>
+        <td>${escapeLayoutHtml(stage.name)}</td>
+        <td>${escapeLayoutHtml(stage.activity)}</td>
+        <td class="pgr-center">${stage.isSubcontracted ? "Sim" : "Não"}</td>
+        <td>
+          ${stage.isSubcontracted && stage.teams.length
+            ? stage.teams.map((team) => `<div class="pgr-team-line">
+              <strong>${escapeLayoutHtml(team.companyName)}</strong><br />
+              CNPJ: ${escapeLayoutHtml(team.cnpj)}<br />
+              Atividade: ${escapeLayoutHtml(team.activity)}
+            </div>`).join("")
+            : "Execução própria"}
+        </td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+function renderPgrSanitaryBlock(workers: unknown): string {
+  const specs = calcPgrSanitaryInstallations(workers);
+  if (!specs) {
+    return `<section class="pgr-section pgr-sanitary">
+      <h2>Instalações sanitárias</h2>
+      <p>Não informado no cadastro do PGR.</p>
+    </section>`;
+  }
+
+  return `<section class="pgr-section pgr-sanitary">
+    <h2>Instalações sanitárias</h2>
+    <div class="pgr-sanitary-grid">
+      <div><span>Trabalhadores</span><strong>${specs.workers}</strong></div>
+      <div><span>Vasos sanitários</span><strong>${specs.toilets}</strong></div>
+      <div><span>Lavatórios</span><strong>${specs.sinks}</strong></div>
+      <div><span>Mictórios</span><strong>${specs.urinals}</strong></div>
+      <div><span>Chuveiros</span><strong>${specs.showers}</strong></div>
+    </div>
+  </section>`;
+}
+
+export async function buildGroPdfHtml(data: any): Promise<string> {
+  const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+  const clientLogoUrl = await resolveLayoutPdfImage(data.clientLogoUrl || data.logoUrl);
+  const signatureUrl = await resolveLayoutPdfImage(data.signatureUrl);
+  const risks: PgrRiskItem[] = Array.isArray(data.riskMatrix) ? data.riskMatrix : [];
+  const actions: PgrActionItem[] = Array.isArray(data.actionPlan) ? data.actionPlan : [];
+  const stages: PgrStageItem[] = Array.isArray(data.stages) ? data.stages : [];
+  const riskChunks = chunkItems(risks, PGR_RISKS_PER_PAGE);
+  const actionChunks = chunkItems(actions, PGR_ACTIONS_PER_PAGE);
+  const stageChunks = chunkItems(stages, PGR_STAGES_PER_PAGE);
+  const validUntil = formatPdfDate(data.validUntil, "N/A");
+  const validFrom = formatPdfDate(data.validFrom || data.createdAt, genDate);
+  const location = cleanText(data.obraAddress || data.location || data.companyAddress, "N/A");
+  const observations = cleanText(data.observations || data.rawContent, "Não informado.");
+
+  const definitions: Array<{ title: string; className?: string; children: string }> = [
+    {
+      title: "RELATÓRIO DO PGR",
+      className: "pgr-page pgr-cover-page",
+      children: `<section class="pgr-cover">
+        <div class="pgr-cover-logo">
+          ${clientLogoUrl ? `<img src="${escapeLayoutHtml(clientLogoUrl)}" alt="${escapeLayoutHtml(data.companyName || "Cliente")}" />` : `<span>${escapeLayoutHtml(data.companyName || "Cliente")}</span>`}
+        </div>
+        <div class="pgr-cover-title">
+          <span>Programa de Gerenciamento de Riscos</span>
+          <h1>RELATÓRIO DO PGR</h1>
+          <p>${escapeLayoutHtml(data.title || "PGR/GRO")}</p>
+        </div>
+        <dl class="pgr-cover-meta">
+          <div><dt>Empresa</dt><dd>${escapeLayoutHtml(data.companyName || "N/A")}</dd></div>
+          <div><dt>Empreendimento/obra</dt><dd>${escapeLayoutHtml(data.obraName || "N/A")}</dd></div>
+          <div><dt>Local da obra</dt><dd>${escapeLayoutHtml(location)}</dd></div>
+        </dl>
+      </section>`,
+    },
+    {
+      title: "PGR/GRO - INTRODUÇÃO",
+      className: "pgr-page pgr-intro-page",
+      children: `<section class="pgr-section pgr-intro-text">
+        <h2>Introdução</h2>
+        <p>Este relatório consolida o Programa de Gerenciamento de Riscos ocupacionais da empresa, reunindo a identificação de perigos, a avaliação dos riscos e o plano de ação necessário para manter as atividades sob controle.</p>
+        <p>O PGR/GRO atende aos princípios da NR-01, que estabelece as diretrizes gerais de gerenciamento de riscos ocupacionais, e considera as exigências aplicáveis da NR-18 para a indústria da construção, especialmente quanto ao planejamento das etapas da obra, medidas preventivas, equipes envolvidas e controles operacionais.</p>
+        <p>A matriz abaixo cruza Probabilidade (P) e Consequência (C) em escala de 1 a 5 para classificar prioridades de controle e orientar o acompanhamento do plano de ação.</p>
+      </section>
+      <section class="pgr-section pgr-matrix-section">
+        <div>
+          <h2>Matriz de risco 5x5</h2>
+          ${renderRiskMatrixLegend()}
+        </div>
+        <div>
+          <h2>Classificação</h2>
+          ${renderRiskClassificationTable()}
+        </div>
+      </section>`,
+    },
+    {
+      title: "PGR/GRO - DADOS DO PGR",
+      className: "pgr-page pgr-data-page",
+      children: `<section class="pgr-section">
+        ${InfoGrid([
+          { label: "Empresa", value: data.companyName, wide: true },
+          { label: "Obra", value: data.obraName || "N/A" },
+          { label: "Revisão", value: data.version || "1.0" },
+          { label: "Responsável técnico", value: data.responsibleName || "N/A", wide: true },
+          { label: "Status", value: pgrStatusLabel(data.status) },
+          { label: "Validade", value: validUntil },
+          { label: "Data de emissão", value: validFrom },
+          { label: "Local da obra", value: location, wide: true },
+          { label: "CNPJ", value: data.cnpj || "N/A" },
+        ])}
+      </section>
+      <section class="pgr-section pgr-observations">
+        <h2>Observações gerais</h2>
+        <p>${escapeLayoutHtml(observations)}</p>
+      </section>
+      ${renderPgrSanitaryBlock(data.nr24Workers)}`,
+    },
+  ];
+
+  stageChunks.forEach((chunk, index) => {
+    definitions.push({
+      title: "PGR/GRO - ETAPAS E EQUIPES",
+      className: "pgr-page pgr-stages-page",
+      children: `<section class="pgr-section">
+        <div class="pgr-section-heading">
+          <span>Etapas/equipes</span>
+          <small>${index + 1} de ${stageChunks.length}</small>
+        </div>
+        ${renderPgrStagesTable(chunk)}
+      </section>`,
+    });
+  });
+
+  riskChunks.forEach((chunk, index) => {
+    definitions.push({
+      title: "PGR/GRO - RISCOS",
+      className: "pgr-page pgr-risks-page",
+      children: `<section class="pgr-section">
+        <div class="pgr-section-heading">
+          <span>Tabela de riscos</span>
+          <small>${index + 1} de ${riskChunks.length}</small>
+        </div>
+        ${renderPgrRiskTable(chunk)}
+      </section>`,
+    });
+  });
+
+  actionChunks.forEach((chunk, index) => {
+    definitions.push({
+      title: "PGR/GRO - PLANO DE AÇÃO",
+      className: "pgr-page pgr-actions-page",
+      children: `<section class="pgr-section">
+        <div class="pgr-section-heading">
+          <span>Plano de ação</span>
+          <small>${index + 1} de ${actionChunks.length}</small>
+        </div>
+        ${renderPgrActionTable(chunk)}
+      </section>`,
+    });
+  });
+
+  definitions.push({
+    title: "PGR/GRO - ENCERRAMENTO",
+    className: "pgr-page pgr-final-page",
+    children: `<section class="pgr-section pgr-closing">
+      <h2>Encerramento do PGR</h2>
+      <p>O presente Programa de Gerenciamento de Riscos deve ser mantido disponível aos responsáveis pela execução das atividades, atualizado sempre que houver alterações de processo, ambiente, equipe ou medidas de controle, e acompanhado conforme o plano de ação definido.</p>
+      <p>Data de emissão: <strong>${escapeLayoutHtml(genDate)}</strong></p>
+    </section>
+    ${SignatureBlock({
+      title: "Assinatura",
+      entries: [{
+        imageUrl: signatureUrl,
+        name: data.responsibleName || "Responsável Técnico",
+        role: "Responsável Técnico",
+        date: genDate,
+      }],
+    })}`,
+  });
+
+  const pageCount = definitions.length;
+  const pages = definitions.map((definition, index) => DocumentPage({
+    title: definition.title,
+    logoUrl: clientLogoUrl,
+    logoFallback: data.companyName || "TACT",
+    footerText: `Página ${index + 1} de ${pageCount} | Documento gerado pelo TACT`,
+    className: definition.className || "pgr-page",
+    children: definition.children,
+  }));
+
+  return BaseDocumentLayout({
+    title: `PGR - ${data.companyName || data.title || "TACT"}`,
+    pages,
+    extraCss: pgrLayoutCss,
+  });
+}
+
+export async function generateGroPdf(data: any): Promise<Buffer> {
+  const html = await buildGroPdfHtml(data);
+  return renderPdf(html, { margin: { top: "0", right: "0", bottom: "0", left: "0" } });
+}
+
+const pgrLayoutCss = `
+  .pgr-page .document-content { gap: 5mm; }
+  .pgr-cover {
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 10mm;
+  }
+  .pgr-cover-logo {
+    width: 78mm;
+    min-height: 34mm;
+    border: 1px solid #cfd8df;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5mm;
+    background: #fff;
+  }
+  .pgr-cover-logo img {
+    max-width: 100%;
+    max-height: 28mm;
+    object-fit: contain;
+    display: block;
+  }
+  .pgr-cover-logo span {
+    color: #293f4d;
+    font-size: 16px;
+    font-weight: 900;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  .pgr-cover-title {
+    align-self: center;
+    border-left: 1.6mm solid #d64a00;
+    padding-left: 7mm;
+  }
+  .pgr-cover-title span {
+    color: #53616f;
+    display: block;
+    font-size: 11px;
+    font-weight: 800;
+    margin-bottom: 4mm;
+    text-transform: uppercase;
+  }
+  .pgr-cover-title h1 {
+    color: #293f4d;
+    font-size: 36px;
+    line-height: 1.05;
+    margin: 0 0 5mm;
+    text-transform: uppercase;
+  }
+  .pgr-cover-title p {
+    color: #1f2933;
+    font-size: 14px;
+    font-weight: 700;
+    margin: 0;
+  }
+  .pgr-cover-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid #cfd8df;
+    margin: 0;
+  }
+  .pgr-cover-meta div {
+    border-right: 1px solid #d9e0e6;
+    min-height: 24mm;
+    padding: 4mm;
+  }
+  .pgr-cover-meta div:last-child { border-right: 0; }
+  .pgr-cover-meta dt {
+    color: #53616f;
+    font-size: 8px;
+    font-weight: 900;
+    margin: 0 0 2mm;
+    text-transform: uppercase;
+  }
+  .pgr-cover-meta dd {
+    color: #1f2933;
+    font-size: 11px;
+    font-weight: 800;
+    margin: 0;
+  }
+  .pgr-section {
+    border: 1px solid #cfd8df;
+    background: #fff;
+    padding: 4mm;
+  }
+  .pgr-section h2 {
+    color: #293f4d;
+    font-size: 11px;
+    line-height: 1.2;
+    margin: 0 0 3mm;
+    text-transform: uppercase;
+  }
+  .pgr-section p {
+    color: #1f2933;
+    font-size: 10.5px;
+    margin: 0 0 2.7mm;
+  }
+  .pgr-section p:last-child { margin-bottom: 0; }
+  .pgr-intro-text { min-height: 47mm; }
+  .pgr-matrix-section {
+    display: grid;
+    grid-template-columns: 0.82fr 1.18fr;
+    gap: 4mm;
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
+  .pgr-matrix-section > div {
+    border: 1px solid #cfd8df;
+    padding: 4mm;
+    background: #fff;
+  }
+  .pgr-risk-matrix,
+  .pgr-classification-table,
+  .pgr-data-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  .pgr-risk-matrix th,
+  .pgr-risk-matrix td,
+  .pgr-classification-table th,
+  .pgr-classification-table td,
+  .pgr-data-table th,
+  .pgr-data-table td {
+    border: 1px solid #cfd8df;
+    padding: 2.2mm;
+    vertical-align: top;
+  }
+  .pgr-risk-matrix th,
+  .pgr-classification-table th,
+  .pgr-data-table th {
+    background: #293f4d;
+    color: #fff;
+    font-size: 8px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .pgr-risk-matrix td {
+    height: 15mm;
+    text-align: center;
+  }
+  .pgr-risk-matrix td strong {
+    display: block;
+    font-size: 11px;
+    line-height: 1;
+  }
+  .pgr-risk-matrix td span {
+    display: block;
+    font-size: 6.7px;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-top: 1.5mm;
+    text-transform: uppercase;
+  }
+  .pgr-classification-table th:nth-child(1) { width: 28mm; }
+  .pgr-classification-table th:nth-child(2) { width: 17mm; }
+  .pgr-classification-table td {
+    font-size: 8.3px;
+    line-height: 1.25;
+  }
+  .pgr-level-badge {
+    border: 1px solid transparent;
+    display: inline-block;
+    font-size: 7.5px;
+    font-weight: 900;
+    line-height: 1.1;
+    padding: 1.4mm 1.8mm;
+    text-transform: uppercase;
+  }
+  .risk-level-muito-baixo { background: #dbeafe; border-color: #60a5fa; color: #1d4ed8; }
+  .risk-level-baixo { background: #dcfce7; border-color: #86efac; color: #166534; }
+  .risk-level-medio { background: #fef9c3; border-color: #fde047; color: #854d0e; }
+  .risk-level-alto { background: #fed7aa; border-color: #fb923c; color: #9a3412; }
+  .risk-level-muito-alto { background: #f3e8ff; border-color: #c084fc; color: #6b21a8; }
+  .risk-level-extremo { background: #111827; border-color: #111827; color: #fff; }
+  .risk-level-na { background: #f3f4f6; border-color: #d1d5db; color: #374151; }
+  .pgr-observations {
+    min-height: 33mm;
+  }
+  .pgr-sanitary {
+    min-height: 35mm;
+  }
+  .pgr-sanitary-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2mm;
+  }
+  .pgr-sanitary-grid div {
+    border: 1px solid #d9e0e6;
+    min-height: 18mm;
+    padding: 3mm;
+    text-align: center;
+  }
+  .pgr-sanitary-grid span {
+    color: #53616f;
+    display: block;
+    font-size: 7.5px;
+    font-weight: 900;
+    margin-bottom: 2mm;
+    text-transform: uppercase;
+  }
+  .pgr-sanitary-grid strong {
+    color: #293f4d;
+    display: block;
+    font-size: 16px;
+  }
+  .pgr-section-heading {
+    align-items: center;
+    border-left: 1.4mm solid #d64a00;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 3mm;
+    padding-left: 3mm;
+  }
+  .pgr-section-heading span {
+    color: #293f4d;
+    font-size: 12px;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .pgr-section-heading small {
+    color: #53616f;
+    font-size: 8px;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .pgr-data-table td {
+    color: #1f2933;
+    font-size: 8.8px;
+    line-height: 1.22;
+  }
+  .pgr-stages-table th:nth-child(1) { width: 29mm; }
+  .pgr-stages-table th:nth-child(2) { width: 45mm; }
+  .pgr-stages-table th:nth-child(3) { width: 19mm; }
+  .pgr-risk-table th:nth-child(1) { width: 24mm; }
+  .pgr-risk-table th:nth-child(2) { width: 20mm; }
+  .pgr-risk-table th:nth-child(5),
+  .pgr-risk-table th:nth-child(6) { width: 11mm; }
+  .pgr-risk-table th:nth-child(7) { width: 25mm; }
+  .pgr-action-table th:nth-child(1) { width: 33mm; }
+  .pgr-action-table th:nth-child(3) { width: 22mm; }
+  .pgr-action-table th:nth-child(4) { width: 28mm; }
+  .pgr-center { text-align: center; }
+  .pgr-team-line + .pgr-team-line {
+    border-top: 1px solid #d9e0e6;
+    margin-top: 2mm;
+    padding-top: 2mm;
+  }
+  .pgr-empty {
+    align-items: center;
+    border: 1px dashed #cfd8df;
+    color: #7b8794;
+    display: flex;
+    font-size: 10px;
+    font-weight: 800;
+    justify-content: center;
+    min-height: 42mm;
+    text-transform: uppercase;
+  }
+  .pgr-closing {
+    min-height: 72mm;
+  }
+  .pgr-final-page .signature-block {
+    margin-top: auto;
+  }
+  .pgr-final-page .signature-row {
+    grid-template-columns: minmax(0, 1fr) !important;
+    max-width: 92mm;
+    margin: 0 auto;
+  }
+`;
 
 // ─── CHECKLIST (V2) ─────────────────────────────────────────────────────────────
 export async function generateChecklistPdfLegacy(data: any): Promise<Buffer> {

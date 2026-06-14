@@ -257,8 +257,8 @@ async function startServer() {
     try {
       const db = await import("../db").then(m => m.getDb());
       if (!db) return res.status(500).end();
-      const { pgr, companies, obras } = await import("../../drizzle/schema");
-      const { eq, and } = await import("drizzle-orm");
+      const { pgr, pgrStages, companies, obras } = await import("../../drizzle/schema");
+      const { eq } = await import("drizzle-orm");
       
       const pgrId = parseInt(req.params.id);
       const rows = await db.select({
@@ -278,16 +278,42 @@ async function startServer() {
         parsedContent = JSON.parse(record.pgr.content || "{}");
       } catch (e) {}
 
+      const stages = await db.select()
+        .from(pgrStages)
+        .where(eq(pgrStages.pgrId, pgrId))
+        .orderBy(pgrStages.order);
+      const obraAddress = [
+        record.obra?.address,
+        [record.obra?.city, record.obra?.state].filter(Boolean).join("/"),
+      ].filter(Boolean).join(" - ");
+      const companyAddress = [
+        record.company?.address,
+        [record.company?.city, record.company?.state].filter(Boolean).join("/"),
+      ].filter(Boolean).join(" - ");
+
       const pdfBuffer = await generateGroPdf({
         title: record.pgr.title,
         companyName: record.company?.name || "N/A",
+        cnpj: record.company?.cnpj || "",
         obraName: record.obra?.name || "Matriz",
+        obraAddress,
+        companyAddress,
         version: record.pgr.version,
         validFrom: record.pgr.validFrom,
+        validUntil: record.pgr.validUntil,
+        status: record.pgr.status,
         riskMatrix: parsedContent.risks || [],
         actionPlan: parsedContent.actionPlan || [],
+        observations: parsedContent.rawContent || "",
+        nr24Workers: parsedContent.nr24Workers,
+        signatureUrl: parsedContent.signatureUrl || "",
         responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
-        clientLogoUrl: record.company?.logoUrl || undefined
+        clientLogoUrl: record.company?.logoUrl || undefined,
+        stages: stages.length ? stages.map(s => ({
+          name: s.name,
+          description: s.description,
+          subcontractorInfo: s.subcontractorInfo
+        })) : (Array.isArray(parsedContent.stages) ? parsedContent.stages : [])
       });
 
       res.setHeader("Content-Type", "application/pdf");
