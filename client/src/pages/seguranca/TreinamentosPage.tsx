@@ -6,10 +6,32 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SecurityModuleList } from "@/components/SecurityModuleList";
 import { StatusBadge } from "@/components/StatusBadge";
-import { GraduationCap, Download, X, Trash2, MessageCircle, Building2, Loader2, Search } from "lucide-react";
+import { GraduationCap, Download, X, Trash2, MessageCircle, Building2, Loader2, Search, Plus } from "lucide-react";
 import { useState, useEffect } from "react";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
+import { SignatureCapture } from "@/components/SignatureCapture";
+
+type TrainingParticipantForm = {
+  id: string;
+  name: string;
+  cpf: string;
+  signatureUrl: string;
+};
+
+function createTrainingParticipant(): TrainingParticipantForm {
+  return { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: "", cpf: "", signatureUrl: "" };
+}
+
+function getNrNumber(value: unknown): number {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : Number.MAX_SAFE_INTEGER;
+}
+
+function formatNrCode(value: unknown): string {
+  const number = getNrNumber(value);
+  return Number.isFinite(number) && number !== Number.MAX_SAFE_INTEGER ? `NR-${number}` : String(value || "").replace(/^NR-/i, "NR-");
+}
 
 export default function TreinamentosPage() {
   const utils = trpc.useUtils();
@@ -30,14 +52,18 @@ export default function TreinamentosPage() {
   );
   
   const { data: nrs = [] } = trpc.nrs.list.useQuery();
+  const sortedNrs = [...(nrs as any[])].sort((a, b) => getNrNumber(a.code) - getNrNumber(b.code));
   const [open, setOpen] = useState(false);
   const [selectedNrs, setSelectedNrs] = useState<number[]>([]);
+  const [participants, setParticipants] = useState<TrainingParticipantForm[]>([createTrainingParticipant()]);
   const [form, setForm] = useState({
     companyId: "", 
     obraId: "",
     title: "", 
     type: "presencial" as any, 
     instructor: "",
+    instructorMte: "",
+    instructorSignatureUrl: "",
     startDate: "", 
     endDate: "", 
     duration: "", 
@@ -56,6 +82,8 @@ export default function TreinamentosPage() {
       title: "", 
       type: "presencial", 
       instructor: "", 
+      instructorMte: "",
+      instructorSignatureUrl: "",
       startDate: "", 
       endDate: "", 
       duration: "", 
@@ -64,6 +92,7 @@ export default function TreinamentosPage() {
       description: "" 
     });
     setSelectedNrs([]);
+    setParticipants([createTrainingParticipant()]);
   };
 
   const createMutation = trpc.trainings.create.useMutation({
@@ -91,6 +120,15 @@ export default function TreinamentosPage() {
 
   const toggleNr = (id: number) => {
     setSelectedNrs(prev => prev.includes(id) ? prev.filter(n => n !== id) : [...prev, id]);
+  };
+
+  const updateParticipant = (id: string, patch: Partial<TrainingParticipantForm>) => {
+    setParticipants(prev => prev.map(participant => participant.id === id ? { ...participant, ...patch } : participant));
+  };
+
+  const addParticipant = () => setParticipants(prev => [...prev, createTrainingParticipant()]);
+  const removeParticipant = (id: string) => {
+    setParticipants(prev => prev.length > 1 ? prev.filter(participant => participant.id !== id) : [createTrainingParticipant()]);
   };
 
   const formContent = (
@@ -131,7 +169,7 @@ export default function TreinamentosPage() {
           <p className="text-xs text-muted-foreground italic">Nenhuma NR cadastrada no sistema</p>
         ) : (
           <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-2 bg-secondary/20 rounded-lg border border-border">
-            {(nrs as any[]).map(nr => (
+            {sortedNrs.map(nr => (
               <Button
                 key={nr.id}
                 type="button"
@@ -140,7 +178,7 @@ export default function TreinamentosPage() {
                 className={`h-7 text-[10px] ${selectedNrs.includes(nr.id) ? "bg-primary text-primary-foreground" : "border-border"}`}
                 onClick={() => toggleNr(nr.id)}
               >
-                NR-{nr.code}
+                {formatNrCode(nr.code)}
               </Button>
             ))}
           </div>
@@ -177,10 +215,61 @@ export default function TreinamentosPage() {
           <Input value={form.instructor} onChange={e => setForm(f => ({ ...f, instructor: e.target.value }))} className="bg-secondary border-border" />
         </div>
         <div className="space-y-1.5">
+          <Label>MTE do Instrutor</Label>
+          <Input value={form.instructorMte} onChange={e => setForm(f => ({ ...f, instructorMte: e.target.value }))} placeholder="Opcional" className="bg-secondary border-border" />
+        </div>
+      </div>
+
+      <SignatureCapture
+        label="Assinatura do Instrutor"
+        value={form.instructorSignatureUrl}
+        onChange={value => setForm(f => ({ ...f, instructorSignatureUrl: value }))}
+        description="Assinatura exibida no final da lista de presença."
+      />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
           <Label>Data</Label>
           <Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} className="bg-secondary border-border" />
         </div>
       </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Participantes / Alunos</Label>
+          <Button type="button" size="sm" variant="outline" className="h-7 text-xs border-border" onClick={addParticipant}>
+            <Plus size={12} className="mr-1" /> Adicionar
+          </Button>
+        </div>
+        {participants.map((participant, index) => (
+          <div key={participant.id} className="space-y-3 rounded-md border border-border bg-secondary/20 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">Participante {index + 1}</span>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeParticipant(participant.id)}>
+                <X size={14} />
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nome do aluno/participante</Label>
+                <Input value={participant.name} onChange={e => updateParticipant(participant.id, { name: e.target.value })} className="bg-card border-border" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>CPF</Label>
+                <Input value={participant.cpf} onChange={e => updateParticipant(participant.id, { cpf: e.target.value })} className="bg-card border-border" />
+              </div>
+            </div>
+            <SignatureCapture
+              label="Assinatura do participante"
+              value={participant.signatureUrl}
+              onChange={value => updateParticipant(participant.id, { signatureUrl: value })}
+              description="Se ficar vazio, o PDF deixa o campo para assinatura manual."
+              height={100}
+            />
+          </div>
+        ))}
+      </div>
+
       <div className="space-y-1.5">
         <Label>Descrição</Label>
         <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2} className="bg-secondary border-border resize-none" />
@@ -188,11 +277,21 @@ export default function TreinamentosPage() {
       <Button className="w-full bg-primary text-primary-foreground font-bold" disabled={createMutation.isPending}
         onClick={() => {
           if (!form.companyId || !form.title) { toast.error("Empresa e título são obrigatórios"); return; }
-          const primaryNr = selectedNrs[0];
-          const extraNrs = selectedNrs.slice(1);
-          const descWithNrs = extraNrs.length > 0
-            ? `${form.description ? form.description + "\n" : ""}NRs adicionais: ${extraNrs.map(id => { const nr = (nrs as any[]).find(n => n.id === id); return nr ? `NR-${nr.code}` : ""; }).join(", ")}`
-            : form.description;
+          const selectedNrRecords = selectedNrs
+            .map(id => (nrs as any[]).find(nr => nr.id === id))
+            .filter(Boolean)
+            .sort((a, b) => getNrNumber(a.code) - getNrNumber(b.code));
+          const primaryNr = selectedNrRecords[0]?.id;
+          const participantList = participants
+            .map(({ name, cpf, signatureUrl }) => ({ name: name.trim(), cpf: cpf.trim(), signatureUrl }))
+            .filter(participant => participant.name || participant.cpf || participant.signatureUrl);
+          const structuredDescription = JSON.stringify({
+            programmaticContent: form.description || "",
+            nrCodes: selectedNrRecords.map(nr => formatNrCode(nr.code)),
+            instructorMte: form.instructorMte || "",
+            instructorSignatureUrl: form.instructorSignatureUrl || "",
+            participants: participantList,
+          });
           createMutation.mutate({
             companyId: Number(form.companyId),
             obraId: form.obraId ? Number(form.obraId) : undefined,
@@ -202,7 +301,7 @@ export default function TreinamentosPage() {
             trainingDate: form.startDate || undefined,
             validityMonths: 12,
             status: form.status as any,
-            description: descWithNrs || undefined,
+            description: structuredDescription,
           });
         }}>
         {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

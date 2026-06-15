@@ -104,6 +104,8 @@ async function resolvePdfDataImages<T extends Record<string, any>>(data: T): Pro
     "issuerSignatureUrl",
     "supervisorSignatureUrl",
     "instructorSignature",
+    "instructorSignatureUrl",
+    "safetySignatureUrl",
     "participantSignatureUrl",
     "witnessSignatureUrl",
   ]) {
@@ -150,6 +152,38 @@ function inlineSignature(signatureUrl?: string, width = 330): string {
   return signatureUrl
     ? `<span class="signature-clean" style="height:28px; justify-content:flex-start;"><img src="${escapeHtml(signatureUrl)}" class="signature-img" style="max-height:28px;" /></span>`
     : `<span style="display:inline-block; border-bottom:1px solid #000; width:${width}px; height:12px;"></span>`;
+}
+
+function parseJsonObject(value: unknown): Record<string, any> | null {
+  if (typeof value !== "string") return null;
+  const text = value.trim();
+  if (!text.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function nrNumber(value: unknown): number {
+  const match = String(value || "").match(/\d+/);
+  return match ? Number(match[0]) : Number.MAX_SAFE_INTEGER;
+}
+
+function formatNrCode(value: unknown): string {
+  const number = nrNumber(value);
+  if (Number.isFinite(number) && number !== Number.MAX_SAFE_INTEGER) return `NR-${number}`;
+  return String(value || "").replace(/^NR-/i, "NR-");
+}
+
+function formatNrList(values: unknown[]): string {
+  const labels = values
+    .map(formatNrCode)
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .sort((a, b) => nrNumber(a) - nrNumber(b));
+  return labels.join(", ");
 }
 
 async function renderPdf(
@@ -851,10 +885,10 @@ export async function generatePtPdf(data: any): Promise<Buffer> {
   <table style="margin-top:-1px;">
     <tr>
       <td style="text-align:center; padding:28px 20px 8px;">
-        ${signatureBlock(data.issuerName || "Emitente", "Emitente (Segurança)", data.issuerSignatureUrl || data.signatureUrl)}
+        ${signatureBlock(data.issuerName || "", "Emitente (Segurança)", data.issuerSignatureUrl || data.signatureUrl)}
       </td>
       <td style="text-align:center; padding:28px 20px 8px;">
-        ${signatureBlock(data.supervisorName || "Responsável", "Responsável pela Tarefa", data.supervisorSignatureUrl)}
+        ${signatureBlock(data.supervisorName || "", "Responsável pela Tarefa", data.supervisorSignatureUrl)}
       </td>
     </tr>
   </table>
@@ -869,6 +903,28 @@ export async function generatePtPdf(data: any): Promise<Buffer> {
 // ─── LISTA DE TREINAMENTO ─────────────────────────────────────────────────────
 export async function generateTrainingPdf(data: any): Promise<Buffer> {
   data = await resolvePdfDataImages(data);
+  const trainingMeta = parseJsonObject(data.programmaticContent);
+  const metaParticipants = Array.isArray(trainingMeta?.participants) ? trainingMeta.participants : [];
+  const rawParticipants = metaParticipants.length ? metaParticipants : (Array.isArray(data.participants) ? data.participants : []);
+  const participants = await Promise.all(rawParticipants.map(async (participant: any) => {
+    const signature = participant.signature || participant.signatureUrl || "";
+    return {
+      name: participant.name || "",
+      document: participant.document || participant.cpf || "",
+      signature: signature ? await resolvePdfImage(signature) : "",
+    };
+  }));
+  const programmaticContent = trainingMeta
+    ? (trainingMeta.programmaticContent || trainingMeta.notes || "")
+    : (data.programmaticContent || "");
+  const nrTitle = trainingMeta?.nrCodes?.length
+    ? formatNrList(trainingMeta.nrCodes)
+    : formatNrList([data.nrTitle].filter(Boolean));
+  const instructorRegister = trainingMeta?.instructorMte || data.instructorRegister || "";
+  const instructorSignature = trainingMeta?.instructorSignatureUrl
+    ? await resolvePdfImage(trainingMeta.instructorSignatureUrl)
+    : (data.instructorSignature || data.instructorSignatureUrl || "");
+
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocStyle}
   </style></head><body>
 <div class="page">
@@ -892,6 +948,10 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
       <td colspan="3">${data.topic || ""}</td>
     </tr>
     <tr>
+      <td style="font-weight:700; font-style:italic;">NRs aplicáveis:</td>
+      <td colspan="3">${nrTitle || ""}</td>
+    </tr>
+    <tr>
       <td style="font-weight:700; font-style:italic; width:80px;">Empresa:</td>
       <td>${data.companyName || ""}</td>
       <td style="font-weight:700; font-style:italic; width:80px;">Local:</td>
@@ -899,14 +959,14 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
     </tr>
     <tr>
       <td style="font-weight:700; font-style:italic;">Instrutor(es):</td>
-      <td colspan="3">${data.instructorName || ""} ${data.instructorRegister ? `– MTE: ${data.instructorRegister}` : ""}</td>
+      <td colspan="3">${data.instructorName || ""} ${instructorRegister ? `– MTE: ${instructorRegister}` : ""}</td>
     </tr>
   </table>
 
   <!-- Conteúdo Programático -->
   <table style="margin-top:-1px;">
     <tr><td class="section-header">Conteúdo Programático</td></tr>
-    <tr><td style="height:90px; vertical-align:top; padding:8px;">${data.programmaticContent || ""}</td></tr>
+    <tr><td style="height:90px; vertical-align:top; padding:8px;">${programmaticContent || ""}</td></tr>
   </table>
 
   <!-- Lista de Presença -->
@@ -917,7 +977,7 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
       <th style="width:18%;">CPF</th>
       <th style="width:34%;">Rubrica / Assinatura</th>
     </tr>
-    ${(data.participants || []).map((p: any, i: number) => `
+    ${participants.map((p: any, i: number) => `
     <tr>
       <td style="text-align:center;">${i + 1}</td>
       <td>${p.name || ""}</td>
@@ -926,9 +986,9 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
         ${p.signature ? `<img src="${escapeHtml(p.signature)}" class="table-signature-img">` : ""}
       </td>
     </tr>`).join("")}
-    ${Array.from({ length: Math.max(0, 20 - (data.participants?.length || 0)) }).map((_, i) => `
+    ${Array.from({ length: Math.max(0, 20 - participants.length) }).map((_, i) => `
     <tr>
-      <td style="text-align:center;">${(data.participants?.length || 0) + i + 1}</td>
+      <td style="text-align:center;">${participants.length + i + 1}</td>
       <td style="height:24px;">&nbsp;</td><td></td><td></td>
     </tr>`).join("")}
   </table>
@@ -937,7 +997,7 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
   <table style="margin-top:-1px;">
     <tr>
       <td style="text-align:center; padding:24px 20px 8px; width:50%; margin:0 auto;">
-        ${signatureBlock(data.instructorName || "Instrutor Responsável", `Instrutor Responsável${data.instructorRegister ? ` — MTE: ${data.instructorRegister}` : ""}`, data.instructorSignature)}
+        ${signatureBlock(data.instructorName || "", `Instrutor Responsável${instructorRegister ? ` — MTE: ${instructorRegister}` : ""}`, instructorSignature)}
       </td>
       <td style="width:50%;"></td>
     </tr>
@@ -953,6 +1013,14 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
 // ─── ADVERTÊNCIA DISCIPLINAR ──────────────────────────────────────────────────
 export async function generateWarningPdf(data: any): Promise<Buffer> {
   data = await resolvePdfDataImages(data);
+  const warningMeta = parseJsonObject(data.description);
+  const warningDescription = warningMeta
+    ? (warningMeta.notes || warningMeta.description || "")
+    : (data.description || "");
+  const issuerName = warningMeta?.safetyResponsibleName || data.issuerName || "";
+  const issuerSignatureUrl = warningMeta?.safetySignatureUrl
+    ? await resolvePdfImage(warningMeta.safetySignatureUrl)
+    : (data.issuerSignatureUrl || data.safetySignatureUrl || "");
   const typesMap: Record<string, string> = {
     verbal: "Verbal (Registro Formal)",
     escrita: "Escrita",
@@ -990,7 +1058,7 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
     <div style="background:#f9f9f9; border:1px solid #ccc; padding:12px 16px; margin:10px 0; font-weight:600;">
       ${data.reason || ""}
     </div>
-    <p><strong>Observações Detalhadas:</strong><br>${data.description || ""}</p>
+    <p><strong>Observações Detalhadas:</strong><br>${warningDescription || ""}</p>
     <br>
     <p>Esta atitude é considerada uma violação das normas de segurança e procedimentos da empresa. Solicitamos que tal atitude não se repita, sob pena de medidas disciplinares mais severas, conforme previsto na legislação trabalhista vigente e normas internas.</p>
     <br>
@@ -1002,7 +1070,7 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
   <table style="margin:0 60px; width:calc(100% - 120px);">
     <tr>
       <td style="text-align:center; padding:40px 20px 8px; border:none;">
-        ${signatureBlock(data.issuerName || "Representante da Empresa", "Representante da Empresa", data.issuerSignatureUrl)}
+        ${signatureBlock(issuerName, "Departamento de Segurança ou RH", issuerSignatureUrl)}
       </td>
       <td style="text-align:center; padding:40px 20px 8px; border:none;">
         ${signatureBlock(data.employeeName || "Empregado", "Empregado (Ciente)", data.employeeSignatureUrl || data.signatureUrl)}
@@ -3102,7 +3170,10 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
     : parsed.participant || "";
   const technician  = parsed.technician  || data.authorName || "";
   const notes       = parsed.notes       || data.description || "";
-  const participantSignature = parsed.signatureUrl ? await resolvePdfImage(parsed.signatureUrl) : "";
+  const participantSignature = (parsed.participantSignatureUrl || parsed.signatureUrl)
+    ? await resolvePdfImage(parsed.participantSignatureUrl || parsed.signatureUrl)
+    : "";
+  const technicianSignature = parsed.technicianSignatureUrl ? await resolvePdfImage(parsed.technicianSignatureUrl) : "";
 
   const empresa = [data.companyName, data.obraName].filter(Boolean).join(" - ");
 
@@ -3175,7 +3246,7 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
     <!-- ASSINATURA -->
     <tr>
       <td colspan="2" class="sig-box">
-        <span class="lbl">ASSINATURA</span>
+        <span class="lbl">ASSINATURA DO PARTICIPANTE / EQUIPE</span>
         ${participantSignature ? `<div class="signature-clean"><img src="${escapeHtml(participantSignature)}" class="signature-img" /></div>` : ""}
       </td>
     </tr>
@@ -3184,6 +3255,12 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
       <td colspan="2">
         <span class="lbl">TÉCNICO EM SEGURANÇA:</span>
         <span class="val">${technician}</span>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" class="sig-box">
+        <span class="lbl">ASSINATURA DO TÉCNICO / RESPONSÁVEL</span>
+        ${technicianSignature ? `<div class="signature-clean"><img src="${escapeHtml(technicianSignature)}" class="signature-img" /></div>` : ""}
       </td>
     </tr>
     <!-- NOTAS / OBS -->

@@ -9,6 +9,7 @@ import { FileText, Download, Trash2, Plus, X, MessageCircle } from "lucide-react
 import { useState } from "react";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
+import { SignatureCapture } from "@/components/SignatureCapture";
 
 export default function ITSPage() {
   const utils = trpc.useUtils();
@@ -21,6 +22,8 @@ export default function ITSPage() {
     companyId: "", obraId: "", title: "", code: "", content: "",
     theme: "", date: "", duration: "", technician: "",
     participants: [""],
+    technicianSignatureUrl: "",
+    participantSignatureUrl: "",
   };
   const [form, setForm] = useState(initialForm);
   const companyIdNum = Number(form.companyId);
@@ -133,6 +136,21 @@ export default function ITSPage() {
         <Input value={form.technician} onChange={e => setForm(f => ({ ...f, technician: e.target.value }))} placeholder="Nome do técnico" className="bg-secondary border-border" />
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <SignatureCapture
+          label="Assinatura do Técnico/Responsável"
+          value={form.technicianSignatureUrl}
+          onChange={value => setForm(f => ({ ...f, technicianSignatureUrl: value }))}
+          description="Assinatura exibida no campo do responsável pela ITS."
+        />
+        <SignatureCapture
+          label="Assinatura do Participante/Equipe"
+          value={form.participantSignatureUrl}
+          onChange={value => setForm(f => ({ ...f, participantSignatureUrl: value }))}
+          description="Opcional. Se ficar vazio, o PDF deixa o espaço em branco."
+        />
+      </div>
+
       <div className="space-y-1.5">
         <Label>Conteúdo / Observações</Label>
         <Textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} className="bg-secondary border-border resize-none" />
@@ -144,7 +162,11 @@ export default function ITSPage() {
           const validParticipants = form.participants.map(p => p.trim()).filter(Boolean);
           const structuredContent = JSON.stringify({
             theme: form.theme, date: form.date, duration: form.duration,
-            participants: validParticipants, technician: form.technician, notes: form.content,
+            participants: validParticipants,
+            technician: form.technician,
+            technicianSignatureUrl: form.technicianSignatureUrl,
+            participantSignatureUrl: form.participantSignatureUrl,
+            notes: form.content,
           });
           createMutation.mutate({ 
             companyId: Number(form.companyId), 

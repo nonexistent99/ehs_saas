@@ -10,6 +10,7 @@ import { useState, useRef, useEffect } from "react";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
 import SignatureCanvas from "react-signature-canvas";
+import { SignatureCapture } from "@/components/SignatureCapture";
 
 export default function AdvertenciasPage() {
   const utils = trpc.useUtils();
@@ -50,6 +51,8 @@ export default function AdvertenciasPage() {
     type: "escrita" as any, 
     reason: "", 
     description: "", 
+    safetyResponsibleName: "",
+    safetySignatureUrl: "",
     date: new Date().toISOString().split("T")[0] 
   });
   
@@ -68,6 +71,8 @@ export default function AdvertenciasPage() {
       type: "escrita", 
       reason: "", 
       description: "", 
+      safetyResponsibleName: "",
+      safetySignatureUrl: "",
       date: new Date().toISOString().split("T")[0] 
     });
     setSavedSignature("");
@@ -162,6 +167,23 @@ export default function AdvertenciasPage() {
         <Label>Descrição</Label>
         <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className="bg-secondary border-border resize-none" />
       </div>
+
+      <div className="space-y-1.5">
+        <Label>Responsável Segurança/RH *</Label>
+        <Input
+          value={form.safetyResponsibleName}
+          onChange={e => setForm(f => ({ ...f, safetyResponsibleName: e.target.value }))}
+          placeholder="Nome do responsável do Departamento de Segurança ou RH"
+          className="bg-secondary border-border"
+        />
+      </div>
+
+      <SignatureCapture
+        label="Assinatura Segurança/RH"
+        value={form.safetySignatureUrl}
+        onChange={value => setForm(f => ({ ...f, safetySignatureUrl: value }))}
+        description="Assinatura que aparecerá no campo do Departamento de Segurança ou RH."
+      />
       
       {/* ─── Assinatura ─── */}
       <div className="space-y-2 p-3 bg-secondary/30 rounded-md border border-border mt-4">
@@ -196,7 +218,7 @@ export default function AdvertenciasPage() {
 
       <Button className="w-full bg-primary text-primary-foreground" disabled={createMutation.isPending}
         onClick={() => {
-          if (!form.companyId || !form.obraId || !form.employeeName.trim() || !form.reason || !form.date) { 
+          if (!form.companyId || !form.obraId || !form.employeeName.trim() || !form.reason || !form.date || !form.safetyResponsibleName.trim()) {
             toast.error("Preencha todos os campos obrigatórios"); 
             return; 
           }
@@ -205,6 +227,11 @@ export default function AdvertenciasPage() {
           if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
             signatureBase64 = sigCanvasRef.current.getTrimmedCanvas().toDataURL('image/png');
           }
+          const descriptionPayload = JSON.stringify({
+            notes: form.description || "",
+            safetyResponsibleName: form.safetyResponsibleName || "",
+            safetySignatureUrl: form.safetySignatureUrl || "",
+          });
           
           createMutation.mutate({ 
             companyId: Number(form.companyId), 
@@ -212,7 +239,7 @@ export default function AdvertenciasPage() {
             employeeName: form.employeeName.trim(),
             type: form.type, 
             reason: form.reason, 
-            description: form.description || undefined, 
+            description: descriptionPayload,
             date: form.date,
             signatureUrl: signatureBase64 || undefined
           });

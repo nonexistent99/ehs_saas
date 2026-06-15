@@ -10,6 +10,7 @@ import { ClipboardCheck, Download, Plus, Trash2, MapPin, MessageCircle } from "l
 import { useState } from "react";
 import { toast } from "sonner";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
+import { SignatureCapture } from "@/components/SignatureCapture";
 
 // ─── Predefined risks & auto-measures ────────────────────────────────────────
 const POTENTIAL_RISKS = [
@@ -104,6 +105,7 @@ export default function PTPage() {
   const [form, setForm] = useState({
     companyId: "", obraId: "", title: "", code: "", status: "ativo" as any,
     serviceDescription: "", startDate: "", endDate: "", issuerName: "", supervisorName: "",
+    issuerSignatureUrl: "", supervisorSignatureUrl: "",
   });
 
   // Obra data
@@ -126,7 +128,11 @@ export default function PTPage() {
   const allMeasures = Array.from(new Set([...autoMeasures, ...epis]));
 
   const resetForm = () => {
-    setForm({ companyId: "", obraId: "", title: "", code: "", status: "ativo", serviceDescription: "", startDate: "", endDate: "", issuerName: "", supervisorName: "" });
+    setForm({
+      companyId: "", obraId: "", title: "", code: "", status: "ativo",
+      serviceDescription: "", startDate: "", endDate: "", issuerName: "", supervisorName: "",
+      issuerSignatureUrl: "", supervisorSignatureUrl: "",
+    });
     setPotentialRisks([]); setCustomRisks([]); setEpis([]); setTeam([]); setRevalidations([]);
   };
 
@@ -233,6 +239,21 @@ export default function PTPage() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <SignatureCapture
+          label="Assinatura do Emitente (Segurança)"
+          value={form.issuerSignatureUrl}
+          onChange={value => setForm(f => ({ ...f, issuerSignatureUrl: value }))}
+          description="Assinatura exibida no final da PT."
+        />
+        <SignatureCapture
+          label="Assinatura do Responsável pela Tarefa"
+          value={form.supervisorSignatureUrl}
+          onChange={value => setForm(f => ({ ...f, supervisorSignatureUrl: value }))}
+          description="Se ficar vazio, o PDF mantém o campo para assinatura manual."
+        />
+      </div>
+
       {/* 1. Riscos Potenciais - predefined checkboxes */}
       <CheckGroup label="1. Riscos Potenciais" options={POTENTIAL_RISKS} selected={potentialRisks} onChange={setPotentialRisks} />
 
@@ -333,6 +354,8 @@ export default function PTPage() {
             serviceDescription: form.serviceDescription,
             startDate: form.startDate, endDate: form.endDate,
             issuerName: form.issuerName, supervisorName: form.supervisorName,
+            issuerSignatureUrl: form.issuerSignatureUrl,
+            supervisorSignatureUrl: form.supervisorSignatureUrl,
             potentialRisks: allRisks,
             protectiveMeasures: allMeasures,
             team, revalidations,

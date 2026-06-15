@@ -1887,11 +1887,11 @@ export const appRouter = router({
             const { generatePtPdf } = await import("./pdfTemplates");
             pdfBuffer = await generatePtPdf({
               ptNumber: record.pt.code || String(record.pt.id).padStart(4, "0"), companyName: record.company?.name || "N/A",
-              obraName: record.obra?.name || "N/A", serviceDescription: record.pt.description || record.pt.title,
+              obraName: record.obra?.name || "N/A", serviceDescription: parsedContent.serviceDescription || record.pt.description || record.pt.title,
               startDate: parsedContent.startDate || record.pt.createdAt, endDate: parsedContent.endDate || record.pt.createdAt,
               potentialRisks: parsedContent.potentialRisks || [], protectiveMeasures: parsedContent.protectiveMeasures || [],
               team: parsedContent.team || [], revalidations: parsedContent.revalidations || [],
-              issuerName: parsedContent.issuerName || "Emitente Oficial", supervisorName: parsedContent.supervisorName || "Supervisor Oficial",
+              issuerName: parsedContent.issuerName || "", supervisorName: parsedContent.supervisorName || "",
               issuerSignatureUrl: parsedContent.issuerSignatureUrl || parsedContent.signatureUrl || "",
               supervisorSignatureUrl: parsedContent.supervisorSignatureUrl || "",
               clientLogoUrl: record.company?.logoUrl || undefined
@@ -1945,7 +1945,7 @@ export const appRouter = router({
             pdfBuffer = await generateTrainingPdf({
               nrTitle: record.nr ? `${record.nr.code} - ${record.nr.name}` : "Sem NR Base", topic: record.training.title,
               companyName: record.company?.name || "N/A", local: record.training.location || "", date: record.training.trainingDate || record.training.createdAt,
-              instructorName: record.training.instructor || "Instrutor Indefinido",
+              instructorName: record.training.instructor || "",
               programmaticContent: record.training.description || "Treinamento admissional e periódico.",
               participants,
               clientLogoUrl: record.company?.logoUrl || undefined
@@ -1982,7 +1982,7 @@ export const appRouter = router({
               description: record.advertencia.description || "N/A",
               date: record.advertencia.date,
               location: record.obra?.name || record.company?.city || "Sede",
-              issuerName: record.responsible?.name || "Departamento de Segurança",
+              issuerName: "",
               witnessName,
               employeeSignatureUrl: record.advertencia.signatureUrl || "",
               clientLogoUrl: record.company?.logoUrl || undefined
