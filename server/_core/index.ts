@@ -421,6 +421,8 @@ async function startServer() {
         revalidations: parsedContent.revalidations || [],
         issuerName: parsedContent.issuerName || "Emitente Oficial",
         supervisorName: parsedContent.supervisorName || "Supervisor Oficial",
+        issuerSignatureUrl: parsedContent.issuerSignatureUrl || parsedContent.signatureUrl || "",
+        supervisorSignatureUrl: parsedContent.supervisorSignatureUrl || "",
         clientLogoUrl: record.company?.logoUrl || undefined
       });
 
@@ -486,16 +488,20 @@ async function startServer() {
     try {
       const db = await import("../db").then(m => m.getDb());
       if (!db) return res.status(500).end();
-      const { epiFicha, companies, users } = await import("../../drizzle/schema");
+      const { epiFicha, companies, users, employees, obras } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       
       const id = parseInt(req.params.id);
       const rows = await db.select({
         epi: epiFicha,
         company: companies,
-        user: users
+        user: users,
+        employee: employees,
+        obra: obras,
       }).from(epiFicha)
         .leftJoin(companies, eq(epiFicha.companyId, companies.id))
+        .leftJoin(employees, eq(epiFicha.employeeId, employees.id))
+        .leftJoin(obras, eq(epiFicha.obraId, obras.id))
         .leftJoin(users, eq(epiFicha.userId, users.id))
         .where(eq(epiFicha.id, id)).limit(1);
 
@@ -513,9 +519,11 @@ async function startServer() {
       const pdfBuffer = await generateEpiPdf({
         companyName: record.company?.name || "N/A",
         cnpj: record.company?.cnpj || "",
-        employeeName: record.user?.name || "N/A",
+        address: record.company?.address || "",
+        employeeName: record.epi.employeeName || record.employee?.name || record.user?.name || "N/A",
         role: record.user?.ehsRole || "N/A",
         admissionDate: record.user?.createdAt || new Date(),
+        employeeSignatureUrl: record.epi.signatureUrl || "",
         deliveries,
         clientLogoUrl: record.company?.logoUrl || undefined
       });
@@ -534,7 +542,7 @@ async function startServer() {
     try {
       const db = await import("../db").then(m => m.getDb());
       if (!db) return res.status(500).end();
-      const { trainings, companies, nrs } = await import("../../drizzle/schema");
+      const { trainings, companies, nrs, trainingParticipants, users } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       
       const id = parseInt(req.params.id);
@@ -550,21 +558,28 @@ async function startServer() {
       if (!rows.length) return res.status(404).json({ error: "Not found" });
       const record = rows[0];
 
-      // Assuming participants would be joined or fetched separately, mocking empty list to be signed
-      const fakeParticipants = Array.from({length: 10}).map((_, i) => ({
-        name: "", role: "", document: "", signature: ""
+      const participantRows = await db.select({
+        participant: trainingParticipants,
+        user: users,
+      }).from(trainingParticipants)
+        .leftJoin(users, eq(trainingParticipants.userId, users.id))
+        .where(eq(trainingParticipants.trainingId, id));
+
+      const participants = participantRows.map((row) => ({
+        name: row.user?.name || "",
+        document: "",
+        signature: row.participant.signatureUrl || "",
       }));
 
       const pdfBuffer = await generateTrainingPdf({
         nrTitle: record.nr ? `${record.nr.code} - ${record.nr.name}` : "Sem NR Base",
         topic: record.training.title,
         companyName: record.company?.name || "N/A",
+        local: record.training.location || "",
         date: record.training.trainingDate || record.training.createdAt,
         instructorName: record.training.instructor || "Instrutor Indefinido",
-        duration: "8",
         programmaticContent: record.training.description || "Treinamento admissional e periódico de segurança do trabalho e suas medidas.",
-        participants: fakeParticipants,
-        instructorRegister: "000.000-0",
+        participants,
         clientLogoUrl: record.company?.logoUrl || undefined
       });
 
@@ -620,6 +635,7 @@ async function startServer() {
         location: record.obra?.name || record.company?.city || "Sede",
         issuerName: "Departamento de Segurança ou RH",
         witnessName,
+        employeeSignatureUrl: record.advertencia.signatureUrl || "",
         clientLogoUrl: record.company?.logoUrl || undefined
       });
 

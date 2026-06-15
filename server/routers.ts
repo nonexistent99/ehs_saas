@@ -112,7 +112,7 @@ import { nanoid } from "nanoid";
 import {
   inspections, inspectionItems,
   checklistExecutions, checklistTemplates, checklistExecutionItems, checklistTemplateItems,
-  pgr, pgrStages, apr, pt, its, trainings, advertencias, epiFicha,
+  pgr, pgrStages, apr, pt, its, trainings, trainingParticipants, advertencias, epiFicha,
   nrs, companies, companyUsers, obras, users, employees,
 } from "../drizzle/schema";
 import { eq, and, or, count, desc, gte, lte, like, sql } from "drizzle-orm";
@@ -1892,6 +1892,8 @@ export const appRouter = router({
               potentialRisks: parsedContent.potentialRisks || [], protectiveMeasures: parsedContent.protectiveMeasures || [],
               team: parsedContent.team || [], revalidations: parsedContent.revalidations || [],
               issuerName: parsedContent.issuerName || "Emitente Oficial", supervisorName: parsedContent.supervisorName || "Supervisor Oficial",
+              issuerSignatureUrl: parsedContent.issuerSignatureUrl || parsedContent.signatureUrl || "",
+              supervisorSignatureUrl: parsedContent.supervisorSignatureUrl || "",
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `PT_${input.documentId}.pdf`;
@@ -1927,15 +1929,25 @@ export const appRouter = router({
               .where(and(eq(trainings.id, input.documentId), condition)).limit(1);
             if (!rows.length) throw new TRPCError({ code: "NOT_FOUND", message: "Treinamento not found" });
             const record = rows[0];
-            const fakeParticipants = Array.from({ length: 10 }).map((_, i) => ({ name: "", role: "", document: "", signature: "" }));
+            const participantRows = await db.select({
+              participant: trainingParticipants,
+              user: users,
+            }).from(trainingParticipants)
+              .leftJoin(users, eq(trainingParticipants.userId, users.id))
+              .where(eq(trainingParticipants.trainingId, input.documentId));
+            const participants = participantRows.map((row) => ({
+              name: row.user?.name || "",
+              document: "",
+              signature: row.participant.signatureUrl || "",
+            }));
 
             const { generateTrainingPdf } = await import("./pdfTemplates");
             pdfBuffer = await generateTrainingPdf({
               nrTitle: record.nr ? `${record.nr.code} - ${record.nr.name}` : "Sem NR Base", topic: record.training.title,
-              companyName: record.company?.name || "N/A", date: record.training.trainingDate || record.training.createdAt,
-              instructorName: record.training.instructor || "Instrutor Indefinido", duration: "8",
+              companyName: record.company?.name || "N/A", local: record.training.location || "", date: record.training.trainingDate || record.training.createdAt,
+              instructorName: record.training.instructor || "Instrutor Indefinido",
               programmaticContent: record.training.description || "Treinamento admissional e periódico.",
-              participants: fakeParticipants, instructorRegister: "000.000-0",
+              participants,
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `Treinamento_${input.documentId}.pdf`;
@@ -1972,6 +1984,7 @@ export const appRouter = router({
               location: record.obra?.name || record.company?.city || "Sede",
               issuerName: record.responsible?.name || "Departamento de Segurança",
               witnessName,
+              employeeSignatureUrl: record.advertencia.signatureUrl || "",
               clientLogoUrl: record.company?.logoUrl || undefined
             });
             fileName = `Advertencia_${input.documentId}.pdf`;
@@ -1998,9 +2011,11 @@ export const appRouter = router({
             pdfBuffer = await generateEpiPdf({
               companyName: record.company?.name || "N/A",
               cnpj: record.company?.cnpj || "",
-              employeeName: record.employee?.name || record.user?.name || "N/A",
+              address: record.company?.address || "",
+              employeeName: record.epi.employeeName || record.employee?.name || record.user?.name || "N/A",
               role: (record.employee as any)?.role || record.user?.ehsRole || "N/A",
               admissionDate: (record.employee as any)?.admissionDate || record.user?.createdAt || new Date(),
+              employeeSignatureUrl: record.epi.signatureUrl || "",
               deliveries,
               clientLogoUrl: record.company?.logoUrl || undefined
             });

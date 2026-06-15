@@ -50,6 +50,10 @@ const formDocStyle = `
   .footer-bar { margin-top: 16px; border-top: 2px solid #e8420d; min-height: 34px; display: flex; align-items: flex-end; justify-content: space-between; font-size: 9px; color: #555; padding-top: 6px; }
   .footer-tact-logo { width: 88px; height: 30px; object-fit: contain; display: block; }
   .sig-area { display: inline-block; border-top: 1px solid #000; width: 100%; min-height: 36px; }
+  .signature-line { border-top: 1px solid #000; width: 100%; height: 34px; }
+  .signature-clean { height: 38px; display: flex; align-items: center; justify-content: center; background: #fff; }
+  .signature-img { max-width: 100%; max-height: 36px; object-fit: contain; display: block; margin: 0 auto; }
+  .table-signature-img { max-width: 100%; max-height: 24px; object-fit: contain; display: block; margin: 0 auto; }
   .checkbox-list { display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .checkbox-item { font-size: 10px; }
 `;
@@ -91,7 +95,18 @@ async function resolvePdfImage(value: unknown): Promise<string> {
 async function resolvePdfDataImages<T extends Record<string, any>>(data: T): Promise<T> {
   const next: Record<string, any> = { ...data };
 
-  for (const key of ["clientLogoUrl", "technicianLogoUrl", "logoUrl", "signatureUrl"]) {
+  for (const key of [
+    "clientLogoUrl",
+    "technicianLogoUrl",
+    "logoUrl",
+    "signatureUrl",
+    "employeeSignatureUrl",
+    "issuerSignatureUrl",
+    "supervisorSignatureUrl",
+    "instructorSignature",
+    "participantSignatureUrl",
+    "witnessSignatureUrl",
+  ]) {
     if (next[key]) next[key] = await resolvePdfImage(next[key]);
   }
 
@@ -122,6 +137,20 @@ async function resolvePdfDataImages<T extends Record<string, any>>(data: T): Pro
 /** Rodapé padrão de página */
 const pageFooter = (page: string) =>
   `<div class="footer-bar"><span>Página ${page} &nbsp;|&nbsp; Documento gerado pelo TACT</span><img src="${getTactFooterLogoDataUrl()}" class="footer-tact-logo" alt="TACT" /></div>`;
+
+function signatureBlock(name: unknown, role: unknown, signatureUrl?: string): string {
+  return `${signatureUrl
+    ? `<div class="signature-clean"><img src="${escapeHtml(signatureUrl)}" class="signature-img" /></div>`
+    : `<div class="signature-line"></div>`}
+    <div style="font-weight:700; margin-top:4px;">${escapeHtml(name || "")}</div>
+    <div style="font-size:9px; color:#555;">${escapeHtml(role || "")}</div>`;
+}
+
+function inlineSignature(signatureUrl?: string, width = 330): string {
+  return signatureUrl
+    ? `<span class="signature-clean" style="height:28px; justify-content:flex-start;"><img src="${escapeHtml(signatureUrl)}" class="signature-img" style="max-height:28px;" /></span>`
+    : `<span style="display:inline-block; border-bottom:1px solid #000; width:${width}px; height:12px;"></span>`;
+}
 
 async function renderPdf(
   html: string,
@@ -674,7 +703,7 @@ export async function generateEpiPdf(data: any): Promise<Buffer> {
   <table style="margin-top:-1px;">
     <tr>
       <td style="width:35%; padding:12px 10px;">Data: ${genDate}</td>
-      <td style="padding:12px 10px;">Assinatura: _______________________________________________</td>
+      <td style="padding:12px 10px;">Assinatura: ${inlineSignature(data.employeeSignatureUrl || data.signatureUrl, 330)}</td>
     </tr>
   </table>
 
@@ -694,7 +723,7 @@ export async function generateEpiPdf(data: any): Promise<Buffer> {
       <td style="text-align:center;">${d.quantity || ""}</td>
       <td style="text-align:center;">${d.ca || ""}</td>
       <td style="text-align:center; height:28px;">
-        ${d.signature ? `<img src="${d.signature}" style="max-height:24px;">` : ""}
+        ${d.signature ? `<img src="${escapeHtml(d.signature)}" class="table-signature-img">` : ""}
       </td>
     </tr>`).join("")}
     ${Array.from({ length: Math.max(0, 15 - (data.deliveries?.length || 0)) }).map(() =>
@@ -822,14 +851,10 @@ export async function generatePtPdf(data: any): Promise<Buffer> {
   <table style="margin-top:-1px;">
     <tr>
       <td style="text-align:center; padding:28px 20px 8px;">
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px;">${data.issuerName || "Emitente"}</div>
-        <div style="font-size:9px; color:#555;">Emitente (Segurança)</div>
+        ${signatureBlock(data.issuerName || "Emitente", "Emitente (Segurança)", data.issuerSignatureUrl || data.signatureUrl)}
       </td>
       <td style="text-align:center; padding:28px 20px 8px;">
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px;">${data.supervisorName || "Responsável"}</div>
-        <div style="font-size:9px; color:#555;">Responsável pela Tarefa</div>
+        ${signatureBlock(data.supervisorName || "Responsável", "Responsável pela Tarefa", data.supervisorSignatureUrl)}
       </td>
     </tr>
   </table>
@@ -898,7 +923,7 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
       <td>${p.name || ""}</td>
       <td style="text-align:center;">${p.document || ""}</td>
       <td style="height:28px; text-align:center;">
-        ${p.signature ? `<img src="${p.signature}" style="max-height:24px;">` : ""}
+        ${p.signature ? `<img src="${escapeHtml(p.signature)}" class="table-signature-img">` : ""}
       </td>
     </tr>`).join("")}
     ${Array.from({ length: Math.max(0, 20 - (data.participants?.length || 0)) }).map((_, i) => `
@@ -912,10 +937,7 @@ export async function generateTrainingPdf(data: any): Promise<Buffer> {
   <table style="margin-top:-1px;">
     <tr>
       <td style="text-align:center; padding:24px 20px 8px; width:50%; margin:0 auto;">
-        ${data.instructorSignature ? `<img src="${data.instructorSignature}" style="max-height:40px; margin-bottom:4px;"><br>` : `<div style="height:40px;"></div>`}
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px; font-size:10px;">${data.instructorName || "Instrutor Responsável"}</div>
-        <div style="font-size:9px; color:#555;">Instrutor Responsável${data.instructorRegister ? ` — MTE: ${data.instructorRegister}` : ""}</div>
+        ${signatureBlock(data.instructorName || "Instrutor Responsável", `Instrutor Responsável${data.instructorRegister ? ` — MTE: ${data.instructorRegister}` : ""}`, data.instructorSignature)}
       </td>
       <td style="width:50%;"></td>
     </tr>
@@ -980,14 +1002,10 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
   <table style="margin:0 60px; width:calc(100% - 120px);">
     <tr>
       <td style="text-align:center; padding:40px 20px 8px; border:none;">
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px;">${data.issuerName || "Representante da Empresa"}</div>
-        <div style="font-size:9px; color:#555;">Representante da Empresa</div>
+        ${signatureBlock(data.issuerName || "Representante da Empresa", "Representante da Empresa", data.issuerSignatureUrl)}
       </td>
       <td style="text-align:center; padding:40px 20px 8px; border:none;">
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px;">${data.employeeName || "Empregado"}</div>
-        <div style="font-size:9px; color:#555;">Empregado (Ciente)</div>
+        ${signatureBlock(data.employeeName || "Empregado", "Empregado (Ciente)", data.employeeSignatureUrl || data.signatureUrl)}
       </td>
     </tr>
   </table>
@@ -997,9 +1015,7 @@ export async function generateWarningPdf(data: any): Promise<Buffer> {
     <tr>
       <td style="width:50%; border:none;"></td>
       <td style="text-align:center; padding:20px 20px 8px; border:none;">
-        <div class="sig-area"></div>
-        <div style="font-weight:700; margin-top:4px;">${data.witnessName}</div>
-        <div style="font-size:9px; color:#555;">Testemunha</div>
+        ${signatureBlock(data.witnessName, "Testemunha", data.witnessSignatureUrl)}
       </td>
     </tr>
   </table>` : ""}
@@ -1891,9 +1907,13 @@ type ChecklistPdfItem = {
 const CHECKLIST_PAGE_UNITS = 4;
 const CHECKLIST_SIGNATURE_PAGE_UNITS = 2;
 
-function formatPdfDate(value: unknown, fallback: string): string {
+function formatPdfDate(value: unknown, fallback = ""): string {
   if (!value) return fallback;
   try {
+    if (typeof value === "string" && /^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+      return value;
+    }
+
     if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
       const [year, month, day] = value.split("-").map(Number);
       return format(new Date(year, month - 1, day), "dd/MM/yyyy", { locale: ptBR });
@@ -2231,17 +2251,20 @@ export interface ItsData {
 export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   data = await resolvePdfDataImages(data as any) as ItsData;
   // Parse structured content JSON
-  let parsed: Record<string, string> = {};
+  let parsed: Record<string, any> = {};
   if (data.content) {
     try { parsed = JSON.parse(data.content); } catch { parsed = {}; }
   }
 
   const theme       = parsed.theme       || data.title || "";
-  const dateVal     = parsed.date        || (data.createdAt ? format(new Date(data.createdAt as string), "dd/MM/yyyy", { locale: ptBR }) : "");
+  const dateVal     = parsed.date ? formatPdfDate(parsed.date) : formatPdfDate(data.createdAt);
   const duration    = parsed.duration    || "";
-  const participant = parsed.participant || "";
+  const participant = Array.isArray(parsed.participants)
+    ? parsed.participants.filter(Boolean).join(", ")
+    : parsed.participant || "";
   const technician  = parsed.technician  || data.authorName || "";
   const notes       = parsed.notes       || data.description || "";
+  const participantSignature = parsed.signatureUrl ? await resolvePdfImage(parsed.signatureUrl) : "";
 
   const empresa = [data.companyName, data.obraName].filter(Boolean).join(" - ");
 
@@ -2254,7 +2277,7 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   };
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
+<style>${formDocStyle}
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, sans-serif; font-size: 10px; color: #000; background: #fff; }
   @page { margin: 14px 20px; size: A4; }
@@ -2263,10 +2286,11 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   td { border: 1px solid #000; padding: 3px 5px; vertical-align: top; }
   .lbl { font-size: 8px; font-weight: 700; text-transform: uppercase; display: block; }
   .val { font-size: 9px; white-space: pre-wrap; }
-  .header-logo { width: 25%; text-align: center; border-right: 1px solid #000; vertical-align: middle; padding: 4px; }
+  .header-logo { width: 65%; text-align: center; border-right: 1px solid #000; vertical-align: middle; padding: 4px; height: 45px; }
   .header-title { text-align: center; vertical-align: middle; }
-  .sig-box { height: 52px; }
+  .sig-box { height: 52px; background: #fff; }
   .obs-box { height: 50px; }
+  .its-footer { width: 100%; max-width: none; margin-top: 18px; }
 </style></head>
 <body>
 <div class="page">
@@ -2314,6 +2338,7 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
     <tr>
       <td colspan="2" class="sig-box">
         <span class="lbl">ASSINATURA</span>
+        ${participantSignature ? `<div class="signature-clean"><img src="${escapeHtml(participantSignature)}" class="signature-img" /></div>` : ""}
       </td>
     </tr>
     <!-- TECNICO EM SEGURANCA -->
@@ -2338,6 +2363,7 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
       </td>
     </tr>`}
   </table>
+  <div class="its-footer">${pageFooter("1 de 1")}</div>
 </div>
 </body></html>`;
 
