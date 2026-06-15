@@ -1339,7 +1339,7 @@ function renderPgrSanitaryBlock(workers: unknown): string {
   </section>`;
 }
 
-export async function buildGroPdfHtml(data: any): Promise<string> {
+async function buildGroPdfHtmlLegacy(data: any): Promise<string> {
   const genDate = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
   const clientLogoUrl = await resolveLayoutPdfImage(data.clientLogoUrl || data.logoUrl);
   const signatureUrl = await resolveLayoutPdfImage(data.signatureUrl);
@@ -1494,6 +1494,342 @@ export async function buildGroPdfHtml(data: any): Promise<string> {
     pages,
     extraCss: pgrLayoutCss,
   });
+}
+
+type PgrModelRiskRow = ReturnType<typeof normalizePgrRisk>;
+type PgrModelActionRow = ReturnType<typeof normalizePgrAction>;
+type PgrModelStageRow = ReturnType<typeof normalizePgrStage>;
+
+const PGR_MODEL_VISIBLE_RISK_ROWS = 6;
+const PGR_MODEL_VISIBLE_ACTION_ROWS = 6;
+
+function pgrModelValue(value: unknown, fallback = "Não informado"): string {
+  return cleanText(value, fallback);
+}
+
+function pgrModelHtml(value: unknown, fallback = "Não informado"): string {
+  return escapeLayoutHtml(pgrModelValue(value, fallback));
+}
+
+function pgrModelJoin(values: unknown[], fallback = "Não informado"): string {
+  const text = values
+    .map((value) => cleanText(value))
+    .filter(Boolean)
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .join("; ");
+  return text || fallback;
+}
+
+function pgrModelShortText(value: unknown, limit = 140): string {
+  const text = cleanText(value);
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 1)).trim()}…`;
+}
+
+function pgrModelLogoBox(logoUrl: string, alt: unknown, className = ""): string {
+  return `<div class="pgr-model-logo-box ${className}">
+    ${logoUrl ? `<img src="${escapeLayoutHtml(logoUrl)}" alt="${pgrModelHtml(alt, "Logo")}" />` : ""}
+  </div>`;
+}
+
+function pgrModelTopLines(): string {
+  return `<div class="pgr-model-top-lines" aria-hidden="true">
+    <span class="line-orange"></span>
+    <span class="line-blue"></span>
+    <span class="line-teal"></span>
+  </div>`;
+}
+
+function pgrModelFooter(tactLogoUrl: string): string {
+  return `<footer class="pgr-model-footer">
+    <div class="pgr-model-footer-line" aria-hidden="true"><span></span><span></span></div>
+    <img src="${escapeLayoutHtml(tactLogoUrl)}" class="pgr-model-tact-logo" alt="TACT" />
+  </footer>`;
+}
+
+function pgrModelPage(body: string, tactLogoUrl: string, className = ""): string {
+  return `<section class="pgr-model-page ${className}">
+    ${pgrModelTopLines()}
+    ${body}
+    ${pgrModelFooter(tactLogoUrl)}
+  </section>`;
+}
+
+function pgrModelHeader(title: string, logoUrl: string, companyName: unknown): string {
+  return `<header class="pgr-model-header">
+    ${pgrModelLogoBox(logoUrl, companyName, "pgr-model-header-logo")}
+    <div class="pgr-model-header-title">${escapeLayoutHtml(title)}</div>
+  </header>`;
+}
+
+function pgrModelMetaLine(label: string, value: unknown): string {
+  return `<div class="pgr-model-meta-line">
+    <span>${escapeLayoutHtml(label)}:</span>
+    <strong>${pgrModelHtml(value)}</strong>
+  </div>`;
+}
+
+function pgrModelField(label: string, value: unknown, className = ""): string {
+  return `<div class="pgr-model-field ${className}">
+    <span>${escapeLayoutHtml(label)}:</span>
+    <strong>${pgrModelHtml(value)}</strong>
+  </div>`;
+}
+
+function pgrModelRiskMatrix(): string {
+  const rows = [5, 4, 3, 2, 1].map((probability) => {
+    const cells = [1, 2, 3, 4, 5].map((consequence) => {
+      const score = probability * consequence;
+      const level = pgrLevelFromScore(score);
+      return `<td class="${pgrLevelClass(level)}">
+        <strong>${score}</strong>
+        <span>${escapeLayoutHtml(level)}</span>
+      </td>`;
+    }).join("");
+    return `<tr><th>${probability}</th>${cells}</tr>`;
+  }).join("");
+
+  return `<div class="pgr-model-matrix-wrap">
+    <div class="pgr-model-matrix-axis pgr-model-matrix-y">PROBABILIDADE</div>
+    <table class="pgr-model-risk-matrix">
+      <thead><tr><th>P/C</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="pgr-model-matrix-axis pgr-model-matrix-x">CONSEQUÊNCIA</div>
+  </div>`;
+}
+
+function pgrModelClassificationTable(): string {
+  const rows = [
+    ["Muito Baixo", "Considerar possíveis ações. Manter as medidas de proteção."],
+    ["Baixo", "Garantir que as medidas atuais de proteção são eficazes. Aprimorar com ações complementares."],
+    ["Médio", "Devem ser realizadas ações para reduzir ou eliminar o risco."],
+    ["Alto", "Garantir a implementação de proteções ou dispositivos de segurança."],
+    ["Muito Alto", "Ação imediata para reduzir ou eliminar o risco."],
+    ["Extremo", "Interromper atividade até eliminação ou redução do risco."],
+  ];
+
+  return `<table class="pgr-model-classification">
+    <thead><tr><th>RESUL.</th><th>DESCRIÇÃO</th></tr></thead>
+    <tbody>
+      ${rows.map(([level, description]) => `<tr>
+        <td class="${pgrLevelClass(level)}">${escapeLayoutHtml(level)}</td>
+        <td>${escapeLayoutHtml(description)}</td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
+}
+
+function pgrModelSanitaryValue(value: unknown): string {
+  return value === null || value === undefined || value === "" ? "Não informado" : String(value);
+}
+
+function pgrModelSanitaryBox(workers: unknown): string {
+  const specs = calcPgrSanitaryInstallations(workers);
+  return `<div class="pgr-model-sanitary-calculator">
+    <h2>Calculadora de Instalações Sanitárias</h2>
+    <div class="pgr-model-sanitary-grid">
+      <div><span>Vasos</span><strong>${escapeLayoutHtml(pgrModelSanitaryValue(specs?.toilets))}</strong></div>
+      <div><span>Lavatório</span><strong>${escapeLayoutHtml(pgrModelSanitaryValue(specs?.sinks))}</strong></div>
+      <div><span>Mictórios</span><strong>${escapeLayoutHtml(pgrModelSanitaryValue(specs?.urinals))}</strong></div>
+      <div><span>Chuveiros</span><strong>${escapeLayoutHtml(pgrModelSanitaryValue(specs?.showers))}</strong></div>
+    </div>
+  </div>`;
+}
+
+function pgrModelStageSummary(stages: PgrModelStageRow[]) {
+  const subcontracted = stages.length
+    ? stages.some((stage) => stage.isSubcontracted) ? "Sim" : "Não"
+    : "Não informado";
+  const subcontractorInfo = stages
+    .flatMap((stage) => stage.teams.map((team) => `${team.companyName} - CNPJ: ${team.cnpj} - Atividade: ${team.activity}`));
+
+  return {
+    names: pgrModelJoin(stages.map((stage) => stage.name)),
+    activities: pgrModelJoin(stages.map((stage) => stage.activity)),
+    subcontracted,
+    subcontractorInfo: subcontractorInfo.length ? subcontractorInfo.join("; ") : (stages.length ? "Não se aplica" : "Não informado"),
+  };
+}
+
+function pgrModelRiskRows(risks: PgrModelRiskRow[]): string {
+  const visible = risks.slice(0, PGR_MODEL_VISIBLE_RISK_ROWS);
+  const rows: string[] = [];
+
+  for (let index = 0; index < PGR_MODEL_VISIBLE_RISK_ROWS; index += 1) {
+    const risk = visible[index];
+    const isEmptyFirstRow = index === 0 && visible.length === 0;
+    rows.push(`<tr>
+      <td class="pgr-model-row-index">${index + 1}</td>
+      <td>${risk ? pgrModelHtml(risk.agent) : (isEmptyFirstRow ? "Não informado" : "")}</td>
+      <td>${risk ? pgrModelHtml(risk.type) : ""}</td>
+      <td>${risk ? pgrModelHtml(risk.source) : ""}</td>
+      <td>${risk ? pgrModelHtml(risk.healthEffect) : ""}</td>
+      <td>${risk ? pgrModelHtml(risk.probability) : ""}</td>
+      <td>${risk ? pgrModelHtml(risk.consequence) : ""}</td>
+      <td>${risk ? `<span class="pgr-model-level ${pgrLevelClass(risk.riskLevel)}">${pgrModelHtml(risk.riskLevel)}</span>` : ""}</td>
+    </tr>`);
+  }
+
+  const remaining = risks.slice(PGR_MODEL_VISIBLE_RISK_ROWS);
+  rows.push(`<tr>
+    <td class="pgr-model-row-index">...</td>
+    <td colspan="7">${remaining.length ? `Demais riscos: ${escapeLayoutHtml(pgrModelShortText(remaining.map((risk) => risk.agent).join("; "), 220))}` : ""}</td>
+  </tr>`);
+
+  return rows.join("");
+}
+
+function pgrModelActionRows(actions: PgrModelActionRow[]): string {
+  const visible = actions.slice(0, PGR_MODEL_VISIBLE_ACTION_ROWS);
+  const rows: string[] = [];
+
+  for (let index = 0; index < PGR_MODEL_VISIBLE_ACTION_ROWS; index += 1) {
+    const action = visible[index];
+    const isEmptyFirstRow = index === 0 && visible.length === 0;
+    const text = action
+      ? `Risco: ${action.riskRef} | Ação: ${action.action} | Prazo: ${action.deadline} | Status: ${action.status}`
+      : (isEmptyFirstRow ? "Não informado" : "");
+
+    rows.push(`<tr>
+      <td class="pgr-model-row-index">${index + 1}</td>
+      <td>${escapeLayoutHtml(pgrModelShortText(text, 260))}</td>
+    </tr>`);
+  }
+
+  const remaining = actions.slice(PGR_MODEL_VISIBLE_ACTION_ROWS);
+  rows.push(`<tr>
+    <td class="pgr-model-row-index">...</td>
+    <td>${remaining.length ? `Demais ações: ${escapeLayoutHtml(pgrModelShortText(remaining.map((action) => action.action).join("; "), 260))}` : ""}</td>
+  </tr>`);
+
+  return rows.join("");
+}
+
+function pgrModelSignature(signatureUrl: string, responsibleName: unknown, date: string): string {
+  const name = cleanText(responsibleName);
+  return `<div class="pgr-model-signature">
+    <div class="pgr-model-signature-area ${signatureUrl ? "has-image" : "is-empty"}">
+      ${signatureUrl ? `<img src="${escapeLayoutHtml(signatureUrl)}" alt="Assinatura" />` : `<span></span>`}
+    </div>
+    ${name ? `<div class="pgr-model-signature-name">${escapeLayoutHtml(name)}</div>` : ""}
+    <div class="pgr-model-signature-role">Campo de assinatura</div>
+    <div class="pgr-model-signature-date">${escapeLayoutHtml(date)}</div>
+  </div>`;
+}
+
+export async function buildGroPdfHtml(data: any): Promise<string> {
+  const generatedAt = format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+  const clientLogoUrl = await resolveLayoutPdfImage(data.clientLogoUrl || data.logoUrl);
+  const signatureUrl = await resolveLayoutPdfImage(data.signatureUrl);
+  const tactLogoUrl = getTactFooterLogoDataUrl();
+  const sanitaryImageUrl = await resolveImageToDataUrl("/assets/pgr-sanitary-nr18.png");
+  const risks = (Array.isArray(data.riskMatrix) ? data.riskMatrix : []).map((risk: PgrRiskItem) => normalizePgrRisk(risk));
+  const actions = (Array.isArray(data.actionPlan) ? data.actionPlan : []).map((action: PgrActionItem) => normalizePgrAction(action));
+  const stages = (Array.isArray(data.stages) ? data.stages : []).map((stage: PgrStageItem) => normalizePgrStage(stage));
+  const stageSummary = pgrModelStageSummary(stages);
+  const location = pgrModelValue(data.obraAddress || data.location || data.companyAddress);
+  const validUntil = formatPdfDate(data.validUntil, "Não informado");
+  const revision = pgrModelValue(data.version || data.revision);
+  const responsibleName = pgrModelValue(data.responsibleName);
+  const status = cleanText(data.status) ? pgrStatusLabel(data.status) : "Não informado";
+  const observations = pgrModelValue(data.observations || data.rawContent);
+
+  const coverPage = pgrModelPage(`
+    <div class="pgr-model-cover-logo-top">${pgrModelLogoBox(clientLogoUrl, data.companyName, "small")}</div>
+    <div class="pgr-model-cover-divider" aria-hidden="true"></div>
+    <h1 class="pgr-model-cover-title">RELATÓRIO DO PGR</h1>
+    <div class="pgr-model-cover-logo-main">${pgrModelLogoBox(clientLogoUrl, data.companyName, "large")}</div>
+    <div class="pgr-model-cover-meta">
+      ${pgrModelMetaLine("Empresa", data.companyName)}
+      ${pgrModelMetaLine("Empreendimento", data.obraName)}
+      ${pgrModelMetaLine("Local da Obra", location)}
+    </div>
+  `, tactLogoUrl, "pgr-model-cover");
+
+  const introPage = pgrModelPage(`
+    ${pgrModelHeader("INTRODUÇÃO", clientLogoUrl, data.companyName)}
+    <main class="pgr-model-intro">
+      <p>O Programa de Gerenciamento de Riscos (PGR) consolida as informações de identificação de perigos, avaliação de riscos ocupacionais, medidas de prevenção e plano de ação para controle das atividades executadas no empreendimento.</p>
+      <p>Este documento observa as diretrizes da NR-01, que estabelece o gerenciamento de riscos ocupacionais, e considera as exigências aplicáveis da NR-18 para a indústria da construção, incluindo organização do canteiro, planejamento das etapas, controle de terceiros e medidas de proteção coletiva e individual.</p>
+      <p>A matriz abaixo utiliza a relação entre probabilidade e consequência para classificar o nível de risco e orientar as prioridades de intervenção, acompanhamento e revisão das ações preventivas.</p>
+      ${pgrModelRiskMatrix()}
+      ${pgrModelClassificationTable()}
+    </main>
+  `, tactLogoUrl, "pgr-model-introduction");
+
+  const dataPage = pgrModelPage(`
+    ${pgrModelHeader("PGR", clientLogoUrl, data.companyName)}
+    <main class="pgr-model-data">
+      <section class="pgr-model-data-box">
+        ${pgrModelField("Empresa", data.companyName)}
+        ${pgrModelField("Obra", data.obraName)}
+        ${pgrModelField("Revisão", revision)}
+        ${pgrModelField("Responsável Técnico", responsibleName)}
+        ${pgrModelField("Status", status)}
+        ${pgrModelField("Validade", validUntil)}
+        ${pgrModelField("Observações Gerais", observations, "wide")}
+      </section>
+      <div class="pgr-model-sanitary-image">
+        ${sanitaryImageUrl ? `<img src="${escapeLayoutHtml(sanitaryImageUrl)}" alt="Instalações sanitárias NR-18" />` : ""}
+      </div>
+      ${pgrModelSanitaryBox(data.nr24Workers)}
+    </main>
+  `, tactLogoUrl, "pgr-model-data-page");
+
+  const stagesPage = pgrModelPage(`
+    ${pgrModelHeader("PGR", clientLogoUrl, data.companyName)}
+    <main class="pgr-model-stages">
+      <section class="pgr-model-stage-box">
+        <div><strong>Etapas e Equipes:</strong> ${escapeLayoutHtml(stageSummary.names)}</div>
+        <div><strong>Atividade:</strong> ${escapeLayoutHtml(stageSummary.activities)}</div>
+        <div><strong>Terceirizado (Sim ou Não):</strong> ${escapeLayoutHtml(stageSummary.subcontracted)}</div>
+        <div><strong>Dados do Terceirizado quando aplicado:</strong> ${escapeLayoutHtml(stageSummary.subcontractorInfo)}</div>
+      </section>
+      <table class="pgr-model-risks-table">
+        <thead>
+          <tr>
+            <th class="pgr-model-row-index"></th>
+            <th>Risco</th>
+            <th>Tipo</th>
+            <th>Fonte Geradora</th>
+            <th>Possíveis danos à Saúde</th>
+            <th>Probabilidade</th>
+            <th>Consequência</th>
+            <th>Nível do Risco</th>
+          </tr>
+        </thead>
+        <tbody>${pgrModelRiskRows(risks)}</tbody>
+      </table>
+      <table class="pgr-model-action-table">
+        <thead><tr><th colspan="2">Plano de Ação</th></tr></thead>
+        <tbody>${pgrModelActionRows(actions)}</tbody>
+      </table>
+    </main>
+  `, tactLogoUrl, "pgr-model-stages-page");
+
+  const closingPage = pgrModelPage(`
+    ${pgrModelHeader("PGR", clientLogoUrl, data.companyName)}
+    <main class="pgr-model-closing">
+      <p>O presente Programa de Gerenciamento de Riscos deve permanecer disponível aos trabalhadores, responsáveis pela execução das atividades e demais partes interessadas, sendo revisado sempre que houver alterações nos processos, ambientes, equipes, métodos de trabalho ou medidas de controle.</p>
+      <p>As ações preventivas e corretivas indicadas neste documento devem ser acompanhadas pela empresa e pelo responsável técnico, garantindo que os controles sejam implantados, monitorados e mantidos durante a execução das atividades.</p>
+      <div class="pgr-model-closing-date">${escapeLayoutHtml(generatedAt)}</div>
+      ${pgrModelSignature(signatureUrl, data.responsibleName, generatedAt)}
+    </main>
+  `, tactLogoUrl, "pgr-model-closing-page");
+
+  return repairPdfHtml(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>PGR - ${pgrModelHtml(data.companyName || data.title, "TACT")}</title>
+  <style>${pgrModelCss}</style>
+</head>
+<body>
+  <div class="pgr-model-document">${coverPage}${introPage}${dataPage}${stagesPage}${closingPage}</div>
+</body>
+</html>`);
 }
 
 export async function generateGroPdf(data: any): Promise<Buffer> {
@@ -1773,6 +2109,508 @@ const pgrLayoutCss = `
     grid-template-columns: minmax(0, 1fr) !important;
     max-width: 92mm;
     margin: 0 auto;
+  }
+`;
+
+const pgrModelCss = `
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body {
+    color: #31404a;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10px;
+    line-height: 1.28;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @page { size: A4 portrait; margin: 0; }
+  table { border-collapse: collapse; }
+  .pgr-model-document {
+    background: #fff;
+    margin: 0 auto;
+    width: 210mm;
+  }
+  .pgr-model-page {
+    background: #fff;
+    height: 297mm;
+    overflow: hidden;
+    page-break-after: always;
+    position: relative;
+    width: 210mm;
+  }
+  .pgr-model-page:last-child { page-break-after: auto; }
+  .pgr-model-top-lines {
+    display: grid;
+    gap: 1.2mm;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 7.5mm;
+  }
+  .pgr-model-top-lines span { display: block; height: 1.1mm; }
+  .pgr-model-top-lines .line-orange { background: #df5a13; margin-left: 0; width: 47mm; }
+  .pgr-model-top-lines .line-blue { background: #223a49; margin-left: 0; width: 122mm; }
+  .pgr-model-top-lines .line-teal { background: #164b5c; margin-left: 0; width: 83mm; }
+  .pgr-model-footer {
+    bottom: 7.5mm;
+    height: 19mm;
+    left: 0;
+    position: absolute;
+    right: 0;
+  }
+  .pgr-model-footer-line {
+    bottom: 0;
+    display: flex;
+    height: 1.2mm;
+    left: 0;
+    position: absolute;
+    right: 0;
+  }
+  .pgr-model-footer-line span:first-child { background: #df5a13; width: 52mm; }
+  .pgr-model-footer-line span:last-child { background: #263d4a; flex: 1; }
+  .pgr-model-tact-logo {
+    bottom: 4mm;
+    display: block;
+    height: 15mm;
+    object-fit: contain;
+    position: absolute;
+    right: 10mm;
+    width: 42mm;
+  }
+  .pgr-model-logo-box {
+    align-items: center;
+    background: #fff;
+    border: 1.2px solid #364a55;
+    display: flex;
+    justify-content: center;
+  }
+  .pgr-model-logo-box img {
+    display: block;
+    max-height: 100%;
+    max-width: 100%;
+    object-fit: contain;
+  }
+  .pgr-model-cover-logo-top {
+    left: 8mm;
+    position: absolute;
+    top: 20mm;
+  }
+  .pgr-model-logo-box.small {
+    height: 24mm;
+    padding: 3mm;
+    width: 54mm;
+  }
+  .pgr-model-cover-divider {
+    background: linear-gradient(90deg, #df5a13 0 36%, #263d4a 36% 100%);
+    height: 1.2mm;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: 53mm;
+  }
+  .pgr-model-cover-title {
+    color: #31404a;
+    font-size: 43px;
+    font-weight: 900;
+    left: 0;
+    letter-spacing: 0;
+    line-height: 1;
+    margin: 0;
+    position: absolute;
+    right: 0;
+    text-align: center;
+    top: 81mm;
+  }
+  .pgr-model-cover-logo-main {
+    left: 50%;
+    position: absolute;
+    top: 126mm;
+    transform: translateX(-50%);
+  }
+  .pgr-model-logo-box.large {
+    height: 55mm;
+    padding: 7mm;
+    width: 100mm;
+  }
+  .pgr-model-cover-meta {
+    color: #31404a;
+    position: absolute;
+    right: 19mm;
+    top: 221mm;
+    width: 73mm;
+  }
+  .pgr-model-meta-line {
+    align-items: baseline;
+    display: grid;
+    gap: 2mm;
+    grid-template-columns: 29mm 1fr;
+    margin-bottom: 4.2mm;
+  }
+  .pgr-model-meta-line span {
+    color: #df5a13;
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .pgr-model-meta-line strong {
+    color: #31404a;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pgr-model-header {
+    align-items: stretch;
+    display: grid;
+    gap: 4mm;
+    grid-template-columns: 50mm 1fr;
+    height: 28mm;
+    left: 8mm;
+    position: absolute;
+    right: 8mm;
+    top: 20mm;
+  }
+  .pgr-model-header-logo {
+    border-style: dashed;
+    height: 28mm;
+    padding: 3mm;
+    width: 50mm;
+  }
+  .pgr-model-header-title {
+    align-items: center;
+    border: 1.2px solid #364a55;
+    color: #31404a;
+    display: flex;
+    font-size: 35px;
+    font-weight: 900;
+    justify-content: center;
+    letter-spacing: 0;
+    line-height: 1;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  .pgr-model-intro,
+  .pgr-model-data,
+  .pgr-model-stages,
+  .pgr-model-closing {
+    left: 8mm;
+    position: absolute;
+    right: 8mm;
+    top: 56mm;
+  }
+  .pgr-model-intro p,
+  .pgr-model-closing p {
+    color: #31404a;
+    font-size: 12px;
+    margin: 0 0 4mm;
+    text-align: justify;
+  }
+  .pgr-model-matrix-wrap {
+    height: 84mm;
+    margin: 7mm auto 5mm;
+    position: relative;
+    width: 141mm;
+  }
+  .pgr-model-risk-matrix {
+    height: 74mm;
+    margin-left: 13mm;
+    table-layout: fixed;
+    width: 124mm;
+  }
+  .pgr-model-risk-matrix th,
+  .pgr-model-risk-matrix td {
+    border: 1px solid #31404a;
+    padding: 1.6mm;
+    text-align: center;
+    vertical-align: middle;
+  }
+  .pgr-model-risk-matrix th {
+    background: #f4f6f7;
+    color: #31404a;
+    font-size: 9px;
+    font-weight: 900;
+  }
+  .pgr-model-risk-matrix td strong {
+    display: block;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .pgr-model-risk-matrix td span {
+    display: block;
+    font-size: 6.5px;
+    font-weight: 900;
+    margin-top: 1mm;
+    text-transform: uppercase;
+  }
+  .pgr-model-matrix-axis {
+    color: #31404a;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0;
+    position: absolute;
+    text-transform: uppercase;
+  }
+  .pgr-model-matrix-y {
+    left: -15mm;
+    top: 34mm;
+    transform: rotate(-90deg);
+  }
+  .pgr-model-matrix-x {
+    bottom: 0;
+    left: 57mm;
+  }
+  .risk-level-muito-baixo { background: #9edbe7; color: #102d38; }
+  .risk-level-baixo { background: #75bd62; color: #102d38; }
+  .risk-level-medio { background: #f6d55a; color: #102d38; }
+  .risk-level-alto { background: #d84a3a; color: #fff; }
+  .risk-level-muito-alto { background: #6d4b8f; color: #fff; }
+  .risk-level-extremo { background: #111; color: #fff; }
+  .risk-level-na { background: #f1f1f1; color: #31404a; }
+  .pgr-model-classification {
+    margin: 0 auto;
+    table-layout: fixed;
+    width: 172mm;
+  }
+  .pgr-model-classification th,
+  .pgr-model-classification td {
+    border: 1px solid #31404a;
+    padding: 2.2mm 3mm;
+    vertical-align: middle;
+  }
+  .pgr-model-classification th {
+    background: #f4f6f7;
+    color: #31404a;
+    font-size: 10px;
+    font-weight: 900;
+  }
+  .pgr-model-classification th:first-child,
+  .pgr-model-classification td:first-child {
+    font-size: 10px;
+    font-weight: 900;
+    text-align: center;
+    text-transform: uppercase;
+    width: 34mm;
+  }
+  .pgr-model-classification td:last-child {
+    color: #31404a;
+    font-size: 10px;
+  }
+  .pgr-model-data-box {
+    border: 1.2px dashed #6e7f87;
+    min-height: 62mm;
+    padding: 5mm 6mm;
+  }
+  .pgr-model-field {
+    color: #31404a;
+    display: grid;
+    gap: 2mm;
+    grid-template-columns: 43mm 1fr;
+    margin-bottom: 3mm;
+  }
+  .pgr-model-field span {
+    color: #df5a13;
+    font-size: 11px;
+    font-weight: 900;
+  }
+  .pgr-model-field strong {
+    color: #31404a;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pgr-model-field.wide strong {
+    line-height: 1.25;
+    max-height: 19mm;
+    white-space: normal;
+  }
+  .pgr-model-sanitary-image {
+    height: 104mm;
+    margin-top: 7mm;
+    overflow: hidden;
+    width: 100%;
+  }
+  .pgr-model-sanitary-image img {
+    display: block;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    width: 100%;
+  }
+  .pgr-model-sanitary-calculator {
+    border: 1.2px dashed #6e7f87;
+    margin-top: 7mm;
+    min-height: 37mm;
+    padding: 4mm;
+  }
+  .pgr-model-sanitary-calculator h2 {
+    color: #31404a;
+    font-size: 16px;
+    font-weight: 900;
+    margin: 0 0 4mm;
+    text-align: center;
+  }
+  .pgr-model-sanitary-grid {
+    display: grid;
+    gap: 4mm;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .pgr-model-sanitary-grid div {
+    border: 1px solid #31404a;
+    min-height: 17mm;
+    padding: 2mm;
+    text-align: center;
+  }
+  .pgr-model-sanitary-grid span {
+    color: #df5a13;
+    display: block;
+    font-size: 10px;
+    font-weight: 900;
+    margin-bottom: 2mm;
+  }
+  .pgr-model-sanitary-grid strong {
+    color: #31404a;
+    display: block;
+    font-size: 13px;
+    font-weight: 900;
+  }
+  .pgr-model-stage-box {
+    border: 1px solid #31404a;
+    color: #31404a;
+    min-height: 38mm;
+    padding: 4mm 5mm;
+  }
+  .pgr-model-stage-box div {
+    font-size: 10px;
+    margin-bottom: 2.1mm;
+    max-height: 9mm;
+    overflow: hidden;
+  }
+  .pgr-model-stage-box strong {
+    color: #df5a13;
+    font-weight: 900;
+  }
+  .pgr-model-risks-table,
+  .pgr-model-action-table {
+    color: #31404a;
+    margin-top: 4mm;
+    table-layout: fixed;
+    width: 100%;
+  }
+  .pgr-model-risks-table th,
+  .pgr-model-risks-table td,
+  .pgr-model-action-table th,
+  .pgr-model-action-table td {
+    border: 1px solid #31404a;
+    padding: 1.5mm;
+    vertical-align: top;
+  }
+  .pgr-model-risks-table th,
+  .pgr-model-action-table th {
+    background: #f4f6f7;
+    color: #31404a;
+    font-size: 8px;
+    font-weight: 900;
+    text-align: center;
+  }
+  .pgr-model-risks-table td {
+    font-size: 7.2px;
+    height: 15.5mm;
+    line-height: 1.16;
+    overflow: hidden;
+  }
+  .pgr-model-action-table td {
+    font-size: 8.3px;
+    height: 12mm;
+    line-height: 1.18;
+    overflow: hidden;
+  }
+  .pgr-model-row-index {
+    color: #31404a;
+    font-weight: 900;
+    text-align: center;
+    width: 7mm;
+  }
+  .pgr-model-risks-table th:nth-child(2) { width: 28mm; }
+  .pgr-model-risks-table th:nth-child(3) { width: 20mm; }
+  .pgr-model-risks-table th:nth-child(4) { width: 28mm; }
+  .pgr-model-risks-table th:nth-child(5) { width: 34mm; }
+  .pgr-model-risks-table th:nth-child(6),
+  .pgr-model-risks-table th:nth-child(7) { width: 18mm; }
+  .pgr-model-risks-table th:nth-child(8) { width: 24mm; }
+  .pgr-model-level {
+    border: 1px solid #31404a;
+    display: inline-block;
+    font-size: 6.4px;
+    font-weight: 900;
+    line-height: 1;
+    padding: 1mm 1.2mm;
+    text-transform: uppercase;
+  }
+  .pgr-model-action-table th {
+    color: #df5a13;
+    font-size: 11px;
+    text-align: left;
+  }
+  .pgr-model-action-table td:first-child { width: 7mm; }
+  .pgr-model-closing {
+    top: 63mm;
+  }
+  .pgr-model-closing p {
+    font-size: 13px;
+    margin-bottom: 7mm;
+  }
+  .pgr-model-closing-date {
+    color: #31404a;
+    font-size: 12px;
+    font-weight: 700;
+    margin-top: 19mm;
+    text-align: center;
+  }
+  .pgr-model-signature {
+    margin: 28mm auto 0;
+    text-align: center;
+    width: 108mm;
+  }
+  .pgr-model-signature-area {
+    align-items: flex-end;
+    background: #fff;
+    display: flex;
+    height: 35mm;
+    justify-content: center;
+    margin: 0 auto 3mm;
+    width: 96mm;
+  }
+  .pgr-model-signature-area img {
+    display: block;
+    max-height: 32mm;
+    max-width: 92mm;
+    object-fit: contain;
+  }
+  .pgr-model-signature-area.is-empty span {
+    border-bottom: 1px solid #31404a;
+    display: block;
+    height: 1px;
+    width: 96mm;
+  }
+  .pgr-model-signature-name {
+    color: #31404a;
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 1mm;
+  }
+  .pgr-model-signature-role {
+    color: #31404a;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .pgr-model-signature-date {
+    color: #31404a;
+    font-size: 9px;
+    margin-top: 1mm;
   }
 `;
 

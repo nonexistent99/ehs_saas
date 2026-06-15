@@ -1836,7 +1836,7 @@ export const appRouter = router({
               observations: parsedContent.rawContent || "",
               nr24Workers: parsedContent.nr24Workers,
               signatureUrl: parsedContent.signatureUrl || "",
-              responsibleName: parsedContent.responsibleName || "Engenheiro Responsável",
+              responsibleName: parsedContent.responsibleName || "",
               clientLogoUrl: record.company?.logoUrl || undefined,
               stages: stages.length ? stages.map(s => ({
                 name: s.name,
