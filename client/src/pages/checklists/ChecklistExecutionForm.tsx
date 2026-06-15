@@ -12,6 +12,7 @@ import { ClipboardCheck, Check, Save, Camera, X, Eraser, Image as ImageIcon, Bui
 import { Textarea } from "@/components/ui/textarea";
 import SignatureCanvas from "react-signature-canvas";
 import { resolveMediaUrl } from "@/lib/media";
+import { CHECKLIST_STATUS_OPTIONS, normalizeChecklistStatus } from "@shared/checklistStatus";
 
 interface ItemImage {
   url: string;
@@ -98,7 +99,7 @@ export default function ChecklistExecutionForm() {
     if (executionData?.items) {
       setLocalItems(executionData.items.map((i: any) => ({
         id: i.executionItem.id,
-        status: i.executionItem.status || "N/A",
+        status: normalizeChecklistStatus(i.executionItem.status),
         observation: i.executionItem.observation || "",
         name: i.templateItem.name,
         description: i.templateItem.description,
@@ -164,7 +165,7 @@ export default function ChecklistExecutionForm() {
 
       const itemsToUpdate = uploadedItems.map(item => ({
         id: item.id,
-        status: item.status,
+        status: normalizeChecklistStatus(item.status),
         observation: item.observation,
         mediaUrls: item.imagens.filter((img: ItemImage) => img.url).map((img: ItemImage) => img.url),
       }));
@@ -347,27 +348,28 @@ export default function ChecklistExecutionForm() {
                     <div className="p-4 space-y-4">
                       {/* Big Touch Buttons for Status */}
                       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-                        {["Conforme", "Não Conforme", "N/A"].map(opt => {
-                          const isSelected = item.status === opt;
+                        {CHECKLIST_STATUS_OPTIONS.map(opt => {
+                          const isSelected = normalizeChecklistStatus(item.status) === opt.value;
                           let activeClasses = "bg-primary/10 border-primary/40 text-primary";
                           if (isSelected) {
-                            if (opt === "Conforme") activeClasses = "bg-green-500/20 border-green-500/60 text-green-600 shadow-sm scale-[0.98]";
-                            else if (opt === "Não Conforme") activeClasses = "bg-red-500/20 border-red-500/60 text-red-600 shadow-sm scale-[0.98]";
+                            if (opt.code === "C") activeClasses = "bg-green-500/20 border-green-500/60 text-green-600 shadow-sm scale-[0.98]";
+                            else if (opt.code === "NC") activeClasses = "bg-red-500/20 border-red-500/60 text-red-600 shadow-sm scale-[0.98]";
                           }
 
                           return (
                             <button
-                              key={opt}
+                              key={opt.value}
                               type="button"
                               disabled={isCompleted}
                               className={`py-3 sm:py-4 px-2 text-sm sm:text-base font-bold rounded-xl border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 ${isSelected ? activeClasses : "bg-card border-border/60 text-muted-foreground hover:bg-secondary/50 hover:border-primary/20"
                                 }`}
-                              onClick={() => handleItemChange(item.id, "status", opt)}
+                              onClick={() => handleItemChange(item.id, "status", opt.value)}
                             >
-                              {opt === "Conforme" ? <Check size={18} className={isSelected ? "text-green-600" : "opacity-50"} /> :
-                                opt === "Não Conforme" ? <X size={18} className={isSelected ? "text-red-600" : "opacity-50"} /> :
+                              {opt.code === "C" ? <Check size={18} className={isSelected ? "text-green-600" : "opacity-50"} /> :
+                                opt.code === "NC" ? <X size={18} className={isSelected ? "text-red-600" : "opacity-50"} /> :
                                   <div className="h-[18px] opacity-50">-</div>}
-                              {opt}
+                              <span>{opt.code}</span>
+                              <span className="text-[10px] sm:text-xs font-medium opacity-80 leading-none">{opt.label}</span>
                             </button>
                           );
                         })}

@@ -1,6 +1,7 @@
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
 import { getTactFooterLogoDataUrl } from "./pdfAssets";
 import { repairPdfHtml } from "./pdfText";
+import { checklistStatusToCode } from "@shared/checklistStatus";
 
 export interface DocumentPageOptions {
   title: string;
@@ -181,15 +182,7 @@ export function SignatureBlock({ title = "Assinaturas", entries }: SignatureBloc
 }
 
 function normalizeStatus(status: unknown): "C" | "NC" | "NA" {
-  const value = String(status || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toUpperCase();
-
-  if (["OK", "C", "CONFORME", "SIM", "APROVADO"].includes(value)) return "C";
-  if (["NAO OK", "NOK", "NC", "NAO CONFORME", "REPROVADO"].includes(value)) return "NC";
-  return "NA";
+  return checklistStatusToCode(status);
 }
 
 const documentLayoutCss = `

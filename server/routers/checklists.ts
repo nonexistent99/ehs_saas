@@ -2,6 +2,7 @@ import { z } from "zod";
 import { companyProcedure, protectedProcedure, router } from "../_core/trpc";
 import { checklistTemplateItems } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { normalizeChecklistStatus } from "@shared/checklistStatus";
 import {
   getAllChecklistTemplates,
   getChecklistTemplateById,
@@ -32,6 +33,11 @@ const checklistTypeSchema = z.preprocess((value) => {
   if (value === "estatico" || value === "estático") return "estatico";
   return "estatico";
 }, z.enum(["estatico", "dinamico"]));
+
+const checklistItemStatusSchema = z.preprocess(
+  (value) => normalizeChecklistStatus(value),
+  z.enum(["Conforme", "Não Conforme", "N/A"])
+);
 
 export const checklistRouter = router({
   templates: router({
@@ -197,7 +203,7 @@ export const checklistRouter = router({
         signatureUrl: z.string().optional(),
         items: z.array(z.object({
           id: z.number(), // execution item id
-          status: z.enum(["Conforme", "Não Conforme", "N/A"]),
+          status: checklistItemStatusSchema,
           observation: z.string().optional(),
           mediaUrls: z.array(z.string()).optional(),
         }))
@@ -211,11 +217,12 @@ export const checklistRouter = router({
 
         // 1. Atualizar todos os itens preenchidos
         for (const item of input.items) {
-          if (item.status === "Conforme") okCount++;
-          if (item.status === "Não Conforme") notOkCount++;
+          const status = normalizeChecklistStatus(item.status);
+          if (status === "Conforme") okCount++;
+          if (status === "Não Conforme") notOkCount++;
 
           await updateChecklistExecutionItem(item.id, {
-            status: item.status,
+            status,
             observation: item.observation,
             mediaUrls: item.mediaUrls || [],
           });

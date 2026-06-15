@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, CalendarIcon, Camera, CheckCircle, ChevronDown, ChevronUp, Clock, FileText, Image, Plus, Save, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeChecklistStatus } from "@shared/checklistStatus";
 
 // ============ Types ============
 interface OccurrenceImage {
@@ -198,7 +199,7 @@ export default function InspectionForm() {
       }));
 
       if (checklistData.items && checklistData.items.length > 0) {
-        const failedItems = checklistData.items.filter((i: any) => i.executionItem.status === "Não Conforme");
+        const failedItems = checklistData.items.filter((i: any) => normalizeChecklistStatus(i.executionItem.status) === "Não Conforme");
         if (failedItems.length > 0) {
           setOccurrences(failedItems.map((item: any) => ({
             title: item.templateItem.name || "Item Não Conforme",
