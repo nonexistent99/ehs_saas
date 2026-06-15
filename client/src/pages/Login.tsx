@@ -8,6 +8,8 @@ import { Eye, EyeOff, Lock, Mail, ShieldCheck, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 import LogoMark from "@/components/LogoMark";
 
+const TACT_LOGO_SRC = "/assets/tact-logo.png";
+
 export default function Login() {
   const [, navigate] = useLocation();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -47,11 +49,11 @@ export default function Login() {
           <div className="relative z-10">
             <div className="flex items-center gap-2.5 mb-12">
               <LogoMark
-                src="/logo-dark.svg"
+                src={TACT_LOGO_SRC}
                 alt="TACT Logo"
-                variant="full"
-                width={140}
-                height={62}
+                variant="plain"
+                width={148}
+                height={46}
               />
             </div>
 
@@ -86,11 +88,11 @@ export default function Login() {
             <div className="mb-10 text-center lg:text-left">
               <div className="lg:hidden flex justify-center mb-6">
                 <LogoMark
-                  src="/logo-dark.svg"
+                  src={TACT_LOGO_SRC}
                   alt="TACT Logo"
-                  variant="full"
-                  width={120}
-                  height={54}
+                  variant="plain"
+                  width={128}
+                  height={40}
                 />
               </div>
               <h2 className="text-3xl font-black text-white tracking-tight">Bem-vindo</h2>

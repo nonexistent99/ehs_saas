@@ -7,8 +7,8 @@ interface LogoMarkProps {
   size?: number;
   /** Size of the orbital dot's radius (px). Defaults to size * 0.55. */
   orbitRadius?: number;
-  /** Show outer conic halo + orbit (full effect). Off = just a subtle glow. */
-  variant?: "full" | "soft";
+  /** Show outer conic halo + orbit (full), subtle glow (soft), or only the exact image (plain). */
+  variant?: "full" | "soft" | "plain";
   /** Width override (the image keeps aspect via h-auto on wordmark logos). */
   width?: number;
   height?: number;
@@ -17,7 +17,7 @@ interface LogoMarkProps {
 }
 
 /**
- * Brand logo wrapper that frames the PNG/SVG with:
+ * Brand logo wrapper that can frame a PNG/SVG with:
  *  - rotating conic-gradient halo
  *  - counter-rotating inner halo
  *  - thin orange outline ring
@@ -38,6 +38,7 @@ export function LogoMark({
   const boxW = width ?? size;
   const boxH = height ?? size;
   const radius = orbitRadius ?? Math.round(Math.max(boxW, boxH) * 0.55);
+  const isPlain = variant === "plain";
 
   const style: CSSProperties = {
     width: boxW,
@@ -48,19 +49,20 @@ export function LogoMark({
 
   return (
     <div className={cn("logo-mark", className)} style={style}>
-      {variant === "full" && <span className="logo-mark__halo" aria-hidden />}
-      <span className="logo-mark__glow" aria-hidden />
-      <span className="logo-mark__ring" aria-hidden />
+      {!isPlain && variant === "full" && <span className="logo-mark__halo" aria-hidden />}
+      {!isPlain && <span className="logo-mark__glow" aria-hidden />}
+      {!isPlain && <span className="logo-mark__ring" aria-hidden />}
       <img
         src={src}
         alt={alt}
         className={cn(
-          "relative z-10 object-contain drop-shadow-[0_0_16px_rgba(255,107,0,0.55)] [filter:drop-shadow(0_4px_8px_rgba(0,0,0,0.4))_drop-shadow(0_0_16px_rgba(255,107,0,0.55))]",
+          "relative z-10 object-contain",
+          !isPlain && "drop-shadow-[0_0_16px_rgba(255,107,0,0.55)] [filter:drop-shadow(0_4px_8px_rgba(0,0,0,0.4))_drop-shadow(0_0_16px_rgba(255,107,0,0.55))]",
           imgClassName
         )}
         style={{ width: boxW, height: boxH }}
       />
-      {variant === "full" && <span className="logo-mark__orbit" aria-hidden />}
+      {!isPlain && variant === "full" && <span className="logo-mark__orbit" aria-hidden />}
     </div>
   );
 }

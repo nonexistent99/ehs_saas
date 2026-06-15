@@ -52,6 +52,8 @@ import {
   DialogDescription,
 } from "./ui/dialog";
 import LogoMark from "./LogoMark";
+
+const TACT_LOGO_SRC = "/assets/tact-logo.png";
 import { trpc } from "@/lib/trpc";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -343,24 +345,29 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo area with animated glow */}
+      {/* Logo area */}
       <div className={cn(
         "relative flex items-center justify-center border-b border-sidebar-border px-4 transition-all duration-300 overflow-hidden",
-        sidebarCollapsed ? "h-20" : "h-40"
+        sidebarCollapsed ? "h-20" : "h-28"
       )}>
         {/* Subtle radial backdrop */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-32 bg-[radial-gradient(ellipse_at_center,hsla(24,100%,50%,0.12)_0%,transparent_70%)]" />
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-24 bg-[radial-gradient(ellipse_at_center,hsla(24,100%,50%,0.08)_0%,transparent_72%)]" />
         </div>
 
         <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
-          <LogoMark
-            src={sidebarCollapsed ? "/logo-mark.svg" : theme === "dark" ? "/logo-dark.svg" : "/logo-light.svg"}
-            alt="TACT Logo"
-            variant={sidebarCollapsed ? "soft" : "full"}
-            width={sidebarCollapsed ? 40 : 170}
-            height={sidebarCollapsed ? 40 : 70}
-          />
+          <div className={cn(
+            "flex items-center justify-center rounded-md bg-white shadow-[0_10px_30px_rgba(255,107,0,0.16)] ring-1 ring-primary/20 transition-all duration-300",
+            sidebarCollapsed ? "px-1.5 py-1" : "px-4 py-3"
+          )}>
+            <LogoMark
+              src={TACT_LOGO_SRC}
+              alt="TACT Logo"
+              variant="plain"
+              width={sidebarCollapsed ? 54 : 166}
+              height={sidebarCollapsed ? 18 : 52}
+            />
+          </div>
         </div>
       </div>
 
