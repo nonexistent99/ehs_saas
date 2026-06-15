@@ -184,8 +184,9 @@ function coverPage(data: TechnicalReportData, logoUrl: string, fallback: string)
 }
 
 function introTag(label: string, description: string): string {
+  const statusClass = normalizeReportStatus(label);
   return `<div class="rt-tag-row">
-    <div class="rt-tag-box">TAG</div>
+    <div class="rt-tag-box rt-tag-box-${escapeHtml(statusClass)}">${text(label)}</div>
     <div class="rt-tag-text">
       <strong>${text(label)}:</strong>
       <p>${text(description)}</p>
@@ -201,10 +202,10 @@ function introPage(): TechnicalReportPage {
       <p>Relatório técnico que tem como principal função evidenciar e orientar sobre desvios dentro do canteiro de obras. Os apontamentos aqui informados são uma forma de orientar tecnicamente a empresa e auxiliar na tomada de decisões.</p>
     </section>
     <section class="rt-tag-list">
-      ${introTag("RESOLVIDO", "Esta TAG é aplicada a situações que foram solucionadas, informando a data em que o atendimento foi realizado. Itens resolvidos são removidos dos próximos relatórios.")}
-      ${introTag("PENDENTE", "Esta TAG é aplicada a situações que não foram resolvidas, indicando a data em que foram evidenciadas no relatório. Este item é obrigatoriamente monitorado até a sua resolução.")}
-      ${introTag("PREVISTO", "Esta TAG é aplicada quando um item não pode ser atendido de imediato, porém já possui um prazo de execução definido.")}
-      ${introTag("ATENÇÃO", "Esta TAG é aplicada a situações que exigem prioridade de análise, acompanhamento técnico ou correção preventiva para evitar agravamento do desvio.")}
+      ${introTag("RESOLVIDO", "Este status é aplicado a situações que foram solucionadas, informando a data em que o atendimento foi realizado. Itens resolvidos são removidos dos próximos relatórios.")}
+      ${introTag("PENDENTE", "Este status é aplicado a situações que não foram resolvidas, indicando a data em que foram evidenciadas no relatório. Este item é obrigatoriamente monitorado até a sua resolução.")}
+      ${introTag("PREVISTO", "Este status é aplicado quando um item não pode ser atendido de imediato, porém já possui um prazo de execução definido.")}
+      ${introTag("ATENÇÃO", "Este status é aplicado a situações que exigem prioridade de análise, acompanhamento técnico ou correção preventiva para evitar agravamento do desvio.")}
     </section>
     <section class="rt-glossary">
       <h2>GLOSSÁRIO:</h2>
@@ -532,9 +533,16 @@ const technicalReportCss = `
     align-items: center;
     justify-content: center;
     color: #111;
-    font-size: 25px;
-    font-weight: 500;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .04em;
+    padding: 0 2mm;
+    text-align: center;
   }
+  .rt-tag-box-resolvido { border-color: #15803d; color: #15803d; }
+  .rt-tag-box-pendente { border-color: #b91c1c; color: #b91c1c; }
+  .rt-tag-box-previsto { border-color: #b45309; color: #b45309; }
+  .rt-tag-box-atencao { border-color: #c2410c; color: #c2410c; }
   .rt-tag-text strong {
     display: block;
     color: #111;
