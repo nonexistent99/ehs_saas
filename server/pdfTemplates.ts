@@ -3,6 +3,7 @@ import Handlebars from "handlebars";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
+import { getTactFooterLogoDataUrl } from "./pdfAssets";
 import { repairPdfHtml } from "./pdfText";
 import {
   BaseDocumentLayout,
@@ -46,7 +47,8 @@ const formDocStyle = `
   .pdf-logo { max-height: 50px; max-width: 130px; object-fit: contain; }
   .pdf-logo-fallback { display: inline-flex; min-width: 86px; min-height: 42px; padding: 6px 10px; border: 1px solid #e8420d; align-items: center; justify-content: center; color: #1e3a5f; font-size: 10px; font-weight: 900; letter-spacing: 0.6px; text-transform: uppercase; text-align: center; line-height: 1.15; }
   .section-header { background: #d9d9d9; font-weight: 700; text-align: center; padding: 5px 7px; border: 1px solid #000; text-transform: uppercase; font-size: 10px; margin-top: 0; }
-  .footer-bar { margin-top: 16px; text-align: center; font-size: 9px; color: #555; }
+  .footer-bar { margin-top: 16px; border-top: 2px solid #e8420d; min-height: 34px; display: flex; align-items: flex-end; justify-content: space-between; font-size: 9px; color: #555; padding-top: 6px; }
+  .footer-tact-logo { width: 88px; height: 30px; object-fit: contain; display: block; }
   .sig-area { display: inline-block; border-top: 1px solid #000; width: 100%; min-height: 36px; }
   .checkbox-list { display: flex; flex-wrap: wrap; gap: 4px 20px; }
   .checkbox-item { font-size: 10px; }
@@ -119,7 +121,7 @@ async function resolvePdfDataImages<T extends Record<string, any>>(data: T): Pro
 
 /** Rodapé padrão de página */
 const pageFooter = (page: string) =>
-  `<div class="footer-bar">Página ${page} &nbsp;|&nbsp; Documento gerado pelo TACT</div>`;
+  `<div class="footer-bar"><span>Página ${page} &nbsp;|&nbsp; Documento gerado pelo TACT</span><img src="${getTactFooterLogoDataUrl()}" class="footer-tact-logo" alt="TACT" /></div>`;
 
 async function renderPdf(
   html: string,

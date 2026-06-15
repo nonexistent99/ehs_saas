@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer";
+import { getTactFooterLogoDataUrl } from "./pdfAssets";
 import { repairPdfHtml } from "./pdfText";
 
 export async function generateInspectionPdf(inspectionData: {
@@ -120,9 +121,11 @@ export async function generateInspectionPdf(inspectionData: {
         }
         .footer {
           margin-top: 40px; padding-top: 16px; border-top: 1px solid #222;
-          display: flex; justify-content: space-between; align-items: center;
+          display: flex; justify-content: space-between; align-items: flex-end;
         }
+        .footer-meta { display: flex; gap: 18px; align-items: center; }
         .footer p { color: #6b7280; font-size: 11px; }
+        .footer-tact-logo { width: 88px; height: 30px; object-fit: contain; display: block; }
       </style>
     </head>
     <body>
@@ -181,8 +184,11 @@ export async function generateInspectionPdf(inspectionData: {
         ` : ""}
 
         <div class="footer">
-          <p>Documento gerado pelo TACT</p>
-          <p>Gerado em ${new Date().toLocaleString("pt-BR")}</p>
+          <div class="footer-meta">
+            <p>Documento gerado pelo TACT</p>
+            <p>Gerado em ${new Date().toLocaleString("pt-BR")}</p>
+          </div>
+          <img src="${getTactFooterLogoDataUrl()}" class="footer-tact-logo" alt="TACT" />
         </div>
       </div>
     </body>

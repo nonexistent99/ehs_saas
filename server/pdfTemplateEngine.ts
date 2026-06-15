@@ -3,25 +3,15 @@ import path from "path";
 import sharp from "sharp";
 
 import { generatePdfFromHtml } from "./pdf";
-import {
-  BaseDocumentLayout,
-  DocumentPage,
-  InfoGrid,
-  escapeHtml as escapeLayoutHtml,
-} from "./pdfLayout";
+import { getTactFooterLogoDataUrl } from "./pdfAssets";
+import { repairPdfHtml, repairPdfText } from "./pdfText";
 
 const PUBLIC_DIR = path.join(process.cwd(), "public");
 
 /**
- * Converts an image URL/path into a data: base64 URI so Puppeteer can
- * embed it regardless of whether it's a relative /uploads/... path or
- * an absolute file system path.
- *
- * Supports:
- *  - Relative paths starting with "/" -> resolved against PUBLIC_DIR
- *  - Absolute file paths (C:\... or /home/...)
- *  - Already-resolved data: URIs -> returned as-is
- *  - External http/https URLs -> returned as-is (Puppeteer can fetch those)
+ * Converts an image URL/path into a data: base64 URI so Puppeteer can embed it
+ * without a running HTTP server. Supports /uploads paths, absolute paths,
+ * data URIs, and external URLs.
  */
 export async function resolveImageToDataUrl(rawUrl: string): Promise<string> {
   if (!rawUrl) return "";
@@ -55,12 +45,12 @@ export async function resolveImageToDataUrl(rawUrl: string): Promise<string> {
     }
   }
 
-  const mime = ext === "webp"
-    ? "image/webp"
-    : ext === "png"
-      ? "image/png"
-      : ext === "jpg" || ext === "jpeg"
-        ? "image/jpeg"
+  const mime = ext === "png"
+    ? "image/png"
+    : ext === "jpg" || ext === "jpeg"
+      ? "image/jpeg"
+      : ext === "webp"
+        ? "image/webp"
         : "image/jpeg";
 
   return `data:${mime};base64,${buffer.toString("base64")}`;
@@ -85,20 +75,49 @@ export interface TechnicalReportData {
 }
 
 type TechnicalReportItem = TechnicalReportData["itens"][number];
-
-const reportStatusLabels: Record<string, string> = {
-  resolvido: "Resolvido",
-  resolvida: "Resolvido",
-  concluido: "Resolvido",
-  concluida: "Resolvido",
-  previsto: "Previsto",
-  pendente: "Pendente",
-  atencao: "Atenção",
+type TechnicalReportImage = NonNullable<TechnicalReportItem["imagens"]>[number];
+type ResolvedTechnicalImage = TechnicalReportImage & {
+  unavailable?: boolean;
+  originalUrl?: string;
+};
+type ResolvedTechnicalReportItem = Omit<TechnicalReportItem, "imagens"> & {
+  imagens?: ResolvedTechnicalImage[];
 };
 
+type TechnicalReportPage = {
+  title?: string;
+  className?: string;
+  body: string;
+  isCover?: boolean;
+};
+
+const reportStatusLabels: Record<string, string> = {
+  resolvido: "RESOLVIDO",
+  resolvida: "RESOLVIDO",
+  concluido: "RESOLVIDO",
+  concluida: "RESOLVIDO",
+  previsto: "PREVISTO",
+  pendente: "PENDENTE",
+  atencao: "ATENÇÃO",
+  atenção: "ATENÇÃO",
+};
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function cleanText(value: unknown, fallback = ""): string {
-  const text = String(value ?? "").trim();
+  const text = repairPdfText(String(value ?? "")).trim();
   return text || fallback;
+}
+
+function text(value: unknown, fallback = ""): string {
+  return escapeHtml(cleanText(value, fallback));
 }
 
 function normalizeReportStatus(status: unknown): string {
@@ -111,432 +130,570 @@ function normalizeReportStatus(status: unknown): string {
 
 function reportStatusLabel(status: unknown): string {
   const normalized = normalizeReportStatus(status).replace(/-/g, "_");
-  return reportStatusLabels[normalized] || cleanText(status, "Pendente");
+  return reportStatusLabels[normalized] || cleanText(status, "PENDENTE").toUpperCase();
 }
 
-function ReportStatusTag(status: unknown): string {
-  const normalized = normalizeReportStatus(status);
-  const className = ["resolvido", "resolvida", "concluido", "concluida"].includes(normalized)
-    ? "resolvido"
-    : normalized === "previsto"
-      ? "previsto"
-      : normalized === "atencao"
-        ? "atencao"
-        : "pendente";
+function logoMarkup(logoUrl: string, fallback: string, className = ""): string {
+  const safeFallback = text(fallback || "LOGO");
+  const logo = logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="${safeFallback}" />`
+    : `<span>${safeFallback}</span>`;
 
-  return `<span class="technical-status technical-status-${className}">${escapeLayoutHtml(reportStatusLabel(status))}</span>`;
+  return `<div class="rt-logo ${className}">${logo}</div>`;
 }
 
-function renderTechnicalEvidenceGrid(item: TechnicalReportItem): string {
-  const images = (item.imagens || []).filter((image) => image?.url).slice(0, 4);
-  if (!images.length) {
-    return `<div class="technical-evidence-grid technical-evidence-empty">
-      <div>Sem evidência visual</div>
-    </div>`;
-  }
-
-  return `<div class="technical-evidence-grid technical-evidence-count-${images.length}">
-    ${images.map((image, index) => `<figure class="technical-evidence-frame">
-      <img src="${escapeLayoutHtml(image.url)}" alt="${escapeLayoutHtml(image.descricao || `Evidência ${index + 1}`)}" />
-      ${image.descricao ? `<figcaption>${escapeLayoutHtml(image.descricao)}</figcaption>` : ""}
-    </figure>`).join("")}
-  </div>`;
+function reportFooter(): string {
+  return `<footer class="rt-footer">
+    <div class="rt-footer-line"></div>
+    <img class="rt-footer-logo" src="${getTactFooterLogoDataUrl()}" alt="TACT" />
+  </footer>`;
 }
 
-function renderTechnicalIntroContent(): string {
-  const tags = [
-    ["resolvido", "Resolvido", "Item corrigido ou situação regularizada no momento da emissão."],
-    ["previsto", "Previsto", "Correção programada, com prazo ou planejamento definido."],
-    ["pendente", "Pendente", "Desvio ainda em aberto e aguardando tratativa."],
-    ["atencao", "Atenção", "Condição crítica ou sensível que exige prioridade de acompanhamento."],
-  ];
+function reportHeader(title: string, logoUrl: string, fallback: string): string {
+  return `<header class="rt-header">
+    ${logoMarkup(logoUrl, fallback, "rt-header-logo")}
+    <div class="rt-header-title">${text(title)}</div>
+  </header>`;
+}
 
-  return `<section class="technical-section technical-intro">
-    <h2>Introdução</h2>
-    <p>Este relatório técnico consolida as condições verificadas durante a inspeção, registrando evidências, desvios observados, recomendações e prazos de correção para acompanhamento da empresa e dos responsáveis pela obra.</p>
-    <p>O documento foi estruturado para apoiar a tomada de decisão, orientar o plano de ação e manter rastreabilidade visual das ocorrências avaliadas, seguindo o padrão visual TACT para entregáveis técnicos.</p>
-  </section>
-  <section class="technical-section">
-    <h2>Tags de acompanhamento</h2>
-    <div class="technical-tag-grid">
-      ${tags.map(([status, _label, description]) => `<div class="technical-tag-card">
-        <div>${ReportStatusTag(status)}</div>
-        <p>${escapeLayoutHtml(description)}</p>
-      </div>`).join("")}
-    </div>
-  </section>
-  <section class="technical-section technical-glossary">
-    <h2>Glossário</h2>
-    <dl>
-      <div><dt>Desvio evidenciado</dt><dd>Condição observada em campo que demanda correção, controle ou acompanhamento.</dd></div>
-      <div><dt>Evidência</dt><dd>Registro fotográfico ou informação visual associada ao item verificado.</dd></div>
-      <div><dt>Plano de ação</dt><dd>Medida recomendada para eliminar, reduzir ou controlar o desvio identificado.</dd></div>
-      <div><dt>Prazo de correção</dt><dd>Data ou período indicado para conclusão da ação proposta.</dd></div>
-    </dl>
+function reportPage(page: TechnicalReportPage, logoUrl: string, fallback: string): string {
+  return `<section class="rt-page ${page.className || ""}">
+    <div class="rt-top-lines" aria-hidden="true"><span></span><span></span><span></span></div>
+    ${page.isCover ? "" : reportHeader(page.title || "", logoUrl, fallback)}
+    <main class="rt-body">${page.body}</main>
+    ${reportFooter()}
   </section>`;
 }
 
-function renderTechnicalItemContent(item: TechnicalReportItem, index: number, reportDate: string): string {
-  const imageCount = (item.imagens || []).filter((image) => image?.url).length;
-
-  return `<article class="technical-item">
-    <section class="technical-item-head">
-      <div>
-        <span>Item ${index + 1}</span>
-        <h2>${escapeLayoutHtml(cleanText(item.titulo, `Item ${index + 1}`))}</h2>
-      </div>
-      ${ReportStatusTag(item.status)}
-    </section>
-    <section class="technical-section technical-item-meta">
-      ${InfoGrid([
-        { label: "Data", value: item.data || reportDate },
-        { label: "Status", value: reportStatusLabel(item.status) },
-        { label: "Prazo de correção", value: item.prazo || "A definir" },
-        { label: "Evidências", value: `${imageCount} foto(s)` },
-      ])}
-    </section>
-    <section class="technical-section technical-evidence-section">
-      <h2>Evidências / fotos</h2>
-      ${renderTechnicalEvidenceGrid(item)}
-    </section>
-    <section class="technical-copy-grid">
-      <div class="technical-section">
-        <h2>Descrição / desvio evidenciado</h2>
-        <p>${escapeLayoutHtml(cleanText(item.descricao, "Não informado."))}</p>
-      </div>
-      <div class="technical-section">
-        <h2>Plano de ação</h2>
-        <p>${escapeLayoutHtml(cleanText(item.plano_acao, "A definir."))}</p>
-      </div>
-    </section>
-  </article>`;
+function coverPage(data: TechnicalReportData, logoUrl: string, fallback: string): TechnicalReportPage {
+  return {
+    isCover: true,
+    className: "rt-cover-page",
+    body: `<div class="rt-cover-small-logo">${logoMarkup(logoUrl, fallback)}</div>
+      <div class="rt-cover-title">RELATÓRIO<br />TÉCNICO</div>
+      <div class="rt-cover-main-logo">${logoMarkup(logoUrl, fallback)}</div>
+      <dl class="rt-cover-meta">
+        <dt>Empresa:</dt>
+        <dd>${text(data.empresa, "Nome da Empresa")}</dd>
+        <dt>Empreendimento:</dt>
+        <dd>${text(data.empreendimento, "Nome do Empreendimento")}</dd>
+        <dt>Local da Obra:</dt>
+        <dd>${text(data.local, "Rua, nº, CEP, Bairro, Cidade, UF")}</dd>
+      </dl>`,
+  };
 }
 
-/**
- * Generates the PDF Buffer for the technical inspection report.
- * Images stored as relative /uploads/... paths are converted to base64
- * data URIs so Puppeteer can embed them even without a running HTTP server.
- */
-export async function generateTechnicalReportPdf(data: TechnicalReportData): Promise<Buffer> {
+function introTag(label: string, description: string): string {
+  return `<div class="rt-tag-row">
+    <div class="rt-tag-box">TAG</div>
+    <div class="rt-tag-text">
+      <strong>${text(label)}:</strong>
+      <p>${text(description)}</p>
+    </div>
+  </div>`;
+}
+
+function introPage(): TechnicalReportPage {
+  return {
+    title: "INTRODUÇÃO",
+    className: "rt-intro-page",
+    body: `<section class="rt-intro-copy">
+      <p>Relatório técnico que tem como principal função evidenciar e orientar sobre desvios dentro do canteiro de obras. Os apontamentos aqui informados são uma forma de orientar tecnicamente a empresa e auxiliar na tomada de decisões.</p>
+    </section>
+    <section class="rt-tag-list">
+      ${introTag("RESOLVIDO", "Esta TAG é aplicada a situações que foram solucionadas, informando a data em que o atendimento foi realizado. Itens resolvidos são removidos dos próximos relatórios.")}
+      ${introTag("PENDENTE", "Esta TAG é aplicada a situações que não foram resolvidas, indicando a data em que foram evidenciadas no relatório. Este item é obrigatoriamente monitorado até a sua resolução.")}
+      ${introTag("PREVISTO", "Esta TAG é aplicada quando um item não pode ser atendido de imediato, porém já possui um prazo de execução definido.")}
+      ${introTag("ATENÇÃO", "Esta TAG é aplicada a situações que exigem prioridade de análise, acompanhamento técnico ou correção preventiva para evitar agravamento do desvio.")}
+    </section>
+    <section class="rt-glossary">
+      <h2>GLOSSÁRIO:</h2>
+      <p><strong>Desvio evidenciado:</strong> condição observada em campo que exige correção, controle ou acompanhamento.</p>
+      <p><strong>Evidência:</strong> registro fotográfico utilizado para comprovar a situação encontrada.</p>
+      <p><strong>Plano de ação:</strong> orientação técnica para corrigir, controlar ou eliminar o desvio.</p>
+    </section>`,
+  };
+}
+
+function evidenceGrid(item: ResolvedTechnicalReportItem): string {
+  const images = (item.imagens || []).filter((image) => image?.url || image?.unavailable);
+  if (!images.length) {
+    return `<section class="rt-photo-none">Sem evidências fotográficas anexadas.</section>`;
+  }
+
+  const visibleImages = images.slice(0, 4);
+  const extraCount = Math.max(0, images.length - visibleImages.length);
+
+  return `<div class="rt-photo-area rt-photo-count-${visibleImages.length}">
+    ${visibleImages.map((image, index) => {
+      const unavailable = image.unavailable || !image.url;
+      const extraBadge = extraCount > 0 && index === visibleImages.length - 1
+        ? `<span class="rt-extra-photo-badge">+${extraCount} foto${extraCount > 1 ? "s" : ""}</span>`
+        : "";
+      return `<figure class="rt-photo-frame ${unavailable ? "rt-photo-frame-unavailable" : ""}">
+        ${unavailable
+          ? `<div class="rt-image-unavailable">Imagem não disponível</div>`
+          : `<img src="${escapeHtml(image.url)}" alt="${text(image.descricao || `Foto ${index + 1}`)}" />`}
+        ${extraBadge}
+      </figure>`;
+    }).join("")}
+  </div>`;
+}
+
+function itemTextBlock(item: ResolvedTechnicalReportItem): string {
+  return `<section class="rt-item-text">
+    <div class="rt-item-text-title">Descrição / Desvio evidenciado:</div>
+    <p>${text(item.descricao, "Não informado.")}</p>
+    <div class="rt-item-action-grid">
+      <div>
+        <strong>Plano de ação:</strong>
+        <span>${text(item.plano_acao, "A definir.")}</span>
+      </div>
+      <div>
+        <strong>Prazo de correção:</strong>
+        <span>${text(item.prazo, "A definir")}</span>
+      </div>
+    </div>
+  </section>`;
+}
+
+function itemPage(item: ResolvedTechnicalReportItem, index: number, reportDate: string): TechnicalReportPage {
+  return {
+    title: cleanText(item.titulo, `Item ${index + 1}`),
+    className: "rt-item-page",
+    body: `<section class="rt-item-meta">
+      <div><strong>Status:</strong><span>${text(reportStatusLabel(item.status))}</span></div>
+      <div><strong>Data:</strong><span>${text(item.data || reportDate)}</span></div>
+    </section>
+    ${evidenceGrid(item)}
+    ${itemTextBlock(item)}`,
+  };
+}
+
+export async function buildTechnicalReportHtml(data: TechnicalReportData): Promise<string> {
   const resolvedLogoUrl = data.logoUrl ? await resolveImageToDataUrl(data.logoUrl) : "";
-  const brandName = cleanText(data.empresa || data.empreendimento, "TACT");
+  const brandName = cleanText(data.empresa || data.empreendimento, "LOGO");
+
+  const resolveTechnicalEvidence = async (img: TechnicalReportImage): Promise<ResolvedTechnicalImage | null> => {
+    const originalUrl = cleanText(img?.url);
+    if (!originalUrl) return null;
+
+    const resolvedUrl = await resolveImageToDataUrl(originalUrl);
+    return {
+      ...img,
+      descricao: cleanText(img.descricao),
+      originalUrl,
+      url: resolvedUrl,
+      unavailable: !resolvedUrl,
+    };
+  };
 
   const itensResolved = await Promise.all(
     data.itens.map(async (item) => ({
       ...item,
-      imagens: (await Promise.all(
-        (item.imagens ?? []).map(async (img) => ({
-          ...img,
-          url: await resolveImageToDataUrl(img.url),
-        })),
-      )).filter((img) => img.url),
+      imagens: (await Promise.all((item.imagens ?? []).map(resolveTechnicalEvidence)))
+        .filter((img): img is ResolvedTechnicalImage => Boolean(img)),
     })),
   );
 
-  const definitions: Array<{ title: string; className?: string; children: string }> = [
-    {
-      title: "RELATÓRIO TÉCNICO",
-      className: "technical-page technical-cover-page",
-      children: `<section class="technical-cover">
-        <div class="technical-cover-logo">
-          ${resolvedLogoUrl
-            ? `<img src="${escapeLayoutHtml(resolvedLogoUrl)}" alt="${escapeLayoutHtml(brandName)}" />`
-            : `<span>${escapeLayoutHtml(brandName)}</span>`}
-        </div>
-        <div class="technical-cover-title">
-          <span>Inspeção de Segurança</span>
-          <h1>RELATÓRIO TÉCNICO</h1>
-          <p>${escapeLayoutHtml(cleanText(data.observacoes, "Documento técnico de inspeção e acompanhamento."))}</p>
-        </div>
-        <dl class="technical-cover-meta">
-          <div><dt>Empresa</dt><dd>${escapeLayoutHtml(cleanText(data.empresa, "N/A"))}</dd></div>
-          <div><dt>Empreendimento</dt><dd>${escapeLayoutHtml(cleanText(data.empreendimento, "N/A"))}</dd></div>
-          <div><dt>Local da obra</dt><dd>${escapeLayoutHtml(cleanText(data.local, "N/A"))}</dd></div>
-          <div><dt>Data</dt><dd>${escapeLayoutHtml(cleanText(data.data, "N/A"))}</dd></div>
-        </dl>
-      </section>`,
-    },
-    {
-      title: "RELATÓRIO TÉCNICO - INTRODUÇÃO",
-      className: "technical-page technical-intro-page",
-      children: renderTechnicalIntroContent(),
-    },
-    ...itensResolved.map((item, index) => ({
-      title: `RELATÓRIO TÉCNICO - ITEM ${index + 1}`,
-      className: "technical-page technical-item-page",
-      children: renderTechnicalItemContent(item, index, data.data),
-    })),
+  const pages = [
+    coverPage(data, resolvedLogoUrl, brandName),
+    introPage(),
+    ...itensResolved.map((item, index) => itemPage(item, index, data.data)),
   ];
 
-  const pageCount = definitions.length;
-  const pages = definitions.map((definition, index) => DocumentPage({
-    title: definition.title,
-    logoUrl: resolvedLogoUrl,
-    logoFallback: brandName,
-    footerText: `Página ${index + 1} de ${pageCount} | Documento gerado pelo TACT`,
-    className: definition.className || "technical-page",
-    children: definition.children,
-  }));
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>${text(`Relatório Técnico - ${data.empresa || data.empreendimento || "TACT"}`)}</title>
+  <style>${technicalReportCss}</style>
+</head>
+<body>
+  <div class="rt-document">
+    ${pages.map((page) => reportPage(page, resolvedLogoUrl, brandName)).join("")}
+  </div>
+</body>
+</html>`;
 
-  const fullHtml = BaseDocumentLayout({
-    title: `Relatório Técnico - ${data.empresa || data.empreendimento || "TACT"}`,
-    pages,
-    extraCss: technicalReportLayoutCss,
-  });
-
-  return generatePdfFromHtml(fullHtml);
+  return repairPdfHtml(html);
 }
 
-const technicalReportLayoutCss = `
-  .technical-page .document-content { gap: 5mm; }
-  .technical-cover {
-    height: 100%;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
-    gap: 10mm;
+export async function generateTechnicalReportPdf(data: TechnicalReportData): Promise<Buffer> {
+  return generatePdfFromHtml(await buildTechnicalReportHtml(data));
+}
+
+const technicalReportCss = `
+  * { box-sizing: border-box; }
+  @page { size: A4 portrait; margin: 0; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #f1f5f9;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 11px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
-  .technical-cover-logo {
-    width: 78mm;
-    min-height: 34mm;
-    border: 1px solid #cfd8df;
+  .rt-document {
+    width: 210mm;
+    margin: 0 auto;
+    background: #fff;
+  }
+  .rt-page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    page-break-after: always;
+    background: #fff;
+    padding: 0 12mm;
+  }
+  .rt-page:last-child { page-break-after: auto; }
+  .rt-top-lines {
+    position: absolute;
+    top: 3.8mm;
+    left: 0;
+    right: 0;
+    display: grid;
+    gap: 1.2mm;
+  }
+  .rt-top-lines span {
+    display: block;
+    height: 0.55mm;
+    background: #d64a00;
+  }
+  .rt-top-lines span:nth-child(2) { background: #1f2933; }
+  .rt-top-lines span:nth-child(3) { background: #6b7280; height: 0.35mm; }
+  .rt-body {
+    position: absolute;
+    left: 12mm;
+    right: 12mm;
+    top: 50mm;
+    bottom: 21mm;
+  }
+  .rt-logo {
+    border: 1px solid #111;
     background: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 5mm;
+    overflow: hidden;
   }
-  .technical-cover-logo img {
-    max-width: 100%;
-    max-height: 28mm;
+  .rt-logo img {
+    width: 100%;
+    height: 100%;
     object-fit: contain;
     display: block;
   }
-  .technical-cover-logo span {
+  .rt-logo span {
+    color: #111;
+    display: block;
+    font-size: 24px;
+    font-weight: 500;
+    text-align: center;
+  }
+  .rt-header {
+    position: absolute;
+    top: 14mm;
+    left: 12mm;
+    right: 12mm;
+    height: 24mm;
+    display: grid;
+    grid-template-columns: 42mm 1fr;
+    gap: 2mm;
+  }
+  .rt-header-logo { width: 42mm; height: 24mm; }
+  .rt-header-logo span { font-size: 20px; }
+  .rt-header-title {
+    border: 1px solid #111;
+    background: #fff;
     color: #293f4d;
-    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 22px;
     font-weight: 900;
+    line-height: 1.05;
+    text-align: center;
+    text-transform: uppercase;
+    padding: 2mm 5mm;
+  }
+  .rt-footer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 4mm;
+    height: 15mm;
+  }
+  .rt-footer-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 1.2mm;
+    height: 0.8mm;
+    background: #d64a00;
+  }
+  .rt-footer-logo {
+    position: absolute;
+    right: 12mm;
+    bottom: 0;
+    width: 34mm;
+    height: 10mm;
+    object-fit: contain;
+  }
+  .rt-cover-page .rt-body {
+    inset: 0 12mm 21mm 12mm;
+  }
+  .rt-cover-small-logo {
+    position: absolute;
+    top: 15mm;
+    left: 0;
+    width: 46mm;
+    height: 25mm;
+  }
+  .rt-cover-small-logo .rt-logo,
+  .rt-cover-main-logo .rt-logo {
+    width: 100%;
+    height: 100%;
+  }
+  .rt-cover-title {
+    position: absolute;
+    top: 65mm;
+    left: 0;
+    right: 0;
+    color: #374957;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 36px;
+    font-weight: 900;
+    line-height: 1.12;
     text-align: center;
     text-transform: uppercase;
   }
-  .technical-cover-title {
-    align-self: center;
-    border-left: 1.6mm solid #d64a00;
-    padding-left: 7mm;
+  .rt-cover-main-logo {
+    position: absolute;
+    top: 128mm;
+    left: 50%;
+    width: 76mm;
+    height: 47mm;
+    transform: translateX(-50%);
   }
-  .technical-cover-title span {
-    color: #53616f;
-    display: block;
-    font-size: 11px;
-    font-weight: 800;
-    margin-bottom: 4mm;
-    text-transform: uppercase;
-  }
-  .technical-cover-title h1 {
-    color: #293f4d;
-    font-size: 36px;
-    line-height: 1.05;
-    margin: 0 0 5mm;
-    text-transform: uppercase;
-  }
-  .technical-cover-title p {
-    color: #1f2933;
-    font-size: 12px;
-    font-weight: 700;
+  .rt-cover-meta {
+    position: absolute;
+    right: 0;
+    bottom: 24mm;
+    width: 94mm;
     margin: 0;
-    max-width: 140mm;
+    text-align: right;
   }
-  .technical-cover-meta {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border: 1px solid #cfd8df;
-    margin: 0;
-  }
-  .technical-cover-meta div {
-    border-right: 1px solid #d9e0e6;
-    min-height: 24mm;
-    padding: 4mm;
-  }
-  .technical-cover-meta div:last-child { border-right: 0; }
-  .technical-cover-meta dt {
-    color: #53616f;
-    font-size: 8px;
+  .rt-cover-meta dt {
+    color: #f97316;
+    font-size: 16px;
     font-weight: 900;
-    margin: 0 0 2mm;
-    text-transform: uppercase;
-  }
-  .technical-cover-meta dd {
-    color: #1f2933;
-    font-size: 10.5px;
-    font-weight: 800;
-    margin: 0;
-  }
-  .technical-section {
-    border: 1px solid #cfd8df;
-    background: #fff;
-    padding: 4mm;
-  }
-  .technical-section h2 {
-    color: #293f4d;
-    font-size: 11px;
-    line-height: 1.2;
-    margin: 0 0 3mm;
-    text-transform: uppercase;
-  }
-  .technical-section p {
-    color: #1f2933;
-    font-size: 10.5px;
-    margin: 0 0 2.7mm;
-  }
-  .technical-section p:last-child { margin-bottom: 0; }
-  .technical-intro { min-height: 42mm; }
-  .technical-tag-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 2mm;
-  }
-  .technical-tag-card {
-    border: 1px solid #d9e0e6;
-    min-height: 31mm;
-    padding: 3mm;
-  }
-  .technical-tag-card p {
-    color: #53616f;
-    font-size: 8.5px;
-    line-height: 1.25;
-    margin: 2mm 0 0;
-  }
-  .technical-glossary dl {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2mm;
-    margin: 0;
-  }
-  .technical-glossary div {
-    border: 1px solid #d9e0e6;
-    min-height: 22mm;
-    padding: 3mm;
-  }
-  .technical-glossary dt {
-    color: #293f4d;
-    font-size: 9px;
-    font-weight: 900;
-    margin-bottom: 1.5mm;
-    text-transform: uppercase;
-  }
-  .technical-glossary dd {
-    color: #53616f;
-    font-size: 9px;
-    line-height: 1.35;
-    margin: 0;
-  }
-  .technical-item {
-    display: flex;
-    flex-direction: column;
-    gap: 4mm;
-    min-height: 100%;
-  }
-  .technical-item-head {
-    align-items: center;
-    border: 1px solid #cfd8df;
-    border-left: 1.6mm solid #d64a00;
-    display: flex;
-    gap: 5mm;
-    justify-content: space-between;
-    min-height: 25mm;
-    padding: 4mm;
-  }
-  .technical-item-head span {
-    color: #53616f;
-    display: block;
-    font-size: 8px;
-    font-weight: 900;
-    margin-bottom: 1.5mm;
-    text-transform: uppercase;
-  }
-  .technical-item-head h2 {
-    color: #293f4d;
-    font-size: 18px;
     line-height: 1.15;
-    margin: 0;
+    margin: 0 0 1.5mm;
   }
-  .technical-status {
-    border: 1px solid transparent;
-    display: inline-flex;
+  .rt-cover-meta dd {
+    color: #293f4d;
+    font-size: 15px;
+    font-weight: 900;
+    line-height: 1.2;
+    margin: 0 0 3.2mm;
+  }
+  .rt-intro-copy {
+    margin-top: 2mm;
+    padding: 0 6mm 0 6mm;
+  }
+  .rt-intro-copy p {
+    font-size: 13px;
+    line-height: 1.25;
+    margin: 0 0 10mm;
+    text-align: justify;
+  }
+  .rt-tag-list {
+    display: grid;
+    gap: 7mm;
+    margin: 0 4mm;
+  }
+  .rt-tag-row {
+    display: grid;
+    grid-template-columns: 34mm 1fr;
+    gap: 4mm;
+    align-items: center;
+    min-height: 22mm;
+  }
+  .rt-tag-box {
+    border: 1px solid #111;
+    height: 22mm;
+    display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 22mm;
-    padding: 2mm 3mm;
-    font-size: 8px;
+    color: #111;
+    font-size: 25px;
+    font-weight: 500;
+  }
+  .rt-tag-text strong {
+    display: block;
+    color: #111;
+    font-size: 12px;
     font-weight: 900;
-    line-height: 1;
-    text-transform: uppercase;
-    white-space: nowrap;
+    margin-bottom: 2mm;
   }
-  .technical-status-resolvido { background: #dcfce7; border-color: #86efac; color: #166534; }
-  .technical-status-previsto { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
-  .technical-status-pendente { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
-  .technical-status-atencao { background: #fef3c7; border-color: #fbbf24; color: #92400e; }
-  .technical-item-meta { padding: 0; border: 0; }
-  .technical-evidence-section {
-    min-height: 92mm;
+  .rt-tag-text p {
+    color: #111;
+    font-size: 11.5px;
+    line-height: 1.18;
+    margin: 0;
+    text-align: justify;
+  }
+  .rt-glossary {
+    position: absolute;
+    left: 6mm;
+    right: 6mm;
+    bottom: 0;
+    border-top: 1px solid #111;
+    padding-top: 3mm;
+  }
+  .rt-glossary h2 {
+    color: #111;
+    font-size: 11px;
+    font-weight: 900;
+    margin: 0 0 2mm;
+  }
+  .rt-glossary p {
+    color: #111;
+    font-size: 9.2px;
+    line-height: 1.22;
+    margin: 0 0 1mm;
+  }
+  .rt-item-page .rt-body {
+    top: 41mm;
+    bottom: 22mm;
+  }
+  .rt-item-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 112mm;
+    height: 9mm;
+    margin-bottom: 2mm;
+  }
+  .rt-item-meta div {
+    border: 1px solid #111;
     display: flex;
-    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 35mm;
+    padding: 0 2mm;
   }
-  .technical-evidence-grid {
-    flex: 1;
-    min-height: 74mm;
+  .rt-item-meta strong,
+  .rt-item-meta span {
+    color: #111;
+    font-size: 8.5px;
+    font-weight: 700;
+  }
+  .rt-photo-area {
+    height: 151mm;
     display: grid;
     gap: 2mm;
+    margin-bottom: 2mm;
   }
-  .technical-evidence-count-1 { grid-template-columns: 1fr; }
-  .technical-evidence-count-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .technical-evidence-count-3,
-  .technical-evidence-count-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .technical-evidence-frame {
-    position: relative;
+  .rt-photo-count-1 { grid-template-columns: 1fr; }
+  .rt-photo-count-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+  .rt-photo-count-3 { grid-template-columns: 1.18fr 1fr; grid-template-rows: 1fr 1fr; }
+  .rt-photo-count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .rt-photo-count-3 .rt-photo-frame:first-child { grid-row: 1 / span 2; }
+  .rt-photo-frame {
+    border: 1px solid #111;
     margin: 0;
-    border: 1px solid #cfd8df;
-    background: #f8fafc;
-    min-height: 36mm;
     overflow: hidden;
+    background: #f8fafc;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
-  .technical-evidence-count-1 .technical-evidence-frame { min-height: 74mm; }
-  .technical-evidence-frame img {
+  .rt-photo-frame img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
   }
-  .technical-evidence-frame figcaption {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(31, 41, 51, 0.82);
-    color: #fff;
-    font-size: 8px;
-    font-weight: 700;
-    padding: 1.5mm 2mm;
-  }
-  .technical-evidence-empty {
-    border: 1px dashed #cfd8df;
-    background: #f8fafc;
+  .rt-photo-none {
+    height: 151mm;
+    display: flex;
     align-items: center;
     justify-content: center;
-  }
-  .technical-evidence-empty div {
-    color: #7b8794;
+    margin-bottom: 2mm;
+    color: #666;
     font-size: 10px;
-    font-weight: 800;
+    font-weight: 700;
+    letter-spacing: .03em;
     text-transform: uppercase;
   }
-  .technical-copy-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4mm;
-    margin-top: auto;
+  .rt-photo-frame-unavailable {
+    background: #fff;
   }
-  .technical-copy-grid .technical-section {
-    min-height: 36mm;
+  .rt-image-unavailable {
+    color: #666;
+    font-size: 10px;
+    font-weight: 700;
+    text-align: center;
+    padding: 4mm;
+  }
+  .rt-extra-photo-badge {
+    position: absolute;
+    right: 2mm;
+    bottom: 2mm;
+    min-width: 18mm;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .72);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    padding: 2mm 2.4mm;
+    text-align: center;
+  }
+  .rt-item-text {
+    border: 1px solid #111;
+    height: 54mm;
+    padding: 3mm 3mm 2mm;
+    overflow: hidden;
+  }
+  .rt-item-text-title {
+    color: #f97316;
+    font-size: 9px;
+    font-weight: 900;
+    margin-bottom: 2mm;
+  }
+  .rt-item-text p {
+    color: #111;
+    font-size: 10.5px;
+    line-height: 1.25;
+    margin: 0 0 3mm;
+    text-align: justify;
+  }
+  .rt-item-action-grid {
+    display: grid;
+    grid-template-columns: 1.6fr 0.8fr;
+    gap: 4mm;
+    border-top: 1px solid #d7d7d7;
+    padding-top: 2mm;
+  }
+  .rt-item-action-grid strong {
+    color: #111;
+    display: block;
+    font-size: 9px;
+    font-weight: 900;
+    margin-bottom: 1mm;
+  }
+  .rt-item-action-grid span {
+    color: #111;
+    display: block;
+    font-size: 9.5px;
+    line-height: 1.2;
   }
 `;

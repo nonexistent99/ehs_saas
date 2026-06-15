@@ -1,4 +1,5 @@
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
+import { getTactFooterLogoDataUrl } from "./pdfAssets";
 import { repairPdfHtml } from "./pdfText";
 
 export interface DocumentPageOptions {
@@ -39,17 +40,6 @@ export interface SignatureBlockOptions {
   title?: string;
   entries: SignatureEntry[];
 }
-
-const tactFooterLogo = `data:image/svg+xml;base64,${Buffer.from(`
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 88" role="img" aria-label="TACT">
-  <rect width="300" height="88" rx="14" fill="#ffffff"/>
-  <path d="M25 27h68v12H65v36H52V39H25V27z" fill="#293f4d"/>
-  <path d="M102 75l31-48h15l31 48h-16l-6-10h-34l-6 10h-15zm28-22h20l-10-17-10 17z" fill="#293f4d"/>
-  <path d="M210 76c-31 0-49-20-49-45 0-7 5-12 12-12s12 5 12 12c0 11 9 22 25 22 9 0 16-3 22-10l11 9c-9 16-24 24-33 24z" fill="#293f4d"/>
-  <path d="M228 27h68v12h-27v36h-13V39h-28V27z" fill="#293f4d"/>
-  <path d="M282 13c6 0 10 5 9 11l-10 33c-2 5-6 8-11 7s-8-6-7-11l10-33c1-5 5-7 9-7zm-19 61c0-6 4-10 10-10s10 4 10 10-4 10-10 10-10-4-10-10z" fill="#ff6b00"/>
-</svg>
-`).toString("base64")}`;
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? "")
@@ -123,7 +113,7 @@ export function DocumentFooter({ text }: { text?: string } = {}): string {
   return `<footer class="document-footer" aria-label="Rodape do documento">
     <div class="footer-line" aria-hidden="true"></div>
     <div class="footer-text">${escapeHtml(text || "Documento gerado pelo TACT")}</div>
-    <img src="${tactFooterLogo}" class="footer-tact-logo" alt="TACT" />
+    <img src="${getTactFooterLogoDataUrl()}" class="footer-tact-logo" alt="TACT" />
   </footer>`;
 }
 
