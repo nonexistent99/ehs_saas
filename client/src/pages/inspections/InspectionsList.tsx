@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
-import { FileText, Plus, Search, Trash2 } from "lucide-react";
+import { Building2, FileText, Plus, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { toast } from "sonner";
@@ -26,12 +26,15 @@ import {
 export default function InspectionsList() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [companyId, setCompanyId] = useState("all");
   const { user } = useAuth();
   const utils = trpc.useUtils();
+  const { data: companies = [] } = trpc.companies.list.useQuery();
 
   const { data: inspections = [], isLoading } = trpc.inspections.list.useQuery({
     search: search || undefined,
     status: status && status !== "all" ? status : undefined,
+    companyId: companyId !== "all" ? Number(companyId) : undefined,
   });
 
   const deleteMutation = trpc.inspections.delete.useMutation({
@@ -65,6 +68,20 @@ export default function InspectionsList() {
             <Input placeholder="Buscar por assunto..." value={search}
               onChange={(e) => setSearch(e.target.value)} className="pl-9 bg-card border-border" />
           </div>
+          <Select value={companyId} onValueChange={setCompanyId}>
+            <SelectTrigger className="w-full sm:w-64 bg-card border-border">
+              <Building2 size={14} className="mr-2 text-muted-foreground" />
+              <SelectValue placeholder="Todas as empresas" />
+            </SelectTrigger>
+            <SelectContent className="bg-card border-border">
+              <SelectItem value="all">Todas as empresas</SelectItem>
+              {companies.map((company: any) => (
+                <SelectItem key={company.id} value={String(company.id)}>
+                  {company.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={status} onValueChange={setStatus}>
             <SelectTrigger className="w-44 bg-card border-border">
               <SelectValue placeholder="Todos os status" />
