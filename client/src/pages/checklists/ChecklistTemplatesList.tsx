@@ -12,6 +12,26 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 
+type FrequencyType = "dias" | "semanas" | "meses";
+
+function normalizeFrequencyType(value: unknown): FrequencyType {
+  const normalized = String(value ?? "").toLowerCase();
+  if (normalized === "days" || normalized === "day" || normalized === "dias" || normalized === "dia") return "dias";
+  if (normalized === "weeks" || normalized === "week" || normalized === "semanas" || normalized === "semana") return "semanas";
+  if (normalized === "months" || normalized === "month" || normalized === "meses" || normalized === "mes") return "meses";
+  return "dias";
+}
+
+function formatFrequencyUnit(type: unknown, value: unknown) {
+  const count = Number(value);
+  const singular = count === 1;
+  const normalizedType = normalizeFrequencyType(type);
+
+  if (normalizedType === "dias") return singular ? "Dia" : "Dias";
+  if (normalizedType === "semanas") return singular ? "Semana" : "Semanas";
+  return singular ? "Mês" : "Meses";
+}
+
 export default function ChecklistTemplatesList() {
   const [search, setSearch] = useState("");
   const utils = trpc.useUtils();
@@ -81,7 +101,7 @@ export default function ChecklistTemplatesList() {
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        {ct.frequencyValue} {ct.frequencyType === "days" ? "Dias" : ct.frequencyType === "weeks" ? "Semanas" : "Meses"}
+                        {ct.frequencyValue} {formatFrequencyUnit(ct.frequencyType, ct.frequencyValue)}
                       </span>
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">

@@ -35,6 +35,19 @@ const checklistTypeSchema = z.preprocess((value) => {
   return "estatico";
 }, z.enum(["estatico", "dinamico"]));
 
+function normalizeChecklistFrequencyType(value: unknown): "dias" | "semanas" | "meses" {
+  if (value === "days" || value === "day" || value === "dia") return "dias";
+  if (value === "weeks" || value === "week" || value === "semana") return "semanas";
+  if (value === "months" || value === "month" || value === "mes") return "meses";
+  if (value === "dias" || value === "semanas" || value === "meses") return value;
+  return "dias";
+}
+
+const checklistFrequencyTypeSchema = z.preprocess(
+  normalizeChecklistFrequencyType,
+  z.enum(["dias", "semanas", "meses"])
+);
+
 const checklistItemStatusSchema = z.preprocess(
   (value) => {
     if (!isRecognizedChecklistStatus(value)) {
@@ -111,7 +124,7 @@ export const checklistRouter = router({
         description: z.string().optional(),
         type: checklistTypeSchema.default("estatico"),
         isFavorite: z.boolean().default(false),
-        frequencyType: z.enum(["dias", "semanas", "meses"]).default("dias"),
+        frequencyType: checklistFrequencyTypeSchema.default("dias"),
         frequencyValue: z.number().default(0),
         items: z.array(z.object({
           name: z.string().min(1),
@@ -149,7 +162,7 @@ export const checklistRouter = router({
         description: z.string().optional(),
         type: checklistTypeSchema.optional(),
         isFavorite: z.boolean().optional(),
-        frequencyType: z.enum(["dias", "semanas", "meses"]).optional(),
+        frequencyType: checklistFrequencyTypeSchema.optional(),
         frequencyValue: z.number().optional(),
         items: z.array(z.object({
           id: z.number().optional(),
@@ -300,7 +313,8 @@ export const checklistRouter = router({
         // 3. Recorrência (Agendamento Automático)
         const execution = await getChecklistExecutionById(input.id, ctx.effectiveCompanyId);
         if (execution && execution.template) {
-           const { frequencyType, frequencyValue } = execution.template;
+           const { frequencyValue } = execution.template;
+           const frequencyType = normalizeChecklistFrequencyType(execution.template.frequencyType);
            if (frequencyValue > 0) {
              const currentDate = new Date();
              let nextDate = new Date(currentDate);

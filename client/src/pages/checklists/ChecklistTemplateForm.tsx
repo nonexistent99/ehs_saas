@@ -32,8 +32,11 @@ function normalizeTemplateType(value: unknown): TemplateType {
 }
 
 function normalizeFrequencyType(value: unknown): FrequencyType {
+  if (value === "days" || value === "day" || value === "dia") return "dias";
+  if (value === "weeks" || value === "week" || value === "semana") return "semanas";
+  if (value === "months" || value === "month" || value === "mes") return "meses";
   if (value === "dias" || value === "semanas" || value === "meses") return value;
-  return "meses";
+  return "dias";
 }
 
 export default function ChecklistTemplateForm() {
