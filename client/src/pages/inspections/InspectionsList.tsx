@@ -30,11 +30,12 @@ export default function InspectionsList() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
   const { data: companies = [] } = trpc.companies.list.useQuery();
+  const selectedCompanyId = companyId !== "all" ? Number(companyId) : undefined;
 
   const { data: inspections = [], isLoading } = trpc.inspections.list.useQuery({
     search: search || undefined,
     status: status && status !== "all" ? status : undefined,
-    companyId: companyId !== "all" ? Number(companyId) : undefined,
+    companyId: selectedCompanyId,
   });
 
   const deleteMutation = trpc.inspections.delete.useMutation({
@@ -46,12 +47,17 @@ export default function InspectionsList() {
   });
 
   const canDelete = (user as any)?.ehsRole === "adm_ehs" || (user as any)?.ehsRole === "tecnico";
+  const visibleInspections = selectedCompanyId
+    ? inspections.filter((item: any) =>
+        item.inspection?.companyId === selectedCompanyId || item.company?.id === selectedCompanyId
+      )
+    : inspections;
 
   return (
     <div className="flex flex-col h-full">
       <PageHeader
         title="Relatórios Técnicos"
-        subtitle={`${inspections.length} relatório(s)`}
+        subtitle={`${visibleInspections.length} relatório(s)`}
         actions={
           <Link href="/relatorios/novo">
             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
@@ -99,7 +105,7 @@ export default function InspectionsList() {
 
         {isLoading ? (
           <div className="space-y-2">{[...Array(5)].map((_, i) => <div key={i} className="h-20 bg-card rounded-lg animate-pulse" />)}</div>
-        ) : inspections.length === 0 ? (
+        ) : visibleInspections.length === 0 ? (
           <Card className="bg-card border-border">
             <CardContent className="py-16 text-center">
               <FileText size={40} className="mx-auto mb-3 text-muted-foreground opacity-40" />
@@ -123,7 +129,7 @@ export default function InspectionsList() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {inspections.map((item: any) => (
+                {visibleInspections.map((item: any) => (
                   <tr key={item.inspection.id} className="hover:bg-secondary/20 transition-colors">
                     <td className="px-4 py-3">
                       <p className="text-sm font-medium text-foreground">{item.inspection.title}</p>

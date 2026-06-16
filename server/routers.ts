@@ -737,7 +737,8 @@ export const appRouter = router({
         offset: z.number().optional(),
       }).optional())
       .query(async ({ input, ctx }) => {
-        return getAllInspections({ ...input, companyId: ctx.effectiveCompanyId });
+        const companyId = input?.companyId ?? ctx.effectiveCompanyId;
+        return getAllInspections({ ...input, companyId });
       }),
     getById: protectedProcedure
       .input(z.object({ id: z.number() }))
