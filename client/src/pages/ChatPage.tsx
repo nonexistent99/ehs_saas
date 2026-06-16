@@ -1,12 +1,30 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { CheckCheck, MessageSquare, Send, Users } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+
+function formatMessageDateTime(value: unknown) {
+  if (!value) return "";
+  const date = new Date(value as any);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const day = date.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+  const time = date.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `${day} ${time}`;
+}
 
 export default function ChatPage() {
   const { user } = useAuth();
@@ -179,7 +197,7 @@ export default function ChatPage() {
                       </div>
                       <div className="flex items-center gap-1.5 px-1">
                         <span className="text-[10px] text-muted-foreground font-medium">
-                          {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : ""}
+                          {formatMessageDateTime(msg.createdAt)}
                         </span>
                         {isOwn && msg.isRead && (
                           <CheckCheck size={12} className="text-primary" />
@@ -196,11 +214,12 @@ export default function ChatPage() {
           {/* Input Area */}
           <div className="border-t border-border/50 p-4 bg-muted/5">
             <div className="flex gap-3">
-              <Input
+              <Textarea
                 value={message}
                 onChange={e => setMessage(e.target.value)}
                 placeholder="Digite sua mensagem..."
-                className="bg-background border-border/50 flex-1 text-foreground placeholder:text-muted-foreground"
+                rows={1}
+                className="min-h-10 max-h-32 resize-none bg-background border-border/50 flex-1 text-foreground placeholder:text-muted-foreground"
                 onKeyDown={e => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
