@@ -8,9 +8,10 @@ interface ImageUploadProps {
   onChange: (value: string) => void;
   label?: string;
   className?: string;
+  previewFit?: "cover" | "contain";
 }
 
-export function ImageUpload({ value, onChange, label, className }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, label, className, previewFit = "cover" }: ImageUploadProps) {
   const [loading, setLoading] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,7 +50,11 @@ export function ImageUpload({ value, onChange, label, className }: ImageUploadPr
       <div className="relative group border-2 border-dashed border-border rounded-xl aspect-video bg-secondary/30 flex items-center justify-center overflow-hidden transition-all hover:border-primary/50">
         {value ? (
           <>
-            <img src={value} alt="Preview" className="w-full h-full object-cover" />
+            <img
+              src={value}
+              alt="Preview"
+              className={`w-full h-full ${previewFit === "contain" ? "object-contain p-4 bg-background/60" : "object-cover"}`}
+            />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <Button size="sm" variant="destructive" onClick={() => onChange("")} className="h-8 shadow-lg">
                 <X size={14} className="mr-1.5" /> Remover

@@ -81,7 +81,7 @@ export default function CompaniesList() {
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-3">
                       {company.logoUrl ? (
-                        <img src={company.logoUrl} alt={company.name} className="w-10 h-10 rounded-lg object-cover" />
+                        <img src={company.logoUrl} alt={company.name} className="w-10 h-10 rounded-lg object-contain bg-secondary/40 p-1" />
                       ) : (
                         <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                           <Building2 size={18} className="text-primary" />

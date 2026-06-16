@@ -197,6 +197,7 @@ export default function CompanyForm() {
                     label="Logo da Empresa" 
                     value={form.logoUrl} 
                     onChange={val => setForm(f => ({ ...f, logoUrl: val }))} 
+                    previewFit="contain"
                   />
                 </div>
               </div>
