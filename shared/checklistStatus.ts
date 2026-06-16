@@ -32,11 +32,9 @@ function statusParts(value: unknown) {
   };
 }
 
-export function checklistStatusToCode(value: unknown): ChecklistStatusCode {
-  const { raw, upper, collapsed, compact } = statusParts(value);
-  if (!raw) return "NA";
-
-  if (
+function isNcStatus(value: ReturnType<typeof statusParts>): boolean {
+  const { upper, collapsed, compact } = value;
+  return (
     compact === "NC" ||
     compact === "NOK" ||
     compact === "NAOOK" ||
@@ -45,27 +43,50 @@ export function checklistStatusToCode(value: unknown): ChecklistStatusCode {
     compact === "IRREGULAR" ||
     ((collapsed.startsWith("NAO ") || upper.startsWith("NÃO ") || upper.startsWith("NÃ")) &&
       (collapsed.includes("CONFORME") || collapsed.includes("OK")))
-  ) {
-    return "NC";
-  }
+  );
+}
 
-  if (
+function isNaStatus(value: ReturnType<typeof statusParts>): boolean {
+  const { compact } = value;
+  return (
     compact === "NA" ||
     compact === "N" ||
     compact === "NAOAPLICAVEL" ||
     compact === "NAOSEAPLICA" ||
     compact === "NAOSEAPLICAVEL"
-  ) {
-    return "NA";
-  }
+  );
+}
 
-  if (
+function isCStatus(value: ReturnType<typeof statusParts>): boolean {
+  const { compact } = value;
+  return (
     compact === "C" ||
     compact === "OK" ||
     compact === "SIM" ||
     compact === "APROVADO" ||
     compact === "CONFORME"
-  ) {
+  );
+}
+
+export function isRecognizedChecklistStatus(value: unknown): boolean {
+  const parts = statusParts(value);
+  if (!parts.raw) return true;
+  return isNcStatus(parts) || isNaStatus(parts) || isCStatus(parts);
+}
+
+export function checklistStatusToCode(value: unknown): ChecklistStatusCode {
+  const { raw, upper, collapsed, compact } = statusParts(value);
+  if (!raw) return "NA";
+
+  if (isNcStatus({ raw, upper, collapsed, compact })) {
+    return "NC";
+  }
+
+  if (isNaStatus({ raw, upper, collapsed, compact })) {
+    return "NA";
+  }
+
+  if (isCStatus({ raw, upper, collapsed, compact })) {
     return "C";
   }
 

@@ -30,6 +30,20 @@ async function uploadImageFile(file: File): Promise<string> {
   return data.url;
 }
 
+function ChecklistImage({ src, alt, className }: { src: string; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed || !src) {
+    return (
+      <div className={`${className || ""} flex items-center justify-center bg-secondary text-muted-foreground text-xs font-semibold text-center p-2`}>
+        Imagem não disponível
+      </div>
+    );
+  }
+
+  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+}
+
 export default function ChecklistExecutionForm() {
   const [, navigate] = useLocation();
   const params = useParams<{ id?: string }>();
@@ -73,6 +87,16 @@ export default function ChecklistExecutionForm() {
     onSuccess: () => {
       toast.success("Checklist concluído com sucesso!");
       utils.checklistsV2.executions.list.invalidate();
+      navigate("/checklists/realizados");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const saveDraftMutation = trpc.checklistsV2.executions.saveDraft.useMutation({
+    onSuccess: () => {
+      toast.success("Progresso salvo com sucesso!");
+      utils.checklistsV2.executions.list.invalidate();
+      if (executionId) utils.checklistsV2.executions.get.invalidate({ id: executionId });
       navigate("/checklists/realizados");
     },
     onError: (err: any) => toast.error(err.message),
@@ -136,6 +160,43 @@ export default function ChecklistExecutionForm() {
     ));
   };
 
+  const buildItemsPayload = async () => {
+    const uploadedItems = await Promise.all(localItems.map(async (item) => {
+      const uploadedImages = await Promise.all((item.imagens || []).map(async (img: ItemImage) => {
+        if (!img.file) return img;
+        const url = await uploadImageFile(img.file);
+        return { ...img, url, preview: url, file: undefined };
+      }));
+      return { ...item, imagens: uploadedImages };
+    }));
+
+    setLocalItems(uploadedItems);
+
+    return uploadedItems.map(item => ({
+      id: item.id,
+      status: normalizeChecklistStatus(item.status),
+      observation: item.observation,
+      mediaUrls: item.imagens.filter((img: ItemImage) => img.url).map((img: ItemImage) => img.url),
+    }));
+  };
+
+  const handleSaveProgress = async () => {
+    if (!executionId) return;
+
+    setUploading(true);
+    try {
+      const itemsToUpdate = await buildItemsPayload();
+      await saveDraftMutation.mutateAsync({
+        id: executionId,
+        items: itemsToUpdate
+      });
+    } catch (e: any) {
+      toast.error("Erro ao salvar progresso: " + (e?.message || "falha no envio"));
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSaveAndComplete = async () => {
     if (!sigCanvasRef.current || sigCanvasRef.current.isEmpty()) {
       toast.error("A assinatura do responsável é obrigatória para concluir.");
@@ -144,31 +205,8 @@ export default function ChecklistExecutionForm() {
 
     setUploading(true);
     try {
-      // Get base64 signature
       const signatureBase64 = sigCanvasRef.current.toDataURL('image/png');
-
-      // Upload Images
-      const uploadedItems = await Promise.all(localItems.map(async (item) => {
-        const uploadedImages = await Promise.all((item.imagens || []).map(async (img: ItemImage) => {
-          if (img.file) {
-            try {
-              const url = await uploadImageFile(img.file);
-              return { ...img, url };
-            } catch {
-              return img; // keep preview if upload fails
-            }
-          }
-          return img;
-        }));
-        return { ...item, imagens: uploadedImages };
-      }));
-
-      const itemsToUpdate = uploadedItems.map(item => ({
-        id: item.id,
-        status: normalizeChecklistStatus(item.status),
-        observation: item.observation,
-        mediaUrls: item.imagens.filter((img: ItemImage) => img.url).map((img: ItemImage) => img.url),
-      }));
+      const itemsToUpdate = await buildItemsPayload();
 
       await completeMutation.mutateAsync({
         id: executionId!,
@@ -187,7 +225,7 @@ export default function ChecklistExecutionForm() {
   }
 
   const isCompleted = executionData?.execution?.status === "concluida";
-  const isPending = completeMutation.isPending || uploading;
+  const isPending = completeMutation.isPending || saveDraftMutation.isPending || uploading;
 
   return (
     <div className="flex flex-col h-full bg-background min-h-screen">
@@ -334,7 +372,7 @@ export default function ChecklistExecutionForm() {
                               <p className="text-[10px] uppercase tracking-wider text-primary font-bold mb-2 flex items-center gap-1">
                                 Imagem de Referência
                               </p>
-                              <img
+                              <ChecklistImage
                                 src={resolveMediaUrl(item.referenceImgUrl)}
                                 alt="Referência do modelo"
                                 className="max-h-72 w-full rounded-md border border-border/50 object-contain bg-background"
@@ -419,7 +457,7 @@ export default function ChecklistExecutionForm() {
                           <div className="flex flex-wrap gap-3">
                             {item.imagens.map((img: ItemImage, imgIdx: number) => (
                               <div key={imgIdx} className="relative group rounded-md overflow-hidden bg-secondary border border-border shrink-0 w-24 h-24 sm:w-32 sm:h-32">
-                                <img
+                                <ChecklistImage
                                   src={img.preview || resolveMediaUrl(img.url)}
                                   alt="Evidência"
                                   className="w-full h-full object-cover"
@@ -529,7 +567,8 @@ export default function ChecklistExecutionForm() {
                     type="button"
                     variant="outline"
                     className="h-12 border-border/80 bg-background hover:bg-secondary w-full sm:w-auto"
-                    onClick={() => navigate("/checklists/realizados")}
+                    disabled={isPending}
+                    onClick={handleSaveProgress}
                   >
                     Salvar Progresso (Rascunho)
                   </Button>

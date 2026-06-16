@@ -1,7 +1,7 @@
 import { resolveImageToDataUrl } from "./pdfTemplateEngine";
 import { getTactFooterLogoDataUrl } from "./pdfAssets";
 import { repairPdfHtml } from "./pdfText";
-import { checklistStatusToCode } from "@shared/checklistStatus";
+import { checklistStatusToCode, isRecognizedChecklistStatus } from "@shared/checklistStatus";
 
 export interface DocumentPageOptions {
   title: string;
@@ -136,6 +136,9 @@ export function InfoGrid(items: InfoItem[]): string {
 }
 
 export function StatusTag(status: unknown): string {
+  if (!isRecognizedChecklistStatus(status)) {
+    console.warn("[Checklist PDF] Status desconhecido renderizado como NA", { status });
+  }
   const normalized = normalizeStatus(status);
   const label = normalized === "C" ? "C" : normalized === "NC" ? "NC" : "NA";
   return `<span class="status-tag status-${label.toLowerCase()}">${label}</span>`;

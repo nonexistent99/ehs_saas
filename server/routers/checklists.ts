@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { companyProcedure, protectedProcedure, router } from "../_core/trpc";
 import { checklistTemplateItems } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
-import { normalizeChecklistStatus } from "@shared/checklistStatus";
+import { isRecognizedChecklistStatus, normalizeChecklistStatus } from "@shared/checklistStatus";
 import {
   getAllChecklistTemplates,
   getChecklistTemplateById,
@@ -35,9 +36,59 @@ const checklistTypeSchema = z.preprocess((value) => {
 }, z.enum(["estatico", "dinamico"]));
 
 const checklistItemStatusSchema = z.preprocess(
-  (value) => normalizeChecklistStatus(value),
+  (value) => {
+    if (!isRecognizedChecklistStatus(value)) {
+      console.warn("[Checklist] Status desconhecido recebido na API; normalizando como N/A", { status: value });
+    }
+    return normalizeChecklistStatus(value);
+  },
   z.enum(["Conforme", "Não Conforme", "N/A"])
 );
+
+const checklistExecutionItemInputSchema = z.object({
+  id: z.number(), // execution item id
+  status: checklistItemStatusSchema,
+  observation: z.string().optional(),
+  mediaUrls: z.array(z.string()).optional(),
+});
+
+type ChecklistExecutionItemInput = z.infer<typeof checklistExecutionItemInputSchema>;
+
+function warnUnknownChecklistStatus(status: unknown, itemId: number, executionId: number) {
+  if (isRecognizedChecklistStatus(status)) return;
+  console.warn("[Checklist] Status desconhecido normalizado como N/A", {
+    executionId,
+    itemId,
+    status,
+  });
+}
+
+async function persistChecklistItems(executionId: number, items: ChecklistExecutionItemInput[]) {
+  let okCount = 0;
+  let notOkCount = 0;
+
+  for (const item of items) {
+    warnUnknownChecklistStatus(item.status, item.id, executionId);
+    const status = normalizeChecklistStatus(item.status);
+    if (status === "Conforme") okCount++;
+    if (status === "Não Conforme") notOkCount++;
+
+    const updatedItemId = await updateChecklistExecutionItem(item.id, {
+      status,
+      observation: item.observation,
+      mediaUrls: item.mediaUrls || [],
+    }, executionId);
+
+    if (!updatedItemId) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Item de checklist inválido para esta execução",
+      });
+    }
+  }
+
+  return { okCount, notOkCount };
+}
 
 export const checklistRouter = router({
   templates: router({
@@ -154,14 +205,17 @@ export const checklistRouter = router({
       .query(async ({ input, ctx }) => {
         return getAllChecklistExecutions(ctx.effectiveCompanyId, input?.status);
       }),
-    get: protectedProcedure
+    get: companyProcedure
       .input(z.object({ id: z.number() }))
-      .query(async ({ input }) => {
-        const executionData = await getChecklistExecutionById(input.id);
+      .query(async ({ input, ctx }) => {
+        const executionData = await getChecklistExecutionById(input.id, ctx.effectiveCompanyId);
+        if (!executionData) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Checklist execution not found" });
+        }
         const items = await getChecklistExecutionItems(input.id);
         return { ...executionData, items };
       }),
-    createFromTemplate: protectedProcedure
+    createFromTemplate: companyProcedure
       .input(z.object({
         companyId: z.number(),
         projectId: z.number().optional(),
@@ -197,36 +251,40 @@ export const checklistRouter = router({
         
         return { id: executionId, success: true };
       }),
-    concluir: protectedProcedure
+    saveDraft: companyProcedure
+      .input(z.object({
+        id: z.number(),
+        items: z.array(checklistExecutionItemInputSchema)
+      }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        const executionData = await getChecklistExecutionById(input.id, ctx.effectiveCompanyId);
+        if (!executionData) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Checklist execution not found" });
+        }
+        if (executionData.execution.status === "concluida") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Checklist concluído não pode ser salvo como rascunho" });
+        }
+
+        await persistChecklistItems(input.id, input.items);
+        await updateChecklistExecution(input.id, {}, ctx.effectiveCompanyId);
+        return { success: true };
+      }),
+    concluir: companyProcedure
       .input(z.object({
         id: z.number(),
         signatureUrl: z.string().optional(),
-        items: z.array(z.object({
-          id: z.number(), // execution item id
-          status: checklistItemStatusSchema,
-          observation: z.string().optional(),
-          mediaUrls: z.array(z.string()).optional(),
-        }))
+        items: z.array(checklistExecutionItemInputSchema)
       }))
       .mutation(async ({ input, ctx }) => {
-        console.log("[v2] Concluir input:", JSON.stringify({ id: input.id, items: input.items.map(i => i.status) }));
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        
-        let okCount = 0;
-        let notOkCount = 0;
+        const executionData = await getChecklistExecutionById(input.id, ctx.effectiveCompanyId);
+        if (!executionData) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Checklist execution not found" });
+        }
 
         // 1. Atualizar todos os itens preenchidos
-        for (const item of input.items) {
-          const status = normalizeChecklistStatus(item.status);
-          if (status === "Conforme") okCount++;
-          if (status === "Não Conforme") notOkCount++;
-
-          await updateChecklistExecutionItem(item.id, {
-            status,
-            observation: item.observation,
-            mediaUrls: item.mediaUrls || [],
-          });
-        }
+        const { okCount, notOkCount } = await persistChecklistItems(input.id, input.items);
         
         const totalScorable = okCount + notOkCount;
         const score = totalScorable > 0 ? (okCount / totalScorable) * 100 : 0;
@@ -240,7 +298,7 @@ export const checklistRouter = router({
         }, ctx.effectiveCompanyId);
 
         // 3. Recorrência (Agendamento Automático)
-        const execution = await getChecklistExecutionById(input.id);
+        const execution = await getChecklistExecutionById(input.id, ctx.effectiveCompanyId);
         if (execution && execution.template) {
            const { frequencyType, frequencyValue } = execution.template;
            if (frequencyValue > 0) {

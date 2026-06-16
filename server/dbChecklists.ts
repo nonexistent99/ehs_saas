@@ -124,9 +124,13 @@ export async function getAllChecklistExecutions(companyId?: number | number[], s
     .orderBy(desc(checklistExecutions.date));
 }
 
-export async function getChecklistExecutionById(id: number) {
+export async function getChecklistExecutionById(id: number, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) return undefined;
+
+  const filters: any[] = [eq(checklistExecutions.id, id)];
+  const compCond = getCompanyCondition(checklistExecutions.companyId, companyId);
+  if (compCond) filters.push(compCond);
 
   const result = await db
     .select({
@@ -141,7 +145,7 @@ export async function getChecklistExecutionById(id: number) {
     .innerJoin(companies, eq(checklistExecutions.companyId, companies.id))
     .leftJoin(obras, eq(checklistExecutions.projectId, obras.id))
     .leftJoin(users, eq(checklistExecutions.createdById, users.id))
-    .where(eq(checklistExecutions.id, id))
+    .where(and(...filters))
     .limit(1);
 
   return result[0];
@@ -183,10 +187,24 @@ export async function createChecklistExecutionItem(data: typeof checklistExecuti
   return res[0]?.id;
 }
 
-export async function updateChecklistExecutionItem(id: number, data: Partial<typeof checklistExecutionItems.$inferInsert>) {
+export async function updateChecklistExecutionItem(
+  id: number,
+  data: Partial<typeof checklistExecutionItems.$inferInsert>,
+  executionId?: number
+) {
   const db = await getDb();
-  if (!db) return;
-  await db.update(checklistExecutionItems).set(data).where(eq(checklistExecutionItems.id, id));
+  if (!db) return undefined;
+
+  const filters: any[] = [eq(checklistExecutionItems.id, id)];
+  if (executionId !== undefined) filters.push(eq(checklistExecutionItems.executionId, executionId));
+
+  const updated = await db
+    .update(checklistExecutionItems)
+    .set(data)
+    .where(and(...filters))
+    .returning({ id: checklistExecutionItems.id });
+
+  return updated[0]?.id;
 }
 
 export async function getPendingDelayedExecutions(companyId?: number | number[]) {

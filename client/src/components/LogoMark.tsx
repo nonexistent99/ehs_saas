@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import { CSSProperties } from "react";
+import { CSSProperties, useState } from "react";
 
 interface LogoMarkProps {
   src: string;
@@ -35,6 +35,7 @@ export function LogoMark({
   className,
   imgClassName,
 }: LogoMarkProps) {
+  const [loadFailed, setLoadFailed] = useState(false);
   const boxW = width ?? size;
   const boxH = height ?? size;
   const radius = orbitRadius ?? Math.round(Math.max(boxW, boxH) * 0.55);
@@ -52,16 +53,30 @@ export function LogoMark({
       {!isPlain && variant === "full" && <span className="logo-mark__halo" aria-hidden />}
       {!isPlain && <span className="logo-mark__glow" aria-hidden />}
       {!isPlain && <span className="logo-mark__ring" aria-hidden />}
-      <img
-        src={src}
-        alt={alt}
-        className={cn(
-          "relative z-10 object-contain",
-          !isPlain && "drop-shadow-[0_0_16px_rgba(255,107,0,0.55)] [filter:drop-shadow(0_4px_8px_rgba(0,0,0,0.4))_drop-shadow(0_0_16px_rgba(255,107,0,0.55))]",
-          imgClassName
-        )}
-        style={{ width: boxW, height: boxH }}
-      />
+      {loadFailed ? (
+        <div
+          className={cn(
+            "relative z-10 flex items-center justify-center rounded bg-white px-2 text-black font-black tracking-[0.18em]",
+            imgClassName
+          )}
+          style={{ width: boxW, height: boxH, fontSize: Math.max(12, Math.min(22, boxH * 0.38)) }}
+          aria-label={alt}
+        >
+          TACT
+        </div>
+      ) : (
+        <img
+          src={src}
+          alt={alt}
+          onError={() => setLoadFailed(true)}
+          className={cn(
+            "relative z-10 object-contain",
+            !isPlain && "drop-shadow-[0_0_16px_rgba(255,107,0,0.55)] [filter:drop-shadow(0_4px_8px_rgba(0,0,0,0.4))_drop-shadow(0_0_16px_rgba(255,107,0,0.55))]",
+            imgClassName
+          )}
+          style={{ width: boxW, height: boxH }}
+        />
+      )}
       {!isPlain && variant === "full" && <span className="logo-mark__orbit" aria-hidden />}
     </div>
   );
