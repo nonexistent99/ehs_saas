@@ -121,6 +121,11 @@ import { eq, and, or, count, desc, gte, lte, like, sql } from "drizzle-orm";
 // HELPERS
 // =============================================
 const ehsRoleInputSchema = z.preprocess((value) => coerceEhsRole(value) ?? value, z.enum(EHS_ROLES));
+const notificationTypeSchema = z.preprocess((value) => {
+  if (value === "sistema") return "system";
+  if (value === "info" || value === "alerta" || value === "urgente") return "system";
+  return value;
+}, z.enum(["whatsapp", "email", "system"]));
 
 function requireAdmOrTecnico(role?: string | null) {
   if (role !== "adm_ehs" && role !== "tecnico" && role !== "apoio") {
@@ -953,7 +958,8 @@ export const appRouter = router({
     }),
     send: protectedProcedure
       .input(z.object({
-        type: z.enum(["whatsapp", "email", "system"]),
+        type: notificationTypeSchema,
+        severity: z.enum(["info", "alerta", "urgente"]).optional(),
         title: z.string().min(1),
         message: z.string().min(1),
         recipientUserId: z.number().optional(),
@@ -983,7 +989,12 @@ export const appRouter = router({
           recipientCompanyId: input.recipientCompanyId,
           status: status as any,
           sentAt: new Date(),
-          metadata: { sentBy: ctx.user!.id, recipientEmail: input.recipientEmail, recipientPhone: input.recipientPhone },
+          metadata: {
+            sentBy: ctx.user!.id,
+            recipientEmail: input.recipientEmail,
+            recipientPhone: input.recipientPhone,
+            severity: input.severity || "info",
+          },
         });
         return { success: true };
       }),
