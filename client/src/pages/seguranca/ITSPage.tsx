@@ -11,33 +11,47 @@ import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { toast } from "sonner";
 import { SignatureCapture } from "@/components/SignatureCapture";
 
+type ITSParticipantForm = {
+  id: string;
+  name: string;
+  signatureUrl: string;
+};
+
+function createParticipant(): ITSParticipantForm {
+  return { id: `${Date.now()}-${Math.random().toString(36).slice(2)}`, name: "", signatureUrl: "" };
+}
+
 export default function ITSPage() {
   const utils = trpc.useUtils();
   const { data: items = [], isLoading } = trpc.its.list.useQuery();
   const { data: companies = [] } = trpc.companies.list.useQuery();
 
   const [open, setOpen] = useState(false);
-  
+
   const initialForm = {
     companyId: "", obraId: "", title: "", code: "", content: "",
     theme: "", date: "", duration: "", technician: "",
-    participants: [""],
     technicianSignatureUrl: "",
-    participantSignatureUrl: "",
   };
   const [form, setForm] = useState(initialForm);
+  const [participants, setParticipants] = useState<ITSParticipantForm[]>([createParticipant()]);
   const companyIdNum = Number(form.companyId);
   const { data: obras = [] } = trpc.companies.getObras.useQuery(
     { companyId: companyIdNum },
     { enabled: !!companyIdNum && companyIdNum > 0 }
   );
 
+  const resetForm = () => {
+    setForm(initialForm);
+    setParticipants([createParticipant()]);
+  };
+
   const createMutation = trpc.its.create.useMutation({
     onSuccess: () => {
       toast.success("ITS criada!");
       utils.its.list.invalidate();
       setOpen(false);
-      setForm(initialForm);
+      resetForm();
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -49,16 +63,13 @@ export default function ITSPage() {
 
   const exportPdf = (id: number) => window.open(`/api/export/its/${id}`, "_blank");
 
-  // Dynamic Participants
-  const addParticipant = () => setForm(f => ({ ...f, participants: [...f.participants, ""] }));
-  const removeParticipant = (index: number) => setForm(f => ({ ...f, participants: f.participants.filter((_, i) => i !== index) }));
-  const updateParticipant = (index: number, val: string) => {
-    const newP = [...form.participants];
-    newP[index] = val;
-    setForm(f => ({ ...f, participants: newP }));
+  const addParticipant = () => setParticipants(prev => [...prev, createParticipant()]);
+  const removeParticipant = (id: string) => {
+    setParticipants(prev => prev.length > 1 ? prev.filter(p => p.id !== id) : [createParticipant()]);
   };
-
-
+  const updateParticipant = (id: string, patch: Partial<ITSParticipantForm>) => {
+    setParticipants(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
+  };
 
   const formContent = (
     <div className="space-y-4 max-h-[70vh] overflow-y-auto p-1">
@@ -87,7 +98,7 @@ export default function ITSPage() {
         <Label>Título *</Label>
         <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Título da instrução" className="bg-secondary border-border" />
       </div>
-      
+
       <div className="space-y-1.5">
         <Label>Tema</Label>
         <Input value={form.theme} onChange={e => setForm(f => ({ ...f, theme: e.target.value }))} placeholder="Tema da instrução técnica" className="bg-secondary border-border" />
@@ -104,26 +115,35 @@ export default function ITSPage() {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Participante(s)</Label>
-        {form.participants.map((participant, i) => (
-          <div key={i} className="flex gap-2 items-center">
-            <Input 
-              value={participant} 
-              onChange={e => updateParticipant(i, e.target.value)} 
-              placeholder={`Nome do participante ${i + 1}`} 
-              className="bg-secondary border-border flex-1" 
-            />
-            {form.participants.length > 1 && (
-              <Button type="button" variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive shrink-0" onClick={() => removeParticipant(i)}>
-                <X size={16} />
+      {/* Participants with individual signatures */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-semibold">Participante(s)</Label>
+          <Button type="button" size="sm" variant="outline" className="h-7 text-xs border-border" onClick={addParticipant}>
+            <Plus size={12} className="mr-1" /> Adicionar
+          </Button>
+        </div>
+        {participants.map((participant, index) => (
+          <div key={participant.id} className="space-y-3 rounded-md border border-border bg-secondary/20 p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground">Participante {index + 1}</span>
+              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeParticipant(participant.id)}>
+                <X size={14} />
               </Button>
-            )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nome do participante</Label>
+              <Input value={participant.name} onChange={e => updateParticipant(participant.id, { name: e.target.value })} className="bg-card border-border" placeholder={`Nome do participante ${index + 1}`} />
+            </div>
+            <SignatureCapture
+              label="Assinatura do participante"
+              value={participant.signatureUrl}
+              onChange={value => updateParticipant(participant.id, { signatureUrl: value })}
+              description="Assinatura exibida ao lado do nome no PDF da ITS."
+              height={100}
+            />
           </div>
         ))}
-        <Button type="button" variant="outline" size="sm" onClick={addParticipant} className="gap-1.5 mt-1 border-dashed">
-          <Plus size={14} /> Adicionar outro
-        </Button>
       </div>
 
       <div className="space-y-1.5">
@@ -131,44 +151,37 @@ export default function ITSPage() {
         <Input value={form.technician} onChange={e => setForm(f => ({ ...f, technician: e.target.value }))} placeholder="Nome do técnico" className="bg-secondary border-border" />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <SignatureCapture
-          label="Assinatura do Técnico/Responsável"
-          value={form.technicianSignatureUrl}
-          onChange={value => setForm(f => ({ ...f, technicianSignatureUrl: value }))}
-          description="Assinatura exibida no campo do responsável pela ITS."
-        />
-        <SignatureCapture
-          label="Assinatura do Participante/Equipe"
-          value={form.participantSignatureUrl}
-          onChange={value => setForm(f => ({ ...f, participantSignatureUrl: value }))}
-          description="Opcional. Se ficar vazio, o PDF deixa o espaço em branco."
-        />
-      </div>
+      <SignatureCapture
+        label="Assinatura do Técnico/Responsável"
+        value={form.technicianSignatureUrl}
+        onChange={value => setForm(f => ({ ...f, technicianSignatureUrl: value }))}
+        description="Assinatura exibida no campo do responsável pela ITS."
+      />
 
       <div className="space-y-1.5">
         <Label>Conteúdo / Observações</Label>
         <Textarea value={form.content} onChange={e => setForm(f => ({ ...f, content: e.target.value }))} rows={3} className="bg-secondary border-border resize-none" />
       </div>
-      
+
       <Button className="w-full bg-primary text-primary-foreground" disabled={createMutation.isPending}
         onClick={() => {
           if (!form.companyId || !form.title) { toast.error("Empresa e título são obrigatórios"); return; }
-          const validParticipants = form.participants.map(p => p.trim()).filter(Boolean);
+          const participantList = participants
+            .map(({ name, signatureUrl }) => ({ name: name.trim(), signatureUrl }))
+            .filter(p => p.name);
           const structuredContent = JSON.stringify({
             theme: form.theme, date: form.date, duration: form.duration,
-            participants: validParticipants,
+            participants: participantList,
             technician: form.technician,
             technicianSignatureUrl: form.technicianSignatureUrl,
-            participantSignatureUrl: form.participantSignatureUrl,
             notes: form.content,
           });
-          createMutation.mutate({ 
-            companyId: Number(form.companyId), 
+          createMutation.mutate({
+            companyId: Number(form.companyId),
             obraId: form.obraId ? Number(form.obraId) : undefined,
-            title: form.title, 
-            code: form.code || undefined, 
-            content: structuredContent 
+            title: form.title,
+            code: form.code || undefined,
+            content: structuredContent
           });
         }}>
         {createMutation.isPending ? "Salvando..." : "Criar ITS"}

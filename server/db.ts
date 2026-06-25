@@ -890,6 +890,30 @@ export async function deleteNotification(id: number) {
   await db.delete(notifications).where(eq(notifications.id, id));
 }
 
+export async function getCompanyNotificationRecipients(companyId: number): Promise<Array<{ userId: number; email: string | null; phone: string | null; name: string }>> {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db.select({
+    userId: companyUsers.userId,
+    email: users.email,
+    phone: users.phone,
+    name: users.name,
+  })
+    .from(companyUsers)
+    .innerJoin(users, eq(companyUsers.userId, users.id))
+    .where(and(
+      eq(companyUsers.companyId, companyId),
+      eq(companyUsers.isNotificationRecipient, true),
+      eq(users.isActive, true),
+    ));
+  return rows.map(r => ({
+    userId: r.userId,
+    email: r.email,
+    phone: r.phone as string | null,
+    name: r.name || '',
+  }));
+}
+
 // =============================================
 // CHAT MESSAGES
 // =============================================

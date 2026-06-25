@@ -58,6 +58,7 @@ import {
   getCheckListItems,
   getCompanyById,
   getCompanyContracts,
+  getCompanyNotificationRecipients,
   getCompanyObras,
   getCompanyUsers,
   getDashboardStats,
@@ -971,34 +972,121 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         requireAdmOrTecnico(ctx.user?.ehsRole);
-        let status = "sent";
 
-        if (input.type === "whatsapp" && input.recipientPhone) {
-          const { sendWhatsappMessage } = await import("./_core/wapi");
-          const whatsappMessage = `*${input.title}*\n\n${input.message}`;
-          const success = await sendWhatsappMessage(input.recipientPhone, whatsappMessage);
-          if (!success) {
-            status = "failed";
+        // Determine all target recipients
+        interface Recipient { userId?: number; email?: string | null; phone?: string | null }
+        const recipients: Recipient[] = [];
+
+        if (input.recipientUserId) {
+          recipients.push({ userId: input.recipientUserId });
+        }
+        if (input.recipientEmail) {
+          recipients.push({ email: input.recipientEmail });
+        }
+
+        // Distribute to all notification recipients of a company
+        if (input.recipientCompanyId) {
+          const companyRecipients = await getCompanyNotificationRecipients(input.recipientCompanyId);
+          for (const r of companyRecipients) {
+            if (!recipients.some(existing => existing.userId === r.userId)) {
+              recipients.push({ userId: r.userId, email: r.email, phone: r.phone });
+            }
           }
         }
 
-        // Just create notification record
-        await createNotification({
-          type: input.type,
-          title: input.title,
-          message: input.message,
-          recipientUserId: input.recipientUserId,
-          recipientCompanyId: input.recipientCompanyId,
-          status: status as any,
-          sentAt: new Date(),
-          metadata: {
-            sentBy: ctx.user!.id,
-            recipientEmail: input.recipientEmail,
-            recipientPhone: input.recipientPhone,
-            severity: input.severity || "info",
-          },
-        });
-        return { success: true };
+        // If no recipients specified (and no company), treat as system-only notification
+        if (recipients.length === 0) {
+          await createNotification({
+            type: "system",
+            title: input.title,
+            message: input.message,
+            recipientUserId: null as any,
+            status: "sent",
+            sentAt: new Date(),
+            metadata: {
+              sentBy: ctx.user!.id,
+              severity: input.severity || "info",
+            },
+          });
+          return { success: true, count: 0 };
+        }
+
+        let successCount = 0;
+        for (const recipient of recipients) {
+          let status = "sent";
+
+          // Send WhatsApp if type is whatsapp and phone is available
+          if (input.type === "whatsapp") {
+            const phone = recipient.phone || input.recipientPhone;
+            if (phone) {
+              const { sendWhatsappMessage } = await import("./_core/wapi");
+              const whatsappMessage = `*${input.title}*\n\n${input.message}`;
+              const ok = await sendWhatsappMessage(phone, whatsappMessage);
+              if (!ok) status = "failed";
+            }
+          }
+
+          // Send email via SMTP if type is email
+          if (input.type === "email" && recipient.email) {
+            try {
+              let nodemailer: typeof import("nodemailer") | null = null;
+              try {
+                nodemailer = (await import("nodemailer")).default as unknown as typeof import("nodemailer");
+              } catch {
+                console.warn("[Notifications] nodemailer not installed, skipping email");
+                status = "failed";
+              }
+              if (nodemailer) {
+                if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
+                  console.warn("[Notifications] SMTP_USER/SMTP_PASS not configured, skipping email");
+                  status = "failed";
+                } else {
+                const smtpHost = process.env.SMTP_HOST || "smtp.gmail.com";
+                const smtpPort = Number(process.env.SMTP_PORT) || 587;
+                const transporter = nodemailer.createTransport({
+                  host: smtpHost,
+                  port: smtpPort,
+                  secure: smtpPort === 465,
+                  auth: {
+                    user: process.env.SMTP_USER || "",
+                    pass: process.env.SMTP_PASS || "",
+                  },
+                });
+                await transporter.sendMail({
+                  from: `"EHS Platform" <${process.env.SMTP_USER}>`,
+                  to: recipient.email,
+                  subject: input.title,
+                  text: input.message,
+                });
+                }
+              }
+            } catch (err) {
+              console.error("[Notifications] Email send failed:", err);
+              status = "failed";
+            }
+          }
+
+          // Create notification record for the recipient
+          await createNotification({
+            type: input.type,
+            title: input.title,
+            message: input.message,
+            recipientUserId: recipient.userId || null as any,
+            recipientCompanyId: input.recipientCompanyId,
+            status: status as any,
+            sentAt: new Date(),
+            metadata: {
+              sentBy: ctx.user!.id,
+              recipientEmail: recipient.email,
+              recipientPhone: recipient.phone,
+              severity: input.severity || "info",
+            },
+          });
+
+          if (status === "sent") successCount++;
+        }
+
+        return { success: true, count: successCount, total: recipients.length };
       }),
     markRead: protectedProcedure
       .input(z.object({ id: z.number() }))

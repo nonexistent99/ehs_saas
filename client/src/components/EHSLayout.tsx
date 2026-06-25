@@ -316,9 +316,9 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
   const { diaSemana, dataCompleta, hora } = formatDate(currentTime);
 
   const { data: unreadCount } = trpc.notifications.unreadCount.useQuery(undefined, {
-    refetchInterval: 60_000,
-    refetchIntervalInBackground: false,
-    staleTime: 30_000,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: true,
+    staleTime: 15_000,
   });
 
   const getInitials = (name?: string | null) => {
@@ -356,7 +356,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
 
         <div className="relative flex flex-col items-center gap-2 z-10 transition-all duration-300">
           <div className={cn(
-            "flex items-center justify-center rounded-md bg-white shadow-[0_10px_30px_rgba(255,107,0,0.16)] ring-1 ring-primary/20 transition-all duration-300",
+            "flex items-center justify-center rounded-md bg-transparent transition-all duration-300",
             sidebarCollapsed ? "px-1.5 py-1" : "px-4 py-3"
           )}>
             <LogoMark
