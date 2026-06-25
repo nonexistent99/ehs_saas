@@ -7,11 +7,15 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Lock, Mail, ShieldCheck, Zap } from "lucide-react";
 import { useLocation } from "wouter";
 import LogoMark from "@/components/LogoMark";
+import { useTheme } from "@/contexts/ThemeContext";
 
-const TACT_LOGO_SRC = "/assets/tact-logo.png";
+const TACT_LOGO_BLACK_SRC = "/assets/tact-logo-black.png";
+const TACT_LOGO_WHITE_SRC = "/assets/tact-logo-white.png";
 
 export default function Login() {
   const [, navigate] = useLocation();
+  const { theme } = useTheme();
+  const tactLogoSrc = theme === "dark" ? TACT_LOGO_WHITE_SRC : TACT_LOGO_BLACK_SRC;
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const utils = trpc.useUtils();
@@ -44,17 +48,14 @@ export default function Login() {
       <div className="w-full max-w-[1100px] grid lg:grid-cols-2 gap-0 relative z-10 glass rounded-[32px] overflow-hidden border-white/5 shadow-2xl">
         {/* Left Panel - Hero Section */}
         <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-white/[0.03] to-transparent relative overflow-hidden">
-          <div className="absolute inset-0 logo-glow opacity-10 blur-3xl" />
-          
           <div className="relative z-10">
             <div className="flex items-center gap-2.5 mb-12">
               <LogoMark
-                src={TACT_LOGO_SRC}
+                src={tactLogoSrc}
                 alt="TACT Logo"
                 variant="plain"
                 width={148}
                 height={46}
-                className="tact-brand-logo"
               />
             </div>
 
@@ -89,12 +90,11 @@ export default function Login() {
             <div className="mb-10 text-center lg:text-left">
               <div className="lg:hidden flex justify-center mb-6">
                 <LogoMark
-                  src={TACT_LOGO_SRC}
+                  src={tactLogoSrc}
                   alt="TACT Logo"
                   variant="plain"
                   width={128}
                   height={40}
-                  className="tact-brand-logo"
                 />
               </div>
               <h2 className="text-3xl font-black text-white tracking-tight">Bem-vindo</h2>
