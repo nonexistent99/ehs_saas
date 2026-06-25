@@ -84,11 +84,6 @@ export default function ITSPage() {
       </div>
 
       <div className="space-y-1.5">
-        <Label>Código</Label>
-        <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="ITS-001" className="bg-secondary border-border" />
-      </div>
-
-      <div className="space-y-1.5">
         <Label>Título *</Label>
         <Input value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Título da instrução" className="bg-secondary border-border" />
       </div>
@@ -191,7 +186,6 @@ export default function ITSPage() {
       formOpen={open}
       setFormOpen={setOpen}
       columns={[
-        { key: "code", label: "Código", render: (i) => <span className="text-xs font-mono text-primary">{i.code || "—"}</span> },
         { key: "title", label: "Título", render: (i) => <span className="text-sm font-medium text-foreground">{i.title}</span> },
         { key: "createdAt", label: "Data", render: (i) => <span className="text-xs text-muted-foreground">{new Date(i.createdAt).toLocaleDateString("pt-BR")}</span> },
       ]}

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
-import { Bell, BellRing, CheckCheck, Mail, MessageCircle, Plus, Send } from "lucide-react";
+import { Bell, CheckCheck, Mail, MessageCircle, Plus, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -46,6 +46,15 @@ export default function NotificacoesPage() {
       utils.notifications.list.invalidate();
       utils.notifications.unreadCount.invalidate();
     },
+  });
+
+  const deleteMutation = trpc.notifications.delete.useMutation({
+    onSuccess: () => {
+      toast.success("Notificação excluída!");
+      utils.notifications.list.invalidate();
+      utils.notifications.unreadCount.invalidate();
+    },
+    onError: (err: any) => toast.error(err.message),
   });
 
   const channelIcon = (channel: string) => {
@@ -182,6 +191,17 @@ export default function NotificacoesPage() {
                     <CheckCheck size={14} />
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-7 h-7 text-muted-foreground hover:text-destructive shrink-0"
+                  disabled={deleteMutation.isPending}
+                  onClick={() => {
+                    if (confirm("Excluir notificação?")) deleteMutation.mutate({ id: n.id as number });
+                  }}
+                >
+                  <Trash2 size={14} />
+                </Button>
               </div>
             ))}
           </div>

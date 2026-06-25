@@ -2711,7 +2711,7 @@ const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>${formDocS
     <tr>
       <td class="logo-cell" style="width: 25%;">${pdfLogo(data)}</td>
       <td class="title-cell" style="width: 50%;">
-        <div style="font-size: 16px;">CHECKLIST DE INSPEÇÃO</div>
+        <div style="font-size: 16px;">${escapeHtml(data.templateName || "CHECKLIST DE INSPEÇÃO")}</div>
         ${scoreHtml}
       </td>
       <td class="rev-cell" style="width: 25%;">CHK_REV_00</td>
@@ -2951,7 +2951,7 @@ export async function buildChecklistPdfHtml(data: any): Promise<string> {
       : `<div class="checklist-empty">Nenhum item adicional nesta pagina. Assinatura preservada em area segura.</div>`;
 
     return DocumentPage({
-      title: "CheckList",
+      title: data.templateName || "CheckList",
       logoUrl: clientLogoUrl,
       logoFallback: data.companyName || "TACT",
       footerText: `Pagina ${pageIndex + 1} de ${pageCount} | Documento gerado pelo TACT`,

@@ -12,6 +12,8 @@ import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 export default function ChecklistExecutionsList() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const { data: allExecutions = [], isLoading } = trpc.checklistsV2.executions.list.useQuery();
   
   const executions = allExecutions.filter((e: any) => {
@@ -19,7 +21,10 @@ export default function ChecklistExecutionsList() {
       ? (e.templateName?.toLowerCase().includes(search.toLowerCase()) || String(e.id) === search)
       : true;
     const matchStatus = statusFilter !== "all" ? e.status === statusFilter : true;
-    return matchSearch && matchStatus;
+    const execDate = e.date ? new Date(e.date) : null;
+    const matchFrom = dateFrom ? Boolean(execDate && execDate >= new Date(dateFrom)) : true;
+    const matchTo = dateTo ? Boolean(execDate && execDate <= new Date(`${dateTo}T23:59:59`)) : true;
+    return matchSearch && matchStatus && matchFrom && matchTo;
   });
 
   const handleDownloadPdf = async (id: number) => {
@@ -54,7 +59,7 @@ export default function ChecklistExecutionsList() {
         }
       />
       <div className="p-4 md:p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row gap-3 max-w-2xl">
+        <div className="flex flex-col sm:flex-row gap-3 max-w-4xl">
           <div className="relative flex-1">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar por modelo ou ID..." value={search}
@@ -70,6 +75,18 @@ export default function ChecklistExecutionsList() {
               <SelectItem value="concluida">Concluídos</SelectItem>
             </SelectContent>
           </Select>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full sm:w-[160px] bg-card border-border h-10"
+          />
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full sm:w-[160px] bg-card border-border h-10"
+          />
         </div>
 
         {isLoading ? (
@@ -86,23 +103,18 @@ export default function ChecklistExecutionsList() {
           </Card>
         ) : (
           <div className="bg-card border border-border rounded-lg overflow-x-auto shadow-sm">
-            <table className="w-full min-w-[700px]">
+            <table className="w-full min-w-[560px]">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3">ID</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Modelo</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3 hidden sm:table-cell">Empresa</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Score</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3 hidden md:table-cell">Status</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3 hidden lg:table-cell">Data</th>
                   <th className="text-right text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {executions.map((exec: any) => {
-                  const isCompleted = exec.status === "concluida";
-                  const score = parseFloat(exec.score || "0");
-                  return (
+                {executions.map((exec: any) => (
                     <tr key={exec.id} className="hover:bg-secondary/20 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium">#{exec.id}</td>
                       <td className="px-4 py-3">
@@ -110,20 +122,6 @@ export default function ChecklistExecutionsList() {
                       </td>
                       <td className="px-4 py-3 hidden sm:table-cell">
                         <span className="text-sm text-muted-foreground">{exec.companyName}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {isCompleted && exec.score ? (
-                          <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${score >= 80 ? 'bg-green-500/15 text-green-600' : score >= 50 ? 'bg-yellow-500/15 text-yellow-600' : 'bg-red-500/15 text-red-600'}`}>
-                            {score.toFixed(0)}% Conform.
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs opacity-50">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className={`text-xs px-2.5 py-1 font-semibold tracking-wide rounded-full ${isCompleted ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-orange-500/10 text-orange-500 border border-orange-500/20'}`}>
-                          {isCompleted ? "CONCLUÍDO" : "PENDENTE"}
-                        </span>
                       </td>
                       <td className="px-4 py-3 hidden lg:table-cell">
                         <span className="text-sm text-muted-foreground">
@@ -159,8 +157,7 @@ export default function ChecklistExecutionsList() {
                         </div>
                       </td>
                     </tr>
-                  )
-                })}
+                ))}
               </tbody>
             </table>
           </div>

@@ -884,6 +884,12 @@ export async function markNotificationRead(id: number) {
   await db.update(notifications).set({ status: "read", readAt: new Date() }).where(eq(notifications.id, id));
 }
 
+export async function deleteNotification(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  await db.delete(notifications).where(eq(notifications.id, id));
+}
+
 // =============================================
 // CHAT MESSAGES
 // =============================================

@@ -34,6 +34,7 @@ import {
   deleteEpiFicha,
   deleteITS,
   deleteInspectionItem,
+  deleteNotification,
   deletePGR,
   deletePT,
   deleteTactdriver,
@@ -1003,6 +1004,12 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         return markNotificationRead(input.id);
+      }),
+    delete: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        requireAdmOrTecnico(ctx.user?.ehsRole);
+        return deleteNotification(input.id);
       }),
   }),
 

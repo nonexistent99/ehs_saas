@@ -10,7 +10,6 @@ import { ClipboardCheck, Download, Plus, Trash2, MapPin, MessageCircle } from "l
 import { useState } from "react";
 import { toast } from "sonner";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
-import { SignatureCapture } from "@/components/SignatureCapture";
 
 // ─── Predefined risks & auto-measures ────────────────────────────────────────
 const POTENTIAL_RISKS = [
@@ -103,9 +102,8 @@ export default function PTPage() {
 
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
-    companyId: "", obraId: "", title: "", code: "", status: "ativo" as any,
+    companyId: "", obraId: "", title: "", status: "ativo" as any,
     serviceDescription: "", startDate: "", endDate: "", issuerName: "", supervisorName: "",
-    issuerSignatureUrl: "", supervisorSignatureUrl: "",
   });
 
   // Obra data
@@ -129,9 +127,8 @@ export default function PTPage() {
 
   const resetForm = () => {
     setForm({
-      companyId: "", obraId: "", title: "", code: "", status: "ativo",
+      companyId: "", obraId: "", title: "", status: "ativo",
       serviceDescription: "", startDate: "", endDate: "", issuerName: "", supervisorName: "",
-      issuerSignatureUrl: "", supervisorSignatureUrl: "",
     });
     setPotentialRisks([]); setCustomRisks([]); setEpis([]); setTeam([]); setRevalidations([]);
   };
@@ -188,23 +185,16 @@ export default function PTPage() {
         )}
       </div>
 
-      {/* Código + Status */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Código</Label>
-          <Input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="PT-001" className="bg-secondary border-border" />
-        </div>
-        <div className="space-y-1.5">
-          <Label>Status</Label>
-          <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
-            <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
-            <SelectContent className="bg-card border-border">
-              <SelectItem value="ativo">Ativo</SelectItem>
-              <SelectItem value="inativo">Inativo</SelectItem>
-              <SelectItem value="revisao">Em Revisão</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="space-y-1.5">
+        <Label>Status</Label>
+        <Select value={form.status} onValueChange={v => setForm(f => ({ ...f, status: v }))}>
+          <SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
+          <SelectContent className="bg-card border-border">
+            <SelectItem value="ativo">Ativo</SelectItem>
+            <SelectItem value="inativo">Inativo</SelectItem>
+            <SelectItem value="revisao">Em Revisão</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Título */}
@@ -237,21 +227,6 @@ export default function PTPage() {
           <Label>Responsável pela Tarefa</Label>
           <Input value={form.supervisorName} onChange={e => setForm(f => ({ ...f, supervisorName: e.target.value }))} placeholder="Nome do supervisor" className="bg-secondary border-border" />
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <SignatureCapture
-          label="Assinatura do Emitente (Segurança)"
-          value={form.issuerSignatureUrl}
-          onChange={value => setForm(f => ({ ...f, issuerSignatureUrl: value }))}
-          description="Assinatura exibida no final da PT."
-        />
-        <SignatureCapture
-          label="Assinatura do Responsável pela Tarefa"
-          value={form.supervisorSignatureUrl}
-          onChange={value => setForm(f => ({ ...f, supervisorSignatureUrl: value }))}
-          description="Se ficar vazio, o PDF mantém o campo para assinatura manual."
-        />
       </div>
 
       {/* 1. Riscos Potenciais - predefined checkboxes */}
@@ -354,8 +329,6 @@ export default function PTPage() {
             serviceDescription: form.serviceDescription,
             startDate: form.startDate, endDate: form.endDate,
             issuerName: form.issuerName, supervisorName: form.supervisorName,
-            issuerSignatureUrl: form.issuerSignatureUrl,
-            supervisorSignatureUrl: form.supervisorSignatureUrl,
             potentialRisks: allRisks,
             protectiveMeasures: allMeasures,
             team, revalidations,
@@ -364,7 +337,6 @@ export default function PTPage() {
             companyId: Number(form.companyId),
             obraId: form.obraId ? Number(form.obraId) : undefined,
             title: form.title,
-            code: form.code || undefined,
             status: form.status as any,
             content: structuredContent,
           });

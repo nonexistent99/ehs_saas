@@ -124,7 +124,6 @@ const navItems: NavItem[] = [
     children: [
       { label: "Criar Relatório", icon: <FileText size={14} />, href: "/relatorios/novo" },
       { label: "Pesquisar Relatório", icon: <FileText size={14} />, href: "/relatorios" },
-      { label: "Alterar Relatório", icon: <FileText size={14} />, href: "/relatorios/editar" },
     ],
   },
   {

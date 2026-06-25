@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
-import { Camera, X, Image as ImageIcon, Loader2 } from "lucide-react";
+import { X, Image as ImageIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface ImageUploadProps {
@@ -13,6 +13,7 @@ interface ImageUploadProps {
 
 export function ImageUpload({ value, onChange, label, className, previewFit = "cover" }: ImageUploadProps) {
   const [loading, setLoading] = useState(false);
+  const previewBoxClass = previewFit === "contain" ? "min-h-40 max-h-56 aspect-[3/1]" : "aspect-video";
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -47,7 +48,7 @@ export function ImageUpload({ value, onChange, label, className, previewFit = "c
     <div className={className}>
       {label && <label className="text-xs font-semibold mb-1.5 block text-muted-foreground">{label}</label>}
       
-      <div className="relative group border-2 border-dashed border-border rounded-xl aspect-video bg-secondary/30 flex items-center justify-center overflow-hidden transition-all hover:border-primary/50">
+      <div className={`relative group border-2 border-dashed border-border rounded-xl ${previewBoxClass} bg-secondary/30 flex items-center justify-center overflow-hidden transition-all hover:border-primary/50`}>
         {value ? (
           <>
             <img

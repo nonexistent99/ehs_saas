@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
-import { StatusBadge } from "@/components/StatusBadge";
 import { ShareWhatsappDialog } from "@/components/ShareWhatsappDialog";
 import { Building2, FileText, Plus, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
@@ -123,7 +122,6 @@ export default function InspectionsList() {
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Título</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3 hidden md:table-cell">Empresa</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3 hidden lg:table-cell">NR</th>
-                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Status</th>
                   <th className="text-left text-xs font-semibold text-muted-foreground uppercase px-4 py-3 hidden lg:table-cell">Data</th>
                   <th className="text-right text-xs font-semibold text-muted-foreground uppercase px-4 py-3">Ações</th>
                 </tr>
@@ -144,9 +142,6 @@ export default function InspectionsList() {
                       {item.nr ? (
                         <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">NR-{item.nr.number}</span>
                       ) : <span className="text-muted-foreground text-sm">—</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={item.inspection.status} />
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
                       <span className="text-sm text-muted-foreground">

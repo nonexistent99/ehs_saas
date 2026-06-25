@@ -23,7 +23,7 @@ function formatMessageDateTime(value: unknown) {
     minute: "2-digit",
   });
 
-  return `${day} ${time}`;
+  return `${day} às ${time}`;
 }
 
 export default function ChatPage() {
@@ -193,7 +193,7 @@ export default function ChatPage() {
                           ? "bg-primary text-primary-foreground rounded-br-sm shadow-md"
                           : "bg-secondary text-secondary-foreground rounded-bl-sm border border-border/30"
                       )}>
-                        {msg.text}
+                        <span className="whitespace-pre-wrap">{msg.text}</span>
                       </div>
                       <div className="flex items-center gap-1.5 px-1">
                         <span className="text-[10px] text-muted-foreground font-medium">
