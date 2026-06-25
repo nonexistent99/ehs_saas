@@ -93,14 +93,11 @@ export async function createDocument(data: {
   return result[0]?.id;
 }
 
-export async function updateDocument(id: number, data: Partial<{
-  name: string; description: string; folderId: number | null;
-  fileUrl: string; fileName: string; hasExpiry: boolean; expiryDate: string | null;
-}>, companyId?: number | number[]) {
+export async function updateDocument(id: number, data: Partial<typeof tactDriveDocuments.$inferInsert>, companyId?: number | number[]) {
   const db = await getDb();
   if (!db) throw new Error("DB unavailable");
   const compCond = getCompanyCondition(tactDriveDocuments.companyId, companyId);
-  return db.update(tactDriveDocuments).set(data).where(and(eq(tactDriveDocuments.id, id), compCond));
+  return db.update(tactDriveDocuments).set({ ...data, updatedAt: new Date() }).where(and(eq(tactDriveDocuments.id, id), compCond));
 }
 
 export async function deleteDocument(id: number, companyId?: number | number[]) {

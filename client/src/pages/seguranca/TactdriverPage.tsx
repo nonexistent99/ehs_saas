@@ -8,7 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/PageHeader";
 import {
   Cloud, Folder, FolderOpen, FileText, FilePlus, FolderPlus, Trash2,
-  Download, AlertTriangle, Clock, CheckCircle2, X, Upload, Bell
+  Download, AlertTriangle, Clock, CheckCircle2, X, Upload, Bell,
+  RefreshCw, Building2, CalendarDays, ExternalLink, Info
 } from "lucide-react";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
@@ -21,8 +22,20 @@ type Doc = {
   fileUrl?: string | null; fileName?: string | null; fileType?: string | null;
   hasExpiry: boolean; expiryDate?: string | null;
   folderId?: number | null; companyId: number; createdAt: string | Date;
+  updatedAt?: string | Date; daysUntilExpiry?: number | null;
 };
 type FolderT = { id: number; name: string; color?: string | null; companyId: number };
+type DocForm = {
+  companyId: string;
+  folderId: string;
+  name: string;
+  description: string;
+  hasExpiry: boolean;
+  expiryDate: string;
+  fileUrl: string;
+  fileName: string;
+  fileType: string;
+};
 
 const FOLDER_COLORS = [
   { value: "blue",   label: "Azul",     bg: "bg-blue-500/10",   border: "border-blue-500/30",   text: "text-blue-500",   dot: "bg-blue-500" },
@@ -46,6 +59,18 @@ function expiryStatus(expiryDate?: string | null) {
   return { label: `Valid. ${format(parseISO(expiryDate), "dd/MM/yyyy", { locale: ptBR })}`, color: "text-green-500", bg: "bg-green-500/10", icon: CheckCircle2 };
 }
 
+function getDaysUntilExpiry(expiryDate?: string | null) {
+  if (!expiryDate) return null;
+  return differenceInDays(parseISO(expiryDate), new Date());
+}
+
+function formatDate(value?: string | Date | null) {
+  if (!value) return "Não informado";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "Não informado";
+  return format(date, "dd/MM/yyyy", { locale: ptBR });
+}
+
 function fileIcon(fileType?: string | null) {
   if (!fileType) return "📄";
   if (fileType.includes("pdf")) return "📕";
@@ -56,10 +81,21 @@ function fileIcon(fileType?: string | null) {
 }
 
 // ─── Modal overlay ────────────────────────────────────────────────────────────
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal({
+  title,
+  onClose,
+  children,
+  size = "md",
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  size?: "md" | "lg" | "xl";
+}) {
+  const sizeClass = size === "xl" ? "max-w-5xl" : size === "lg" ? "max-w-2xl" : "max-w-md";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className={`bg-card border border-border rounded-xl shadow-2xl w-full ${sizeClass} max-h-[90vh] overflow-y-auto`}>
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h3 className="font-semibold text-base">{title}</h3>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
@@ -105,6 +141,10 @@ export default function TactDrivePage() {
     onSuccess: () => { toast.success("Documento adicionado!"); utils.tactDrive.documents.list.invalidate(); utils.tactDrive.documents.expiring.invalidate(); setShowDocModal(false); resetDocForm(); },
     onError: (e: any) => toast.error(e.message),
   });
+  const updateDocMut = trpc.tactDrive.documents.update.useMutation({
+    onSuccess: () => { toast.success("Documento atualizado!"); utils.tactDrive.documents.list.invalidate(); utils.tactDrive.documents.expiring.invalidate(); setShowDocModal(false); resetDocForm(); },
+    onError: (e: any) => toast.error(e.message),
+  });
   const deleteDocMut = trpc.tactDrive.documents.delete.useMutation({
     onSuccess: () => { toast.success("Documento excluído!"); utils.tactDrive.documents.list.invalidate(); utils.tactDrive.documents.expiring.invalidate(); },
     onError: (e: any) => toast.error(e.message),
@@ -114,19 +154,33 @@ export default function TactDrivePage() {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showDocModal, setShowDocModal] = useState(false);
   const [showExpiry, setShowExpiry] = useState(false);
+  const [editingDoc, setEditingDoc] = useState<Doc | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Forms
   const [folderForm, setFolderForm] = useState({ companyId: "", name: "", color: "blue" });
-  const [docForm, setDocForm] = useState({
-    companyId: "", name: "", description: "",
+  const [docForm, setDocForm] = useState<DocForm>({
+    companyId: "", folderId: "root", name: "", description: "",
     hasExpiry: false, expiryDate: "",
     fileUrl: "", fileName: "", fileType: "",
   });
 
   const resetFolderForm = () => setFolderForm({ companyId: selectedCompanyId ? String(selectedCompanyId) : "", name: "", color: "blue" });
-  const resetDocForm = () => setDocForm({ companyId: "", name: "", description: "", hasExpiry: false, expiryDate: "", fileUrl: "", fileName: "", fileType: "" });
+  const resetDocForm = () => {
+    setEditingDoc(null);
+    setDocForm({
+      companyId: selectedCompanyId ? String(selectedCompanyId) : "",
+      folderId: selectedFolderId && selectedFolderId > 0 ? String(selectedFolderId) : "root",
+      name: "",
+      description: "",
+      hasExpiry: false,
+      expiryDate: "",
+      fileUrl: "",
+      fileName: "",
+      fileType: "",
+    });
+  };
 
   // File upload
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -150,11 +204,83 @@ export default function TactDrivePage() {
     }
   }
 
+  function openCreateDocumentModal() {
+    resetDocForm();
+    setShowDocModal(true);
+  }
+
+  function openUpdateDocumentModal(doc: Doc) {
+    setEditingDoc(doc);
+    setDocForm({
+      companyId: String(doc.companyId),
+      folderId: doc.folderId ? String(doc.folderId) : "root",
+      name: doc.name || "",
+      description: doc.description || "",
+      hasExpiry: !!doc.hasExpiry,
+      expiryDate: doc.expiryDate ? String(doc.expiryDate).slice(0, 10) : "",
+      fileUrl: doc.fileUrl || "",
+      fileName: doc.fileName || "",
+      fileType: doc.fileType || "",
+    });
+    setShowExpiry(false);
+    setShowDocModal(true);
+  }
+
+  function submitDocument() {
+    if (!docForm.companyId || !docForm.name.trim()) {
+      toast.error("Empresa e nome são obrigatórios");
+      return;
+    }
+    if (docForm.hasExpiry && !docForm.expiryDate) {
+      toast.error("Informe a data de validade");
+      return;
+    }
+
+    const payload = {
+      companyId: Number(docForm.companyId),
+      folderId: docForm.folderId !== "root" ? Number(docForm.folderId) : null,
+      name: docForm.name.trim(),
+      description: docForm.description.trim() || null,
+      fileUrl: docForm.fileUrl || null,
+      fileName: docForm.fileName || null,
+      fileType: docForm.fileType || null,
+      hasExpiry: docForm.hasExpiry,
+      expiryDate: docForm.hasExpiry ? docForm.expiryDate : null,
+    };
+
+    if (editingDoc) {
+      updateDocMut.mutate({ id: editingDoc.id, ...payload });
+      return;
+    }
+
+    createDocMut.mutate({
+      ...payload,
+      description: payload.description || undefined,
+      fileUrl: payload.fileUrl || undefined,
+      fileName: payload.fileName || undefined,
+      fileType: payload.fileType || undefined,
+    });
+  }
+
   const currentFolder = folders.find((f: FolderT) => f.id === selectedFolderId);
+  const foldersForDoc = folders.filter((folder: FolderT) => !docForm.companyId || folder.companyId === Number(docForm.companyId));
+  const companyNameById = new Map(companies.map((company: any) => [company.id, company.name]));
+  const folderNameById = new Map(folders.map((folder: FolderT) => [folder.id, folder.name]));
+  const expiredDocs = expiringDocs.filter((d: Doc) => {
+    const days = getDaysUntilExpiry(d.expiryDate);
+    return days !== null && days < 0;
+  });
+  const upcomingExpiryDocs = expiringDocs.filter((d: Doc) => {
+    const days = getDaysUntilExpiry(d.expiryDate);
+    return days !== null && days >= 0;
+  });
   const expiredCount = expiringDocs.filter((d: Doc) => {
     if (!d.expiryDate) return false;
     return differenceInDays(parseISO(d.expiryDate), new Date()) < 0;
   }).length;
+  const documentModalTitle = editingDoc ? "Atualizar Documento" : "Novo Documento";
+  const documentSubmitLabel = editingDoc ? "Salvar Atualização" : "Salvar Documento";
+  const documentSubmitPending = createDocMut.isPending || updateDocMut.isPending;
 
   return (
     <div className="flex flex-col h-full">
@@ -164,19 +290,17 @@ export default function TactDrivePage() {
         icon={<Cloud size={22} />}
         actions={
           <div className="flex items-center gap-2">
-            {expiringDocs.length > 0 && (
-              <Button variant="outline" size="sm" className="relative gap-1.5 border-border" onClick={() => setShowExpiry(true)}>
-                <Bell size={14} />
-                Vencimentos
-                <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${expiredCount > 0 ? "bg-red-500 text-white" : "bg-yellow-500 text-black"}`}>
-                  {expiringDocs.length}
-                </span>
-              </Button>
-            )}
+            <Button variant="outline" size="sm" className="relative gap-1.5 border-border" onClick={() => setShowExpiry(true)}>
+              <Bell size={14} />
+              Vencidos e vencendo
+              <span className={`ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full ${expiredCount > 0 ? "bg-red-500 text-white" : "bg-yellow-500 text-black"}`}>
+                {expiredCount > 0 ? expiredCount : expiringDocs.length}
+              </span>
+            </Button>
             <Button size="sm" variant="outline" className="gap-1.5 border-border" onClick={() => { resetFolderForm(); setShowFolderModal(true); }}>
               <FolderPlus size={14} /> Nova Pasta
             </Button>
-            <Button size="sm" className="gap-1.5 bg-primary text-primary-foreground" onClick={() => setShowDocModal(true)}>
+            <Button size="sm" className="gap-1.5 bg-primary text-primary-foreground" onClick={openCreateDocumentModal}>
               <FilePlus size={14} /> Novo Documento
             </Button>
           </div>
@@ -282,6 +406,21 @@ export default function TactDrivePage() {
                         </div>
                       </div>
 
+                      <div className="space-y-1 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <Building2 size={11} />
+                          <span className="truncate">{companyNameById.get(doc.companyId) || "Empresa não informada"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Folder size={11} />
+                          <span className="truncate">{doc.folderId ? (folderNameById.get(doc.folderId) || "Pasta não encontrada") : "Sem pasta"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <CalendarDays size={11} />
+                          <span>Atualizado em {formatDate(doc.updatedAt || doc.createdAt)}</span>
+                        </div>
+                      </div>
+
                       {/* Expiry badge */}
                       {expiry && ExpiryIcon && (
                         <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${expiry.color} ${expiry.bg}`}>
@@ -292,10 +431,14 @@ export default function TactDrivePage() {
 
                       {/* Actions */}
                       <div className="mt-auto pt-2 flex items-center gap-1 justify-end border-t border-border opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-primary" title="Atualizar documento"
+                          onClick={() => openUpdateDocumentModal(doc)}>
+                          <RefreshCw size={13} />
+                        </Button>
                         {doc.fileUrl && (
                           <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
                             <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-primary" title="Baixar / Visualizar">
-                              <Download size={13} />
+                              <ExternalLink size={13} />
                             </Button>
                           </a>
                         )}
@@ -315,28 +458,85 @@ export default function TactDrivePage() {
 
       {/* ── Expiry Alert Panel ──────────────────────────────────────────── */}
       {showExpiry && (
-        <Modal title={`⚠️ Documentos Vencendo (${expiringDocs.length})`} onClose={() => setShowExpiry(false)}>
-          <div className="space-y-2">
-            {expiringDocs.map((doc: Doc) => {
-              const expiry = expiryStatus(doc.expiryDate);
-              const ExpiryIcon = expiry?.icon;
-              if (!expiry) return null;
-              return (
-                <div key={doc.id} className={`flex items-center gap-3 p-3 rounded-lg ${expiry.bg} border border-current/10`}>
-                  {ExpiryIcon && <ExpiryIcon size={16} className={expiry.color} />}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{doc.name}</p>
-                    <p className={`text-xs ${expiry.color}`}>{expiry.label}</p>
-                  </div>
-                  {doc.fileUrl && (
-                    <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
-                      <Button variant="ghost" size="icon" className="w-7 h-7"><Download size={13} /></Button>
-                    </a>
-                  )}
-                </div>
-              );
-            })}
+        <Modal title={`Detalhes de vencimentos (${expiringDocs.length})`} onClose={() => setShowExpiry(false)} size="xl">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-red-500/25 bg-red-500/10 p-3">
+              <p className="text-xs uppercase font-bold text-red-400">Vencidos</p>
+              <p className="text-2xl font-black text-red-400">{expiredDocs.length}</p>
+            </div>
+            <div className="rounded-lg border border-yellow-500/25 bg-yellow-500/10 p-3">
+              <p className="text-xs uppercase font-bold text-yellow-400">Vencendo em 30 dias</p>
+              <p className="text-2xl font-black text-yellow-400">{upcomingExpiryDocs.length}</p>
+            </div>
+            <div className="rounded-lg border border-border bg-secondary/40 p-3">
+              <p className="text-xs uppercase font-bold text-muted-foreground">Empresa filtrada</p>
+              <p className="text-sm font-semibold truncate">{selectedCompanyId ? (companyNameById.get(selectedCompanyId) || "Empresa") : "Todas as empresas"}</p>
+            </div>
           </div>
+
+          {expiringDocs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+              <Info size={24} />
+              <p className="font-medium">Nenhum documento vencido ou vencendo nos próximos 30 dias.</p>
+              <p className="text-xs">Quando houver um documento com validade próxima, ele aparecerá aqui com os detalhes para atualização.</p>
+            </div>
+          ) : (
+            <div className="max-h-[58vh] overflow-y-auto rounded-lg border border-border">
+              <div className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.8fr] gap-3 border-b border-border bg-secondary/50 px-3 py-2 text-[11px] font-bold uppercase text-muted-foreground">
+                <span>Documento</span>
+                <span>Empresa / Pasta</span>
+                <span>Validade</span>
+                <span>Arquivo</span>
+                <span className="text-right">Ações</span>
+              </div>
+              {expiringDocs.map((doc: Doc) => {
+                const expiry = expiryStatus(doc.expiryDate);
+                const days = getDaysUntilExpiry(doc.expiryDate);
+                const ExpiryIcon = expiry?.icon || Clock;
+                return (
+                  <div key={doc.id} className="grid grid-cols-[1.4fr_1fr_0.8fr_0.8fr_0.8fr] gap-3 border-b border-border px-3 py-3 last:border-b-0">
+                    <div className="min-w-0">
+                      <div className="flex items-start gap-2">
+                        <ExpiryIcon size={16} className={expiry?.color || "text-muted-foreground"} />
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold truncate">{doc.name}</p>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{doc.description || "Sem descrição"}</p>
+                          <p className="text-[11px] text-muted-foreground mt-1">Atualizado em {formatDate(doc.updatedAt || doc.createdAt)}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="min-w-0 text-xs text-muted-foreground">
+                      <p className="font-medium text-foreground truncate">{companyNameById.get(doc.companyId) || "Empresa não informada"}</p>
+                      <p className="truncate">{doc.folderId ? (folderNameById.get(doc.folderId) || "Pasta não encontrada") : "Sem pasta"}</p>
+                    </div>
+                    <div>
+                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-bold ${expiry?.bg || "bg-secondary"} ${expiry?.color || "text-muted-foreground"}`}>
+                        {days !== null && days < 0 ? `${Math.abs(days)}d atrasado` : expiry?.label}
+                      </span>
+                      <p className="mt-1 text-[11px] text-muted-foreground">{formatDate(doc.expiryDate)}</p>
+                    </div>
+                    <div className="min-w-0 text-xs text-muted-foreground">
+                      <p className="truncate">{doc.fileName || "Sem anexo"}</p>
+                      {doc.fileType && <p className="truncate">{doc.fileType}</p>}
+                    </div>
+                    <div className="flex justify-end gap-1">
+                      {doc.fileUrl && (
+                        <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" title="Abrir arquivo">
+                            <Download size={14} />
+                          </Button>
+                        </a>
+                      )}
+                      <Button variant="outline" size="sm" className="h-8 gap-1.5 border-border" onClick={() => openUpdateDocumentModal(doc)}>
+                        <RefreshCw size={13} />
+                        Atualizar
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Modal>
       )}
 
@@ -383,10 +583,10 @@ export default function TactDrivePage() {
 
       {/* ── New Document Modal ──────────────────────────────────────────── */}
       {showDocModal && (
-        <Modal title="Novo Documento" onClose={() => { setShowDocModal(false); resetDocForm(); }}>
+        <Modal title={documentModalTitle} onClose={() => { setShowDocModal(false); resetDocForm(); }} size="lg">
           <div className="space-y-1.5">
             <Label>Empresa *</Label>
-            <Select value={docForm.companyId} onValueChange={v => setDocForm(f => ({ ...f, companyId: v }))}>
+            <Select value={docForm.companyId} onValueChange={v => setDocForm(f => ({ ...f, companyId: v, folderId: "root" }))}>
               <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent className="bg-card border-border">
                 {companies.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
@@ -396,15 +596,15 @@ export default function TactDrivePage() {
           <div className="space-y-1.5">
             <Label>Pasta</Label>
             <Select
-              value={selectedFolderId ? String(selectedFolderId) : "root"}
-              onValueChange={() => {}}
+              value={docForm.folderId}
+              onValueChange={v => setDocForm(f => ({ ...f, folderId: v }))}
             >
               <SelectTrigger className="bg-secondary border-border">
                 <SelectValue placeholder="Sem pasta (raiz)" />
               </SelectTrigger>
               <SelectContent className="bg-card border-border">
                 <SelectItem value="root">Sem pasta</SelectItem>
-                {folders.map((folder: FolderT) => <SelectItem key={folder.id} value={String(folder.id)}>{folder.name}</SelectItem>)}
+                {foldersForDoc.map((folder: FolderT) => <SelectItem key={folder.id} value={String(folder.id)}>{folder.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -424,7 +624,7 @@ export default function TactDrivePage() {
               className="w-4 h-4 rounded" />
             <label htmlFor="hasExpiry" className="text-sm cursor-pointer">
               <span className="font-medium">Possui data de validade?</span>
-              <span className="block text-xs text-muted-foreground">Uma notificação será exibida 30 dias antes do vencimento</span>
+              <span className="block text-xs text-muted-foreground">O documento aparecerá na central de vencidos e vencendo 30 dias antes da validade.</span>
             </label>
           </div>
 
@@ -437,7 +637,7 @@ export default function TactDrivePage() {
 
           {/* File upload */}
           <div className="space-y-1.5">
-            <Label>Anexo do Documento</Label>
+            <Label>{editingDoc ? "Atualizar anexo do documento" : "Anexo do documento"}</Label>
             <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept="*/*" />
             {docForm.fileUrl ? (
               <div className="flex items-center gap-2 p-2 rounded-lg bg-green-500/10 border border-green-500/30">
@@ -456,23 +656,15 @@ export default function TactDrivePage() {
             )}
           </div>
 
-          <Button className="w-full bg-primary text-primary-foreground" disabled={createDocMut.isPending}
-            onClick={() => {
-              if (!docForm.companyId || !docForm.name) { toast.error("Empresa e nome são obrigatórios"); return; }
-              if (docForm.hasExpiry && !docForm.expiryDate) { toast.error("Informe a data de validade"); return; }
-              createDocMut.mutate({
-                companyId: Number(docForm.companyId),
-                folderId: selectedFolderId && selectedFolderId > 0 ? selectedFolderId : null,
-                name: docForm.name,
-                description: docForm.description || undefined,
-                fileUrl: docForm.fileUrl || undefined,
-                fileName: docForm.fileName || undefined,
-                fileType: docForm.fileType || undefined,
-                hasExpiry: docForm.hasExpiry,
-                expiryDate: docForm.hasExpiry ? docForm.expiryDate : null,
-              });
-            }}>
-            {createDocMut.isPending ? "Salvando..." : "Salvar Documento"}
+          {editingDoc && (
+            <div className="rounded-lg border border-border bg-secondary/40 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Atualização do TACT Drive</p>
+              <p>Substitua o arquivo, ajuste a validade ou mova o documento de pasta. Ao salvar, a data de atualização será renovada.</p>
+            </div>
+          )}
+
+          <Button className="w-full bg-primary text-primary-foreground" disabled={documentSubmitPending} onClick={submitDocument}>
+            {documentSubmitPending ? "Salvando..." : documentSubmitLabel}
           </Button>
         </Modal>
       )}

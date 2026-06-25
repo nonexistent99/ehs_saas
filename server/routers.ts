@@ -243,8 +243,11 @@ export const appRouter = router({
           id: z.number(),
           companyId: z.number().optional(),
           name: z.string().optional(),
-          description: z.string().optional(),
+          description: z.string().nullable().optional(),
           folderId: z.number().nullable().optional(),
+          fileUrl: z.string().nullable().optional(),
+          fileName: z.string().nullable().optional(),
+          fileType: z.string().nullable().optional(),
           hasExpiry: z.boolean().optional(),
           expiryDate: z.string().nullable().optional(),
         }))
