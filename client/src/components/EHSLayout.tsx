@@ -365,6 +365,7 @@ export default function EHSLayout({ children }: { children: React.ReactNode }) {
               variant="plain"
               width={sidebarCollapsed ? 54 : 166}
               height={sidebarCollapsed ? 18 : 52}
+              className={cn("tact-brand-logo", sidebarCollapsed && "tact-brand-logo--compact")}
             />
           </div>
         </div>

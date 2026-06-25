@@ -54,6 +54,7 @@ export default function Login() {
                 variant="plain"
                 width={148}
                 height={46}
+                className="tact-brand-logo"
               />
             </div>
 
@@ -93,6 +94,7 @@ export default function Login() {
                   variant="plain"
                   width={128}
                   height={40}
+                  className="tact-brand-logo"
                 />
               </div>
               <h2 className="text-3xl font-black text-white tracking-tight">Bem-vindo</h2>
