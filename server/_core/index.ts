@@ -10,7 +10,9 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { generateTechnicalReportPdf } from "../pdfTemplateEngine";
-import { generateGroPdf, generateAprPdf, generatePtPdf, generateEpiPdf, generateTrainingPdf, generateWarningPdf, generateChecklistPdf, generateItsPdf } from "../pdfTemplates";
+import { generateAprPdf, generatePtPdf, generateEpiPdf, generateTrainingPdf, generateItsPdf } from "../pdfTemplates";
+import { buildRelatorioTecnicoHtml, buildPgrHtml, buildChecklistHtml, buildAdvertenciaHtml } from "../pdfTactModel";
+import { generatePdfFromHtml } from "../pdf";
 import { sdk } from "./sdk";
 import { COOKIE_NAME } from "@shared/const";
 import { uploadRouter } from "../upload";
@@ -235,15 +237,21 @@ async function startServer() {
           : [],
       }));
 
-      const pdfBuffer = await generateTechnicalReportPdf({
-        empresa: company?.name || "—",
-        empreendimento: inspection.title,
-        local,
-        data: dataFormatada,
-        observacoes: inspection.description || undefined,
-        logoUrl: company?.logoUrl || undefined,
-        itens,
-      });
+      const pdfBuffer = await generatePdfFromHtml(
+        buildRelatorioTecnicoHtml({
+          logoUrl: company?.logoUrl || undefined,
+          companyName: company?.name || "—",
+          obraName: inspection.title,
+          obraAddress: local,
+          items: itens.map((item: any) => ({
+            title: item.titulo,
+            status: item.status,
+            date: item.data,
+            text: `${item.descricao}\n\nPlano de Ação: ${item.plano_acao}${item.prazo ? `\nPrazo: ${item.prazo}` : ""}`,
+            photoUrls: (item.imagens || []).map((img: any) => img.url || img).filter(Boolean),
+          })),
+        })
+      );
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="relatorio-inspecao-${id}.pdf"`);
@@ -294,30 +302,32 @@ async function startServer() {
         [record.company?.city, record.company?.state].filter(Boolean).join("/"),
       ].filter(Boolean).join(" - ");
 
-      const pdfBuffer = await generateGroPdf({
-        title: record.pgr.title,
-        companyName: record.company?.name || "N/A",
-        cnpj: record.company?.cnpj || "",
-        obraName: record.obra?.name || "Matriz",
-        obraAddress,
-        companyAddress,
-        version: record.pgr.version,
-        validFrom: record.pgr.validFrom,
-        validUntil: record.pgr.validUntil,
-        status: record.pgr.status,
-        riskMatrix: parsedContent.risks || [],
-        actionPlan: parsedContent.actionPlan || [],
-        observations: parsedContent.rawContent || "",
-        nr24Workers: parsedContent.nr24Workers,
-        signatureUrl: parsedContent.signatureUrl || "",
-        responsibleName: parsedContent.responsibleName || "",
-        clientLogoUrl: record.company?.logoUrl || undefined,
-        stages: stages.length ? stages.map(s => ({
-          name: s.name,
-          description: s.description,
-          subcontractorInfo: s.subcontractorInfo
-        })) : (Array.isArray(parsedContent.stages) ? parsedContent.stages : [])
-      });
+      const pdfBuffer = await generatePdfFromHtml(
+        buildPgrHtml({
+          logoUrl: record.company?.logoUrl || undefined,
+          companyName: record.company?.name || "N/A",
+          companyAddress,
+          cnpj: record.company?.cnpj || "",
+          obraName: record.obra?.name || "Matriz",
+          obraAddress,
+          title: record.pgr.title,
+          version: record.pgr.version || "",
+          validFrom: record.pgr.validFrom || "",
+          validUntil: record.pgr.validUntil || "",
+          status: record.pgr.status,
+          riskMatrix: parsedContent.risks || [],
+          actionPlan: parsedContent.actionPlan || [],
+          observations: parsedContent.rawContent || "",
+          nr24Workers: parsedContent.nr24Workers,
+          signatureUrl: parsedContent.signatureUrl || "",
+          responsibleName: parsedContent.responsibleName || "",
+          stages: stages.length ? stages.map((s: any) => ({
+            name: s.name,
+            description: s.description,
+            subcontractorInfo: s.subcontractorInfo
+          })) : (Array.isArray(parsedContent.stages) ? parsedContent.stages : [])
+        })
+      );
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="gro-${pgrId}.pdf"`);
@@ -623,21 +633,24 @@ async function startServer() {
         if (witness.length > 0) witnessName = witness[0].name || "";
       }
 
-      const pdfBuffer = await generateWarningPdf({
-        warningNumber: id,
-        type: record.advertencia.type,
-        employeeName: record.advertencia.employeeName || record.employee?.name || record.user?.name || "Empregado N/A",
-        role: record.employee ? "Operacional" : record.user?.ehsRole || "N/A",
-        companyName: record.company?.name || "N/A",
-        reason: record.advertencia.reason,
-        description: record.advertencia.description || "N/A",
-        date: record.advertencia.date,
-        location: record.obra?.name || record.company?.city || "Sede",
-        issuerName: "",
-        witnessName,
-        employeeSignatureUrl: record.advertencia.signatureUrl || "",
-        clientLogoUrl: record.company?.logoUrl || undefined
-      });
+      const { format } = await import("date-fns");
+      const { ptBR } = await import("date-fns/locale");
+      const advertenciaDate = record.advertencia.date
+        ? format(new Date(record.advertencia.date), "dd/MM/yyyy", { locale: ptBR })
+        : format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+
+      const pdfBuffer = await generatePdfFromHtml(
+        buildAdvertenciaHtml({
+          logoUrl: record.company?.logoUrl || undefined,
+          empresa: record.company?.name || "N/A",
+          obra: record.obra?.name || record.company?.city || "Sede",
+          colaborador: record.advertencia.employeeName || record.employee?.name || record.user?.name || "Empregado N/A",
+          tipoAdvertencia: record.advertencia.type || "Advertência",
+          motivo: record.advertencia.reason || "",
+          data: advertenciaDate,
+          descricao: record.advertencia.description || "N/A",
+        })
+      );
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="advertencia-${id}.pdf"`);
@@ -694,17 +707,29 @@ async function startServer() {
         mediaUrls: i.execItem.mediaUrls || []
       }));
 
-      const pdfBuffer = await generateChecklistPdf({
-        companyName: record.company.name,
-        projectName: record.obra?.name || "N/A",
-        date: record.execution.date,
-        templateName: record.template.name,
-        inspectorName: record.inspector?.name || "Inspetor/Técnico",
-        score: record.execution.score,
-        signatureUrl: record.execution.signatureUrl,
-        items: itemsMapped,
-        clientLogoUrl: record.company?.logoUrl || undefined
-      });
+      const { format } = await import("date-fns");
+      const { ptBR } = await import("date-fns/locale");
+      const checklistDate = record.execution.date
+        ? format(new Date(record.execution.date), "dd/MM/yyyy", { locale: ptBR })
+        : format(new Date(), "dd/MM/yyyy", { locale: ptBR });
+
+      const pdfBuffer = await generatePdfFromHtml(
+        buildChecklistHtml({
+          logoUrl: record.company?.logoUrl || undefined,
+          empresa: record.company.name,
+          obra: record.obra?.name || "N/A",
+          tema: record.template.name,
+          data: checklistDate,
+          items: itemsMapped.map((i: any) => ({
+            verificacao: i.name,
+            norma: i.norma || "",
+            descricao: i.description || "",
+            status: i.status,
+            consideracoes: i.observation || "",
+            photoUrl: i.mediaUrls?.[0] || undefined,
+          })),
+        })
+      );
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `inline; filename="checklist-${id}.pdf"`);

@@ -3165,14 +3165,23 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
   const theme       = parsed.theme       || data.title || "";
   const dateVal     = parsed.date ? formatPdfDate(parsed.date) : formatPdfDate(data.createdAt);
   const duration    = parsed.duration    || "";
-  const participant = Array.isArray(parsed.participants)
-    ? parsed.participants.filter(Boolean).join(", ")
-    : parsed.participant || "";
+  // Participants: support both legacy (string[]) and new ({name, signatureUrl}[])
+  const participantsRaw = Array.isArray(parsed.participants) ? parsed.participants : [];
+  const participants: Array<{ name: string; signatureUrl: string }> = participantsRaw.map((p: any) => {
+    if (typeof p === "string") return { name: p.trim(), signatureUrl: "" };
+    return { name: (p.name || "").trim(), signatureUrl: p.signatureUrl || "" };
+  }).filter((p: { name: string }) => p.name);
+  const participant = participants.length > 0
+    ? "" // not used anymore — individual rows render each participant
+    : (typeof parsed.participant === "string" ? parsed.participant : "");
   const technician  = parsed.technician  || data.authorName || "";
   const notes       = parsed.notes       || data.description || "";
-  const participantSignature = (parsed.participantSignatureUrl || parsed.signatureUrl)
-    ? await resolvePdfImage(parsed.participantSignatureUrl || parsed.signatureUrl)
-    : "";
+  // Resolve participant signature images
+  const participantSigs: Array<{ name: string; sigDataUrl: string }> = [];
+  for (const p of participants) {
+    const sig = p.signatureUrl ? await resolvePdfImage(p.signatureUrl) : "";
+    participantSigs.push({ name: p.name, sigDataUrl: sig });
+  }
   const technicianSignature = parsed.technicianSignatureUrl ? await resolvePdfImage(parsed.technicianSignatureUrl) : "";
 
   const empresa = [data.companyName, data.obraName].filter(Boolean).join(" - ");
@@ -3236,20 +3245,35 @@ export async function generateItsPdf(data: ItsData): Promise<Buffer> {
         <span class="val">${duration}</span>
       </td>
     </tr>
-    <!-- PARTICIPANTE -->
+    ${participants.length > 0 ? participants.map((p, i) => {
+      const sig = participantSigs[i];
+      return `
+    <!-- PARTICIPANTE ${i + 1} -->
+    <tr>
+      <td colspan="2">
+        <span class="lbl">PARTICIPANTE ${i + 1}:</span>
+        <span class="val">${escapeHtml(p.name)}</span>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="2" class="sig-box">
+        <span class="lbl">ASSINATURA DO PARTICIPANTE</span>
+        ${sig?.sigDataUrl ? `<div class="signature-clean"><img src="${escapeHtml(sig.sigDataUrl)}" class="signature-img" /></div>` : ""}
+      </td>
+    </tr>`;
+    }).join("") : `
+    <!-- PARTICIPANTE (legacy) -->
     <tr>
       <td colspan="2" style="height:36px;">
         <span class="lbl">PARTICIPANTE:</span>
         <span class="val">${participant}</span>
       </td>
     </tr>
-    <!-- ASSINATURA -->
     <tr>
       <td colspan="2" class="sig-box">
         <span class="lbl">ASSINATURA DO PARTICIPANTE / EQUIPE</span>
-        ${participantSignature ? `<div class="signature-clean"><img src="${escapeHtml(participantSignature)}" class="signature-img" /></div>` : ""}
       </td>
-    </tr>
+    </tr>`}
     <!-- TECNICO EM SEGURANCA -->
     <tr>
       <td colspan="2">
