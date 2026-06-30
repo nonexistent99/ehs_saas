@@ -178,9 +178,9 @@ html, body {
 .tact-status-badge { display: inline-flex; align-items: center; border-radius: 999px; font-size: 8.5px; font-weight: 900; padding: 2mm 3mm; text-transform: uppercase; }
 
 /* Checklist table */
-.tact-checklist-table { width: 100%; border-collapse: collapse; border: 1px solid ${TACT_BORDER}; }
+.tact-checklist-table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid ${TACT_BORDER}; }
 .tact-checklist-table th { background: ${TACT_DARK}; color: #fff; font-size: 8px; font-weight: 800; text-transform: uppercase; padding: 2mm 3mm; text-align: left; }
-.tact-checklist-table td { border: 1px solid ${TACT_BORDER}; padding: 2mm 3mm; font-size: 10px; vertical-align: top; }
+.tact-checklist-table td { border: 1px solid ${TACT_BORDER}; padding: 2mm 3mm; font-size: 10px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
 .tact-checklist-photo { width: 55mm; height: 38mm; border: 1px dashed ${TACT_BORDER}; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: ${TACT_BORDER}; text-transform: uppercase; overflow: hidden; }
 .tact-checklist-photo img { width: 100%; height: 100%; object-fit: cover; }
 

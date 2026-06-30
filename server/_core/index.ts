@@ -9,7 +9,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { generateTechnicalReportPdf } from "../pdfTemplateEngine";
+import { generateTechnicalReportPdf, resolveImageToDataUrl } from "../pdfTemplateEngine";
 import { generateAprPdf, generatePtPdf, generateEpiPdf, generateTrainingPdf, generateItsPdf } from "../pdfTemplates";
 import { buildRelatorioTecnicoHtml, buildPgrHtml, buildChecklistHtml, buildAdvertenciaHtml } from "../pdfTactModel";
 import { generatePdfFromHtml } from "../pdf";
@@ -707,6 +707,27 @@ async function startServer() {
         mediaUrls: i.execItem.mediaUrls || []
       }));
 
+      // Resolve photo URLs to data URLs for PDF embedding
+      const resolvedItems = await Promise.all(
+        itemsMapped.map(async (i: any) => {
+          const rawUrl = i.mediaUrls?.[0];
+          const resolvedUrl = rawUrl ? await resolveImageToDataUrl(rawUrl) : undefined;
+          // Normalize status to short codes expected by buildChecklistPage
+          const statusShort = i.status === "Conforme" ? "C"
+            : i.status === "Não Conforme" ? "NC"
+            : i.status === "N/A" ? "NA"
+            : (i.status || "NA");
+          return {
+            verificacao: i.name,
+            norma: i.norma || "",
+            descricao: i.description || "",
+            status: statusShort,
+            consideracoes: i.observation || "",
+            photoUrl: resolvedUrl || undefined,
+          };
+        })
+      );
+
       const { format } = await import("date-fns");
       const { ptBR } = await import("date-fns/locale");
       const checklistDate = record.execution.date
@@ -720,14 +741,7 @@ async function startServer() {
           obra: record.obra?.name || "N/A",
           tema: record.template.name,
           data: checklistDate,
-          items: itemsMapped.map((i: any) => ({
-            verificacao: i.name,
-            norma: i.norma || "",
-            descricao: i.description || "",
-            status: i.status,
-            consideracoes: i.observation || "",
-            photoUrl: i.mediaUrls?.[0] || undefined,
-          })),
+          items: resolvedItems,
         })
       );
 
