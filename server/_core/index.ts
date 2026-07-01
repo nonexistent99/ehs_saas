@@ -710,8 +710,11 @@ async function startServer() {
       // Resolve photo URLs to data URLs for PDF embedding
       const resolvedItems = await Promise.all(
         itemsMapped.map(async (i: any) => {
-          const rawUrl = i.mediaUrls?.[0];
-          const resolvedUrl = rawUrl ? await resolveImageToDataUrl(rawUrl) : undefined;
+          const rawUrls = Array.isArray(i.mediaUrls) ? i.mediaUrls : [];
+          const resolvedUrls = await Promise.all(
+            rawUrls.map((url: string) => resolveImageToDataUrl(url))
+          );
+          const resolvedFirst = resolvedUrls[0] || undefined;
           // Normalize status to short codes expected by buildChecklistPage
           const statusShort = i.status === "Conforme" ? "C"
             : i.status === "Não Conforme" ? "NC"
@@ -723,7 +726,8 @@ async function startServer() {
             descricao: i.description || "",
             status: statusShort,
             consideracoes: i.observation || "",
-            photoUrl: resolvedUrl || undefined,
+            photoUrl: resolvedFirst,
+            photoUrls: resolvedUrls.filter(Boolean),
           };
         })
       );

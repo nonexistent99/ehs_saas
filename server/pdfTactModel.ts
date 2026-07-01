@@ -177,11 +177,134 @@ html, body {
 /* Status badge */
 .tact-status-badge { display: inline-flex; align-items: center; border-radius: 999px; font-size: 8.5px; font-weight: 900; padding: 2mm 3mm; text-transform: uppercase; }
 
-/* Checklist table */
-.tact-checklist-table { width: 100%; table-layout: fixed; border-collapse: collapse; border: 1px solid ${TACT_BORDER}; }
-.tact-checklist-table th { background: ${TACT_DARK}; color: #fff; font-size: 8px; font-weight: 800; text-transform: uppercase; padding: 2mm 3mm; text-align: left; }
-.tact-checklist-table td { border: 1px solid ${TACT_BORDER}; padding: 2mm 3mm; font-size: 10px; vertical-align: top; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; }
-.tact-checklist-photo { width: 55mm; height: 38mm; border: 1px dashed ${TACT_BORDER}; display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 800; color: ${TACT_BORDER}; text-transform: uppercase; overflow: hidden; }
+/* Checklist block layout */
+.tact-checklist-item-block {
+  border: 1px solid ${TACT_BORDER};
+  padding: 3mm 4mm;
+  display: grid;
+  gap: 2mm;
+}
+.tact-checklist-item-block.with-photo {
+  grid-template-columns: 1fr 1.4fr;
+  grid-template-rows: auto auto auto auto;
+  grid-template-areas:
+    "fields photo"
+    "fields photo"
+    "fields photo"
+    "status status"
+    "consideracoes consideracoes";
+}
+.tact-checklist-item-block.no-photo {
+  grid-template-columns: 1fr;
+}
+.tact-checklist-item-fields {
+  grid-area: fields;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5mm;
+}
+.tact-checklist-field-label {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: ${TACT_DARK};
+  text-transform: uppercase;
+}
+.tact-checklist-field-value {
+  font-size: 10px;
+  color: ${TACT_BODY};
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  padding-bottom: 1mm;
+}
+.tact-checklist-photo-area {
+  grid-area: photo;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed ${TACT_BORDER};
+  min-height: 50mm;
+}
+.tact-checklist-photo-area-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: ${TACT_DARK};
+  text-transform: uppercase;
+  margin-bottom: 2mm;
+}
+.tact-checklist-photo-img {
+  width: 100%;
+  max-height: 45mm;
+  object-fit: contain;
+}
+.tact-checklist-photo-placeholder {
+  font-size: 14px;
+  font-weight: 800;
+  color: ${TACT_BORDER};
+  text-transform: uppercase;
+}
+.tact-checklist-status-row {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3mm;
+  padding-top: 1.5mm;
+  border-top: 1px solid ${TACT_BORDER};
+}
+.tact-checklist-status-label {
+  font-size: 9px;
+  font-weight: 800;
+  color: ${TACT_DARK};
+  text-transform: uppercase;
+}
+.tact-checklist-consideracoes {
+  grid-area: consideracoes;
+  padding-top: 1.5mm;
+  border-top: 1px solid ${TACT_BORDER};
+}
+/* Checklist info header */
+.tact-checklist-info {
+  border: 1.5px dashed ${TACT_BORDER};
+  padding: 3mm 4mm;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1mm 6mm;
+}
+.tact-checklist-info-field {
+  display: flex;
+  gap: 1mm;
+  align-items: baseline;
+}
+.tact-checklist-info-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: ${TACT_ORANGE};
+}
+.tact-checklist-info-value {
+  font-size: 10px;
+  color: ${TACT_DARK};
+  font-weight: 600;
+}
+/* Separator bar */
+.tact-checklist-separator {
+  width: 100%;
+  height: 1mm;
+  background: linear-gradient(90deg, ${TACT_DARK} 0%, ${TACT_ORANGE} 100%);
+}
+/* Photo evidence section (for compact layout) */
+.tact-checklist-photo-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm;
+  border: 1.5px dashed ${TACT_BORDER};
+  padding: 3mm;
+  min-height: 35mm;
+  align-items: center;
+  justify-content: center;
+}
 .tact-checklist-photo img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Risk matrix */
@@ -424,7 +547,7 @@ function buildItem4PhotoPage(opts: {
   `, opts.logoUrl, opts.title);
 }
 
-/** Page 6-7: Checklist (with or without photo column) */
+/** Page 6-7: Checklist — block layout matching PPTX template */
 function buildChecklistPage(opts: {
   logoUrl?: string;
   title: string;
@@ -439,41 +562,71 @@ function buildChecklistPage(opts: {
     status: string;  // C, NC, NA
     consideracoes: string;
     photoUrl?: string;
+    photoUrls?: string[]; // multiple photos
   }>;
   showPhotos: boolean;
 }) {
-  const cols = opts.showPhotos ? 5 : 4;
   const itemsHtml = opts.items.map(item => {
-    const sc = item.status === 'C' ? { bg: '#dcfce7', text: '#166534' }
-      : item.status === 'NC' ? { bg: '#fee2e2', text: '#991b1b' }
-      : { bg: '#f3f4f6', text: '#374151' };
-    return `<tr>
-      <td style="font-size:9px">${esc(item.verificacao)}</td>
-      <td style="font-size:9px">${esc(item.norma)}</td>
-      <td style="font-size:9px">${esc(item.descricao)}</td>
-      <td style="text-align:center"><span class="tact-status-badge" style="background:${sc.bg};color:${sc.text};font-size:12px">${esc(item.status)}</span></td>
-      ${opts.showPhotos ? `<td><div class="tact-checklist-photo">${item.photoUrl ? `<img src="${esc(item.photoUrl)}" alt="Evidência" />` : 'Evidência Visual'}</div></td>` : ''}
-      <td style="font-size:9px">${esc(item.consideracoes)}</td>
-    </tr>`;
+    const sc = item.status === 'C' ? { bg: '#dcfce7', text: '#166534', label: 'Conforme' }
+      : item.status === 'NC' ? { bg: '#fee2e2', text: '#991b1b', label: 'Não Conforme' }
+      : { bg: '#f3f4f6', text: '#374151', label: 'N/A' };
+
+    const allPhotos = item.photoUrls?.length ? item.photoUrls : (item.photoUrl ? [item.photoUrl] : []);
+    const hasPhotos = allPhotos.length > 0 && opts.showPhotos;
+
+    return `
+    <div class="tact-checklist-item-block ${hasPhotos ? 'with-photo' : 'no-photo'}">
+      <div class="tact-checklist-item-fields">
+        <div>
+          <div class="tact-checklist-field-label">Itens de Verificação:</div>
+          <div class="tact-checklist-field-value">${esc(item.verificacao)}</div>
+        </div>
+        <div>
+          <div class="tact-checklist-field-label">Norma de Referência:</div>
+          <div class="tact-checklist-field-value">${esc(item.norma)}</div>
+        </div>
+        <div>
+          <div class="tact-checklist-field-label">Descrição Adicional do Item:</div>
+          <div class="tact-checklist-field-value">${esc(item.descricao)}</div>
+        </div>
+      </div>
+      ${hasPhotos ? `
+      <div class="tact-checklist-photo-area">
+        <div class="tact-checklist-photo-area-label">Evidência Visual</div>
+        ${allPhotos.map(url => `<img src="${esc(url)}" class="tact-checklist-photo-img" alt="Evidência" />`).join('')}
+      </div>` : ''}
+      <div class="tact-checklist-status-row">
+        <span class="tact-checklist-status-label">STATUS</span>
+        <span class="tact-status-badge" style="background:${sc.bg};color:${sc.text};font-size:11px;font-weight:900">${esc(item.status)}</span>
+      </div>
+      <div class="tact-checklist-consideracoes">
+        <div class="tact-checklist-field-label">Considerações Adicionais:</div>
+        <div class="tact-checklist-field-value">${esc(item.consideracoes)}</div>
+      </div>
+    </div>`;
   }).join('');
 
   return wrapPage(`
-    ${infoGrid([
-      { label: 'Empresa:', value: opts.empresa },
-      { label: 'Obra:', value: opts.obra },
-      { label: 'Tema CheckList:', value: opts.tema, wide: true },
-      { label: 'Data:', value: opts.data },
-    ])}
-    <table class="tact-checklist-table">
-      <tr>
-        <th style="width:25%">Itens de Verificação</th>
-        <th style="width:15%">Norma de Referência</th>
-        <th style="width:30%">Descrição Adicional do Item</th>
-        <th style="width:10%">STATUS</th>
-        ${opts.showPhotos ? '<th style="width:20%">Evidência Visual</th>' : ''}
-      </tr>
-      ${itemsHtml}
-    </table>
+    <div class="tact-checklist-info">
+      <div class="tact-checklist-info-field">
+        <span class="tact-checklist-info-label">Empresa:</span>
+        <span class="tact-checklist-info-value">${esc(opts.empresa)}</span>
+      </div>
+      <div class="tact-checklist-info-field">
+        <span class="tact-checklist-info-label">Obra:</span>
+        <span class="tact-checklist-info-value">${esc(opts.obra)}</span>
+      </div>
+      <div class="tact-checklist-info-field">
+        <span class="tact-checklist-info-label">Tema CheckList:</span>
+        <span class="tact-checklist-info-value">${esc(opts.tema)}</span>
+      </div>
+      <div class="tact-checklist-info-field">
+        <span class="tact-checklist-info-label">Data:</span>
+        <span class="tact-checklist-info-value">${esc(opts.data)}</span>
+      </div>
+    </div>
+    <div class="tact-checklist-separator"></div>
+    ${itemsHtml}
   `, opts.logoUrl, opts.title);
 }
 
@@ -935,14 +1088,15 @@ export function buildChecklistHtml(data: {
     status: string;
     consideracoes: string;
     photoUrl?: string;
+    photoUrls?: string[];
   }>;
 }): string {
   const pages: string[] = [];
-  const hasAnyPhoto = data.items.some(i => i.photoUrl);
+  const hasAnyPhoto = data.items.some(i => i.photoUrl || (i.photoUrls && i.photoUrls.length > 0));
 
   if (hasAnyPhoto) {
-    // 2 items per page with photo column
-    for (let i = 0; i < data.items.length; i += 2) {
+    // 1 item per page with photo/evidence block (matching PPTX slide 6)
+    for (let i = 0; i < data.items.length; i += 1) {
       pages.push(buildChecklistPage({
         logoUrl: data.logoUrl,
         title: 'CheckList',
@@ -950,12 +1104,12 @@ export function buildChecklistHtml(data: {
         obra: data.obra,
         tema: data.tema,
         data: data.data,
-        items: data.items.slice(i, i + 2),
+        items: data.items.slice(i, i + 1),
         showPhotos: true,
       }));
     }
   } else {
-    // 4 items per page without photos
+    // Up to 4 items per page without photos (matching PPTX slide 7)
     for (let i = 0; i < data.items.length; i += 4) {
       pages.push(buildChecklistPage({
         logoUrl: data.logoUrl,
